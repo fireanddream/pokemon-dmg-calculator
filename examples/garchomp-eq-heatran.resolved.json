@@ -1,0 +1,70 @@
+{
+  "kind": "single",
+  "attacker": {
+    "name": "Garchomp",
+    "types": [
+      "Dragon",
+      "Ground"
+    ],
+    "level": 50,
+    "stats": {
+      "hp": 183,
+      "atk": 182,
+      "def": 115,
+      "spa": 90,
+      "spd": 105,
+      "spe": 134
+    },
+    "nature": "Jolly",
+    "evs": {
+      "atk": 252
+    },
+    "ability": "Sand Veil",
+    "item": "Life Orb",
+    "noItem": false,
+    "mega": false,
+    "weightKg": 95
+  },
+  "defender": {
+    "name": "Heatran",
+    "types": [
+      "Fire",
+      "Steel"
+    ],
+    "level": 50,
+    "stats": {
+      "hp": 198,
+      "atk": 110,
+      "def": 126,
+      "spa": 150,
+      "spd": 126,
+      "spe": 97
+    },
+    "nature": "Serious",
+    "evs": {
+      "hp": 252
+    },
+    "ability": "Flash Fire",
+    "noItem": false,
+    "mega": false,
+    "weightKg": 430
+  },
+  "move": {
+    "name": "Dragon Claw",
+    "type": "Dragon",
+    "category": "Physical",
+    "power": 80,
+    "accuracy": 100,
+    "priority": 0,
+    "pp": 15,
+    "target": "Normal",
+    "flags": [
+      "Contact",
+      "Metronome",
+      "Mirror",
+      "Protect"
+    ],
+    "description": "No additional effect."
+  },
+  "flags": []
+}

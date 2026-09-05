@@ -1,0 +1,17 @@
+{
+  "attacker": {
+    "name": "Garchomp",
+    "level": 50,
+    "nature": "Jolly",
+    "evs": { "atk": 252 },
+    "item": "Life Orb",
+    "ability": "Sand Veil"
+  },
+  "defender": {
+    "name": "Heatran",
+    "level": 50,
+    "nature": "Serious",
+    "evs": { "hp": 252 }
+  },
+  "move": "Dragon Claw"
+}

@@ -1,0 +1,311 @@
+{
+  "meta": {
+    "source": "https://www.smogon.com/dex/xy/ (RPC: dump-basics)",
+    "generation": "xy",
+    "scope": "The 25 natures with their stat multipliers",
+    "count": 25,
+    "generatedAt": "2026-09-03T03:50:47.281Z"
+  },
+  "natures": [
+    {
+      "name": "Adamant",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1.1,
+        "def": 1,
+        "spa": 0.9,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": "+Atk, -SpA"
+    },
+    {
+      "name": "Bashful",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": ""
+    },
+    {
+      "name": "Bold",
+      "multipliers": {
+        "hp": 1,
+        "atk": 0.9,
+        "def": 1.1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": "+Def, -Atk"
+    },
+    {
+      "name": "Brave",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1.1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 0.9
+      },
+      "summary": "+Atk, -Spe"
+    },
+    {
+      "name": "Calm",
+      "multipliers": {
+        "hp": 1,
+        "atk": 0.9,
+        "def": 1,
+        "spa": 1,
+        "spd": 1.1,
+        "spe": 1
+      },
+      "summary": "+SpD, -Atk"
+    },
+    {
+      "name": "Careful",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 0.9,
+        "spd": 1.1,
+        "spe": 1
+      },
+      "summary": "+SpD, -SpA"
+    },
+    {
+      "name": "Docile",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": ""
+    },
+    {
+      "name": "Gentle",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 0.9,
+        "spa": 1,
+        "spd": 1.1,
+        "spe": 1
+      },
+      "summary": "+SpD, -Def"
+    },
+    {
+      "name": "Hardy",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": ""
+    },
+    {
+      "name": "Hasty",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 0.9,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1.1
+      },
+      "summary": "+Spe, -Def"
+    },
+    {
+      "name": "Impish",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1.1,
+        "spa": 0.9,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": "+Def, -SpA"
+    },
+    {
+      "name": "Jolly",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 0.9,
+        "spd": 1,
+        "spe": 1.1
+      },
+      "summary": "+Spe, -SpA"
+    },
+    {
+      "name": "Lax",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1.1,
+        "spa": 1,
+        "spd": 0.9,
+        "spe": 1
+      },
+      "summary": "+Def, -SpD"
+    },
+    {
+      "name": "Lonely",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1.1,
+        "def": 0.9,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": "+Atk, -Def"
+    },
+    {
+      "name": "Mild",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 0.9,
+        "spa": 1.1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": "+SpA, -Def"
+    },
+    {
+      "name": "Modest",
+      "multipliers": {
+        "hp": 1,
+        "atk": 0.9,
+        "def": 1,
+        "spa": 1.1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": "+SpA, -Atk"
+    },
+    {
+      "name": "Naive",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 0.9,
+        "spe": 1.1
+      },
+      "summary": "+Spe, -SpD"
+    },
+    {
+      "name": "Naughty",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1.1,
+        "def": 1,
+        "spa": 1,
+        "spd": 0.9,
+        "spe": 1
+      },
+      "summary": "+Atk, -SpD"
+    },
+    {
+      "name": "Quiet",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1.1,
+        "spd": 1,
+        "spe": 0.9
+      },
+      "summary": "+SpA, -Spe"
+    },
+    {
+      "name": "Quirky",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": ""
+    },
+    {
+      "name": "Rash",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1.1,
+        "spd": 0.9,
+        "spe": 1
+      },
+      "summary": "+SpA, -SpD"
+    },
+    {
+      "name": "Relaxed",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1.1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 0.9
+      },
+      "summary": "+Def, -Spe"
+    },
+    {
+      "name": "Sassy",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1.1,
+        "spe": 0.9
+      },
+      "summary": "+SpD, -Spe"
+    },
+    {
+      "name": "Serious",
+      "multipliers": {
+        "hp": 1,
+        "atk": 1,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1
+      },
+      "summary": ""
+    },
+    {
+      "name": "Timid",
+      "multipliers": {
+        "hp": 1,
+        "atk": 0.9,
+        "def": 1,
+        "spa": 1,
+        "spd": 1,
+        "spe": 1.1
+      },
+      "summary": "+Spe, -Atk"
+    }
+  ]
+}

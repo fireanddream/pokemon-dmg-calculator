@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# TypeScript build output
+dist/
+
+# Local session archives (personal notes + scratch tools, not part of the project)
+session-tools-archive/
+
+# OS junk
+Thumbs.db
+.DS_Store
