@@ -6,12 +6,13 @@ status / weather / terrain words that map to engine tokens. It is written to be
 read and **edited by people** — add your own aliases here so they are recorded
 in one place.
 
-> **Status: registry / documentation.** These tables mirror the built-in lookup
-> tables in `scripts/input-converter.mjs` (the offline extractor), which is what
-> the parser actually reads today.
-> Wiring this file into the parser (so an edit here changes what the front
-> accepts) is planned future work — see `OVERHAUL-PLAN.md` WS1. Until then, an
-> alias you add here is recorded for the implementation, not yet live.
+> **Status: registry / documentation.** Species / move / item / stat / status /
+> weather tables below mirror the built-in lookup tables in
+> `scripts/input-converter.mjs` (the offline extractor), which is what the
+> parser actually reads today. Wiring those tables into the parser (so an edit
+> here changes what the front accepts) is planned future work — see
+> `OVERHAUL-PLAN.md` WS1. The **Type plates** table is the exception: it is
+> parsed at startup, so an edit there changes plate resolution immediately.
 >
 > Full canonical names (species, moves, items, abilities, natures) come from
 > the dex data in `data/` and are accepted as-is without an alias. This file
@@ -73,15 +74,26 @@ Usage: `Garchomp uses EQ vs Skarmory`. Full move names (`Earthquake`,
 | `scarf` | Choice Scarf | |
 | `belt` | Expert Belt | |
 | `sash` | Focus Sash | |
-| `plate` | the type plate matching the move | see the plate table below |
+| `plate` | the type plate matching the move | bare keyword or `<Type> plate`, see below |
 
 `lo` is the only two-way acronym: on the **attacker** it is Life Orb, on the
 **defender** it is Leftovers.
 
-### Type plates (`plate` resolves by move type)
+### Type plates
 
-The `plate` keyword (or a plate's own name) resolves to the 20% plate for the
-**move's effective type**:
+This table is **machine-parsed at startup** (`scripts/input-converter.mjs`) — an
+edit here changes what the front accepts. Each row serves both needs:
+
+- (a) the `plate` keyword resolves to the 20% type-boost item for the **move's
+  effective type** (Flame Plate for a Fire move, ...);
+- (b) the type-first phrase `<Type> plate` is an item alias for that row's item
+  (`fairy plate` → Pixie Plate, `psychic plate` → Mind Plate, ...). A plate's
+  own name works too, so `@ Fairy Plate`, `@ Pixie Plate`, and a bare `plate`
+  with a Fairy move all give the same item.
+
+Normal has no plate item, so its row is **Silk Scarf** (Normal's 20% type-boost
+item): `normal plate` — or a bare `plate` with a Normal move — resolves to
+Silk Scarf.
 
 | Move type | Plate |
 |---|---|
@@ -97,13 +109,12 @@ The `plate` keyword (or a plate's own name) resolves to the 20% plate for the
 | Grass | Meadow Plate |
 | Ground | Earth Plate |
 | Ice | Icicle Plate |
+| Normal | Silk Scarf |
 | Poison | Toxic Plate |
 | Psychic | Mind Plate |
 | Rock | Stone Plate |
 | Steel | Iron Plate |
 | Water | Splash Plate |
-
-No plate boosts Normal — `plate` with a Normal move resolves to no item.
 
 ## Stat abbreviations
 

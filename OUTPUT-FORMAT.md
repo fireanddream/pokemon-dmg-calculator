@@ -143,7 +143,8 @@ and the KO sim starts from the reduced HP.
 
 Optional comma-separated `[...]` flags include `crit`, the screen name
 (`reflect` / `light screen`), `ignored: <ability>` (Mold Breaker etc.), and
-item/plate resolution notes (e.g. when `plate` resolved to no item).
+item/plate resolution notes (e.g. when a bare `plate` resolves to no boosting
+item for the move's type).
 
 ## Damage row
 

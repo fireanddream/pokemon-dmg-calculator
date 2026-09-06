@@ -41,6 +41,39 @@ const natureByName = new Map(naturesData.natures.map((n) => [n.name.toLowerCase(
 const moveByName = new Map(movesData.moves.map((m) => [norm(m.name), m]));
 const monByName = new Map(dexData.pokemon.map((p) => [norm(p.name), p]));
 
+// --- doc-as-code rule store: aliases.md. The Type plates table is parsed at
+// startup so the plate map (and the `<type> plate` item phrases built from it)
+// follow edits to aliases.md; the built-in table is only a fallback if the file
+// can't be read or parsed (mirrors how fill.mjs treats auto-fill-defaults.md).
+let ALIAS_DOC = "";
+try {
+  ALIAS_DOC = await readFile(path.join(here, "..", "aliases.md"), "utf8");
+} catch { /* missing/unreadable: fall back to the built-in table below */ }
+
+/** The text from a `#{1,6} <heading>` line to the next heading (any level). */
+function mdSection(doc, heading) {
+  if (!doc) return "";
+  const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^#{1,6}\\s+${esc}\\s*$`, "gm");
+  const m = re.exec(doc);
+  if (!m) return "";
+  const tail = doc.slice(m.index + m[0].length);
+  const next = /^#{1,6}\s/m.exec(tail);
+  return tail.slice(0, next ? next.index : tail.length);
+}
+
+/** Cell arrays of the rows in the first `|...|` table of a section (skips the
+ *  column header and the `|---|` separator line). */
+function mdTableRows(section) {
+  return section
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("|"))
+    .slice(2)
+    .map((l) => l.split("|").slice(1, -1).map((c) => c.trim()))
+    .filter((cells) => cells.length >= 2);
+}
+
 const NATURE_NAMES = [...natureByName.keys()];
 const ABILITY_CANON = [...new Set(dexData.pokemon.flatMap((p) => p.abilities))];
 const ABILITY_NAMES = ABILITY_CANON.map((a) => a.toLowerCase());
@@ -71,16 +104,44 @@ function resolveMoveName(text) {
   return moveByName.get(norm(canon))?.name ?? null;
 }
 
-// type -> 20% damage plate. The "plate" keyword picks by the move's *effective*
-// type (after Aerilate/Pixilate/Refrigerate remaps); the plates themselves are
-// also parseable by name, so "@ Pixie Plate" works on a Pixilate Hyper Voice.
-const PLATE_BY_TYPE = {
+// type -> 20% type-boost item. The "plate" keyword picks by the move's
+// *effective* type (after Aerilate/Pixilate/Refrigerate remaps). Normal has no
+// plate item, so its row is Silk Scarf (Normal's 20% type-boost item). The
+// table comes from aliases.md ("Type plates", doc-as-code); BUILTIN_PLATES is
+// only the fallback when the md can't be read or parsed.
+const BUILTIN_PLATES = {
   Bug: "Insect Plate", Dark: "Dread Plate", Dragon: "Draco Plate", Electric: "Zap Plate",
   Fairy: "Pixie Plate", Fighting: "Fist Plate", Fire: "Flame Plate", Flying: "Sky Plate",
   Ghost: "Spooky Plate", Grass: "Meadow Plate", Ground: "Earth Plate", Ice: "Icicle Plate",
-  Poison: "Toxic Plate", Psychic: "Mind Plate", Rock: "Stone Plate", Steel: "Iron Plate",
-  Water: "Splash Plate",
+  Normal: "Silk Scarf", Poison: "Toxic Plate", Psychic: "Mind Plate",
+  Rock: "Stone Plate", Steel: "Iron Plate", Water: "Splash Plate",
 };
+const TYPE_BY_LOWER = new Map(typesData.types.map((t) => [t.name.toLowerCase(), t.name]));
+
+/** Parse the aliases.md "Type plates" table into { type -> item }. Each row
+ *  also yields a `<type> plate` phrase alias (see ITEM_ALIAS below), so the one
+ *  table drives both the bare-`plate` keyword and the type-first spellings.
+ *  Returns null when the section is missing, a cell is unreadable, or the table
+ *  doesn't cover all 18 types (the caller warns and falls back to
+ *  BUILTIN_PLATES, mirroring fill.mjs's handling of a broken
+ *  auto-fill-defaults.md). */
+function parsePlateTable(doc) {
+  const section = mdSection(doc, "Type plates");
+  if (!section) return null;
+  const rows = new Map();
+  for (const cells of mdTableRows(section)) {
+    const type = TYPE_BY_LOWER.get(cells[0].toLowerCase());
+    if (!type || !cells[1]) return null;
+    rows.set(type, cells[1]);
+  }
+  return rows.size === TYPE_BY_LOWER.size ? Object.fromEntries(rows) : null;
+}
+
+let PLATE_BY_TYPE = parsePlateTable(ALIAS_DOC);
+if (!PLATE_BY_TYPE) {
+  console.warn("WARNING: aliases.md \"Type plates\" table not found or unparseable; using built-in plate fallback.");
+  PLATE_BY_TYPE = { ...BUILTIN_PLATES };
+}
 
 const ITEM_NAMES = [
   "Leftovers", "Life Orb", "Choice Band", "Choice Scarf", "Choice Specs",
@@ -98,6 +159,19 @@ const ITEM_NAMES = [
   ...Object.values(PLATE_BY_TYPE),
   ...Object.keys(RESIST_BERRIES),
 ].sort((a, b) => b.length - a.length);
+
+// Item lookup is phrase-first: canonical item names PLUS the `<type> plate`
+// aliases (fairy plate -> Pixie Plate, normal plate -> Silk Scarf, ...) derived
+// from the same aliases.md table that PLATE_BY_TYPE comes from. The item-name
+// pass consumes these phrases BEFORE the bare-`plate` keyword pass, so a typed
+// "Fairy Plate" binds that exact item and never falls through to the move-type
+// resolution — "@ Fairy Plate" with a Ground move is Pixie Plate, not Earth.
+const ITEM_ALIAS = new Map();
+for (const name of ITEM_NAMES) ITEM_ALIAS.set(name.toLowerCase(), name);
+for (const [type, item] of Object.entries(PLATE_BY_TYPE)) {
+  ITEM_ALIAS.set(`${type.toLowerCase()} plate`, item);
+}
+const ITEM_PHRASES = [...ITEM_ALIAS.keys()].sort((a, b) => b.length - a.length);
 
 const USAGE = `usage:
   node scripts/input-converter.mjs "<atk> uses <move> vs <def>"   (spec JSON)
@@ -312,16 +386,16 @@ function parseCombatant(raw, side = "attacker") {
   s = abilPass.text;
   if (abilPass.hits.length) spec.ability = ABILITY_CANON[ABILITY_NAMES.indexOf(abilPass.hits[0][0])];
 
-  // item: known item name
-  const itemPass = stripMatches(s, String.raw`\b(${ITEM_NAMES.map((n) => n.toLowerCase()).sort((a, b) => b.length - a.length).join("|")})\b`);
+  // item: known item name or a `<type> plate` phrase alias (both a plate's own
+  // name and its type-first spelling resolve to the same item here)
+  const itemPass = stripMatches(s, String.raw`\b(${ITEM_PHRASES.join("|")})\b`);
   s = itemPass.text;
-  if (itemPass.hits.length) {
-    const idx = ITEM_NAMES.map((n) => n.toLowerCase()).indexOf(itemPass.hits[0][0]);
-    spec.item = ITEM_NAMES[idx];
-  }
+  if (itemPass.hits.length) spec.item = ITEM_ALIAS.get(itemPass.hits[0][0]);
 
   // item acronyms. LO is context-sensitive: Life Orb on the attacker, Leftovers
-  // on the defender. "plate" is resolved later from the move's type.
+  // on the defender. A BARE "plate" (no type word ahead of it) is resolved
+  // later from the move's type — a "<type> plate" phrase was already consumed
+  // as an item above.
   const ACRO = [
     ["choice band", { item: "Choice Band" }], ["choice specs", { item: "Choice Specs" }],
     ["choice scarf", { item: "Choice Scarf" }], ["banded", { item: "Choice Band" }],

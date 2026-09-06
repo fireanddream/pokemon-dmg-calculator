@@ -46,7 +46,7 @@ Status legend:
 | Ring Target | done | Negates the holder's typing immunities (Normal hits a Ring Target Ghost, Ground hits a Flying, etc.). |
 | Black Sludge | done | Heals a Poison-type holder 1/16 and chips non-Poison holders 1/16 in the KO sim / turn table. |
 | Soul Dew / Thick Club / Light Ball / Deep Sea Tooth / Deep Sea Scale | done | Species stat multipliers (Latios/Latias, Marowak/Cubone, Pikachu, Clamperl). |
-| Plates | done | All 17 plates parse by name, and the `plate` keyword picks by the move's **effective** type (a Pixilate Hyper Voice gets Pixie Plate). |
+| Plates | done | All 17 plates parse by name AND by the `<Type> plate` spelling (`@ Fairy Plate` → Pixie Plate — source of truth: aliases.md "Type plates" table, parsed at startup). A bare `plate` picks by the move's **effective** type (a Pixilate Hyper Voice gets Pixie Plate); Normal has no plate, so `normal plate` / `plate` + a Normal move → Silk Scarf. |
 | Metronome | not implemented | Consecutive-use power ramp (multi-turn; low priority). |
 
 ## Moves
