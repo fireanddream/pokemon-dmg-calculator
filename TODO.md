@@ -22,6 +22,19 @@ as they land.
   Steel/Normal plates, Pixilate effective-type, defender + combo anchoring).
   Session notes: `session-tools-archive/SESSION-NOTES-20260906-PLATE-ALIASES.md`.
 
+- **No-"uses" declaration landed (docs).** Project-wide (and matching the
+  accepted grammar contract in ## 2b below): a query is TWO free-order SIDES
+  split by `vs` — users are NEVER assumed to type `uses`/`use`, and agents must
+  not add or require it. `AGENTS.md` rule 2 / rule 3 / the Agent-route
+  paragraph were rewritten: the agent route (free-word query → spec JSON →
+  `fill | calc | output --chat`) is now the DEFAULT; the literal
+  `<atk> uses <move> vs <def>` frame is only a compat input for the
+  `input-converter.mjs` / `damage.mjs` canned lines. Reference-index rows that
+  pointed at a since-archived README were re-pointed at the living docs. Root
+  cause of the old habit: rule 2 hard-coded the "uses" chain invocation AND
+  `parseQuery` (input-converter.mjs) uses `uses` as its only delimiter, so
+  every example taught the frame.
+
 ## Done (2026-09-05)
 
 - **Front split: `filler.mjs` → `input-converter.mjs` + `fill.mjs`.** The single
@@ -270,4 +283,49 @@ canonical value:
 - All checks are per side (a species name repeats legitimately across sides in a
   mirror match); the defender side's zero-move-survivor rule (concern 3) fires
   before any of this.
+
+### Mega upgrade signal: exact-shape rule + decisions (agreed 2026-09-06)
+
+A tokenizer / species resolver must read `mega` (standalone), `mega-<base>`
+(hyphen prefix), or `<base>-mega` (hyphen suffix) as an "upgrade this side's
+pokemon to its Mega forme" command. Design decisions recorded in session
+(2026-09-06), converter implementation NOT started:
+
+- **Scope.** The signal binds only to the species of the side it appears in and
+  is read ONLY on the combatant's leftover species words — i.e. after every
+  phrase pass (nature / ability / item / status / weather). Move-slot words
+  never reach species resolution, so `Mega Punch` / `Mega Kick` / `Mega Drain`
+  / `Megahorn` in the move slot can never be misread as an upgrade (verified).
+  Conflict inventory: ability `Mega Launcher` (two-word, space form) is
+  consumed by the ability pass FIRST — its `mega` never leaks to the signal
+  (verified `with Mega Launcher`). No other "mega"-containing token exists in
+  the side lexicons.
+- **Exact shapes only.** Standalone word `mega`, hyphen-glued `mega-` prefix,
+  hyphen-glued `-mega` suffix. NO bare-substring or word-edge regex: that is
+  what protects the species `Meganium` / `Yanmega` (and single-word move
+  `Megahorn`) — they contain edge-adjacent "mega" with no hyphen and must keep
+  resolving as themselves.
+- **`mega- <x>` / `<x> -mega` with a space let it error.** The non-empty-base
+  guard means a stray `mega-` / `-mega` token (nothing glued after/before the
+  hyphen) is not un-glued, stays junk, and falls into the existing hard
+  "could not identify a pokemon" error. Users would never type these; no
+  special handling.
+- **Implementation shape (proposed):** in `parseCombatant`'s species-words
+  step (currently `scripts/input-converter.mjs` ~L485–565, which already hosts
+  the standalone-`mega` upgrade at L554), un-glue the two exact hyphen shapes
+  into space words (`mega-<x>` → `mega <x>`, `<x>-mega` → `<x> mega`) and let
+  the EXISTING permutation + alias-fallback + mega rule do the rest — full
+  names resolve to the forme directly, aliases resolve to the base and upgrade
+  (`ttar-mega`, `mega-chomp`). No new matching code.
+- **Upgrade signal on a species with NO mega forme = HARD ERROR.** Replaces the
+  earlier silent no-op ("Mega Clawitzer" today resolves to base Clawitzer with
+  `mega` ignored). A signal that names no existing `-Mega` forme fails loud.
+- **`-X`/`-Y` formes stay explicit.** Charizard / Mewtwo have no plain
+  `<base>-Mega`; the upgrade must not fabricate one. `Mega Charizard X`,
+  `Charizard-Mega-X` (and same for Y) already resolve; a bare `Mega Charizard`
+  keeps today's dex-order pick — unchanged, out of scope.
+- **No-forme idempotence.** A token already resolving to a `-Mega` / `-Mega-X`
+  / `-Mega-Y` dex entry is never re-upgraded (existing `!name.endsWith("-Mega")`
+  guard covers this; keep it).
+
 

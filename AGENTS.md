@@ -6,11 +6,13 @@ it deliberately holds only the **always-on rules** (MUST OBEY below) plus an
 **index**. The deep reference prose lives in the repo docs — read the index,
 then the doc you need; never try to memorize it all.
 
-Pipeline: `input-converter.mjs` (natural-language line → spec JSON) OR an
-**agent** (loose English → spec JSON) → `scripts/fill.mjs` (defaults + resolve:
-spec JSON → calc-input JSON; rules parsed from `auto-fill-defaults.md`) →
-`scripts/calc.mjs` (pure math) → `scripts/output.mjs` (result card; OWNS the
-layout). `damage.mjs` is a thin compat card CLI gluing the same chain.
+Pipeline: an **agent** (free-word query → spec JSON — users are NOT assumed to
+type `uses`/`use`) or `input-converter.mjs` (compat extractor that only accepts
+the literal `<atk> uses <move> vs <def>` frame, kept for canned / corpus lines)
+→ `scripts/fill.mjs` (defaults + resolve: spec JSON → calc-input JSON; rules
+parsed from `auto-fill-defaults.md`) → `scripts/calc.mjs` (pure math) →
+`scripts/output.mjs` (result card; OWNS the layout). `damage.mjs` is a thin
+compat card CLI gluing the same chain.
 
 ## MUST OBEY — identity, answering a query, defaults policy
 
@@ -23,23 +25,36 @@ than improvising numbers.
 
 **2. A damage input is answered from the output script — paste its code block
 verbatim, no thinking, no reformatting.** Whenever the user gives a damage /
-KO / accuracy / chip calc ("<attacker> uses <move> vs <defender>", "does X
-one-shot Y", "how many hits to KO", "what % does Z do"):
+KO / accuracy / chip calc ("Garchomp Dragon Claw vs Heatran", "does X one-shot
+Y", "how many hits to KO", "what % does Z do"):
 
-1. Translate the user's words into the spec line(s) using only what they said.
-   See **README → "The spec grammar"** for the tokens. Do not invent or fill
-   anything they didn't type.
-2. Run the staged chain (one chain per distinct query):
+1. Read the query as two SIDES split by `vs`: text left of `vs` is the
+   attacker, text right is the defender, and the move is a word/phrase on the
+   attacker side. The user does NOT type `uses`/`use` — never expect it, add
+   it, or require it. The literal `<atk> uses <move> vs <def>` frame exists
+   only as a compat input for the `input-converter.mjs` / `damage.mjs` canned
+   lines. A query without `vs` is not answerable yet — ask for the other side
+   rather than inventing one.
+2. Author the spec JSON yourself — the same record `input-converter.mjs`
+   would emit — from ONLY what the user said: canonical dex names via
+   `aliases.md` + `data/*.json`, shorthand kept as intent tokens (`max atk`,
+   `plate`, `LO`, a lone `+N` as `boosts`). Do not invent or fill anything
+   they didn't type; if the wording can't be carried to a spec, ask instead
+   of guessing. Tokens and defaults: `auto-fill-defaults.md` → "The only times
+   the agent adds to the spec".
+3. Run the staged chain on that JSON (one chain per distinct query):
 
    ```
-   node scripts/input-converter.mjs "<atk> uses <move> vs <def>" | node scripts/fill.mjs - | node scripts/calc.mjs - | node scripts/output.mjs - --chat
+   <spec JSON> | node scripts/fill.mjs - | node scripts/calc.mjs - | node scripts/output.mjs - --chat
    ```
 
    `--chat` wraps the OUTPUT-FORMAT card in a fenced code block — that block is
-   the deliverable. `node scripts/damage.mjs "<spec>"` alone prints the same
-   card for a quick local look; use the staged `--chat` form whenever the result
-   goes into a chat window.
-3. Paste the returned code block back **verbatim, byte for byte**. Never
+   the deliverable. Canned/compat equivalent for a literal frame line: `node
+   scripts/input-converter.mjs "<atk> uses <move> vs <def>"` feeding the same
+   `fill | calc | output --chat` tail; `node scripts/damage.mjs "<atk> uses
+   <move> vs <def>"` prints the same card for a quick local look. Use the
+   staged `--chat` form whenever the result goes into a chat window.
+4. Paste the returned code block back **verbatim, byte for byte**. Never
    summarize, restate, reformat, hand-write, or re-wrap a card, and never
    substitute your own numbers for the output. If a stage errors, report the
    error — never substitute your own numbers.
@@ -50,8 +65,8 @@ held item, status, stages, ability, weather, ...). Therefore:
 
 - **Pass the user's words through unchanged.** Never add EVs, natures, items,
   boosts, status, or weather the user didn't type — that double-applies a
-  default or invents an assumption. "Garchomp vs Heatran" ⇒
-  `"Garchomp uses <move> vs Heatran"` with nothing added.
+  default or invents an assumption. "Garchomp Dragon Claw vs Heatran" ⇒
+  attacker Garchomp, move Dragon Claw, defender Heatran — nothing added.
 - The card prints what was resolved (nature, EVs, item, ability) — a wrong
   assumption is visible there, so don't pre-empt the front by guessing.
 - The only time you add to the spec is when the user's intent contradicts a
@@ -61,16 +76,17 @@ held item, status, stages, ability, weather, ...). Therefore:
 - If a query can't be translated, or needs a choice the front can't infer, ask
   the user instead of guessing.
 
-**Agent route (loose English).** For typo-laden, non-grammar input (`garcomp`,
-missing `uses`, bare `LO`), resolve names to canonical dex entries via
-`aliases.md` + `data/*.json`, keep shorthand as intent tokens (`max atk`,
-`plate`), and write the SAME spec JSON the converter would. You may read a lone
-`+N`/`-N` (e.g. `Ferrothorn +1`) as an explicit `boosts.{stat}` on the first
-move's stat — the offline converter rejects a stat-less signed number, so this
-is agent-only. If the wording can't be carried by the grammar, author the spec
-JSON directly and pipe it through `fill.mjs | calc.mjs | output.mjs`. Never
-hand-compose a resolved calc-input record for `calc.mjs`. `fill.mjs` is the
-shared deterministic stage: identical stated variables ⇒ byte-identical cards.
+**Agent route — the DEFAULT route.** Users speak free-order sides split by `vs`
+and never type `uses`; so for every query, resolve names to canonical dex
+entries via `aliases.md` + `data/*.json`, keep shorthand as intent tokens
+(`max atk`, `plate`), and author the SAME spec JSON the converter would emit.
+You may read a lone `+N`/`-N` (e.g. `Ferrothorn +1`) as an explicit
+`boosts.{stat}` on the first move's stat — the offline converter rejects a
+stat-less signed number, so this is agent-only. Pipe the spec JSON through
+`fill.mjs | calc.mjs | output.mjs`; never hand-compose a resolved calc-input
+record for `calc.mjs`. `fill.mjs` is the shared deterministic stage: identical
+stated variables ⇒ byte-identical cards. If the wording can't be carried to a
+spec, or needs a choice the front can't infer, ask the user instead of guessing.
 
 ## Reference index
 
@@ -78,15 +94,14 @@ Read the section you need from the file that owns it; never memorize these.
 
 | Topic | Where it lives |
 | --- | --- |
-| Query grammar: side-spec shape, tokens, item/move/species acronyms, investment shorthands, stat-stage + acc/eva tokens, hazards, status/weather/terrain words | **README → "The spec grammar"** |
+| Query tokens & side shapes: word/phrase lexicons live in `input-converter.mjs` passes; name/acronym tables (species, move, item, stat, status, weather, type plates) in **`aliases.md`** (doc-as-code); investment/stat-stage/arena token rules + "only times the agent adds to the spec" in **`auto-fill-defaults.md`** | `aliases.md` · `auto-fill-defaults.md` · `input-converter.mjs` |
 | Defaults the engine applies, EV/nature shorthands, orbs, weather setters, ability pick order, the only times the agent adds to the spec | **`auto-fill-defaults.md`** (doc-as-code, parsed by `fill.mjs`) |
-| Full alias/acronym tables (species, move, item, stat, status, weather, type plates) | **`aliases.md`** (doc-as-code, hand-editable) |
-| Two-move combos · turn-by-turn sim | README sections (same titles) |
-| Accuracy/evasion: modeled SEPARATELY from damage — acc tokens never change damage/KO numbers (`verify:damage` stays byte-identical to the oracle); engine `src/accuracy.ts`, `npm run verify:acc` | README + OUTPUT-FORMAT.md "Chance to hit all attacks" |
+| Two-move combos · turn-by-turn sim | **`OUTPUT-FORMAT.md`** "Two-move combos (fixed sequence)" · "Turn-by-turn block" |
+| Accuracy/evasion: modeled SEPARATELY from damage — acc tokens never change damage/KO numbers (`verify:damage` stays byte-identical to the oracle); engine `src/accuracy.ts`, `npm run verify:acc` | **`OUTPUT-FORMAT.md`** "Chance to hit all attacks" + `src/accuracy.ts` |
 | Dynamic-power (variable BP) moves + what the CLI can/can't model | **`ENGINE-GAPS.md`** |
 | Result-card contract (layout owned by `output.mjs`) | **`OUTPUT-FORMAT.md`** |
 | Backlog / approved work / open threads | **`TODO.md`** |
-| Repo layout, team DB, tools | README · `myteam/` · `teams_tools/` (below) |
+| Repo layout, team DB, tools | "Project layout" below · `myteam/` · `teams_tools/` |
 
 **Card layout is not the agent's job.** The result-card layout is implemented
 once in `scripts/output.mjs` and pinned in `OUTPUT-FORMAT.md`. The agent never
