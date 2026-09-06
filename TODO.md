@@ -23,7 +23,7 @@ as they land.
   Session notes: `session-tools-archive/SESSION-NOTES-20260906-PLATE-ALIASES.md`.
 
 - **No-"uses" declaration landed (docs).** Project-wide (and matching the
-  accepted grammar contract in ## 2 below): a query is TWO free-order SIDES
+  accepted grammar contract in ## 3 below): a query is TWO free-order SIDES
   split by `vs` — users are NEVER assumed to type `uses`/`use`, and agents must
   not add or require it. `AGENTS.md` rule 2 / rule 3 / the Agent-route
   paragraph were rewritten: the agent route (free-word query → spec JSON →
@@ -61,7 +61,47 @@ as they land.
 
 ---
 
-## 2. Converter redesign — free-order side tokenizer (move-safe phrase sweeps, side attribution, consume-and-MARK mechanics) — large project
+## 2. Agent-side recognition echo (user 2026-09-06; FIRST unfinished item)
+
+Show the user exactly what was understood BEFORE the result card or error: echo
+the inquiry input verbatim, and annotate each recognized token with its class
+via an alignment ruler line underneath. Goal: the user instantly sees which
+token confused the agent/converter. Implements the agent half only (the agent
+already knows what it bound — it annotates the user's line while authoring the
+spec; no dependency on the ## 3 tokenizer). The converter half is ## 8.
+
+Presentation (chosen 2026-09-06 — option b, alignment ruler, one label per
+token, short class-only labels):
+
+```
+Garchomp  Jolly  252 Atk   Blitz   frie  vs  Heatran
+ species  nature  ev:atk   move    ???        species
+```
+
+- Echo is the input reproduced verbatim (top line) with a ruler under it: each
+  recognized token gets one short label (`species` / `nature` / `ev:atk` /
+  `move` / `item` / `status` / `ability` / `boost` / `level` / `arena` /
+  `mega`); a token nothing could place gets `???`. EV labels include the target
+  stat (`ev:atk`). Colored in real terminals (class → fixed color); the ruler
+  form above is the chat-safe / code-block rendering.
+- The ruler column-per-token must stay aligned to the verbatim line; tokens are
+  separated so each label sits under its own token.
+- Order in output: echo first, then the result card — or on a hard error, echo
+  first then the error message, so what-WAS-recognized is visible before the
+  confusing part (same spirit as the converter's "I did recognize:" message).
+- Agent contract: emit the span map (`_spans` or equivalent: text slice + class
+  + canonical value) for every token it actually bound; NEVER fabricate a
+  binding — anything the agent could not place is labeled `???`. Unbound junk is
+  exactly the feedback this feature exists to surface.
+- What the ruler shows is per-side attribution as the agent resolved it (attacker
+  tokens, move, defender tokens, plus `vs` as an unannotated separator).
+
+## 3. Converter redesign — free-order side tokenizer (move-safe phrase sweeps, side attribution, consume-and-MARK mechanics) — large project
+
+**STATUS: design closed 2026-09-06 → implementation in a FUTURE session** (not
+started). The architecture below (## 3 "Resolved architecture") supersedes the
+still-rolling phrasing in the older subsections where they contradict it; the
+older text stays as the design record.
 
 Accepted grammar contract (design session 2026-09-05, still rolling): the query
 always contains a `vs` separator (a query without one is a hard error) and never
@@ -74,6 +114,63 @@ is NOT pinned to the chunk immediately left of `vs`. Attribution is therefore
 structural (every token binds to the species in its own side); the extraction
 difficulty is recovering each side's species and the attacker's move out of a
 free-order token stream.
+
+### Resolved architecture — two layers (agreed 2026-09-06; implement this)
+
+The converter runs TWO layers over each side. Common words like `attack` /
+`power` / `hidden` are NOT a problem: the move is bound by exact match in layer
+1, and the fuzzy layer never has to guess it out of common-word residue.
+
+**Layer 1 — exact tokenizer pass** (binds ONLY exact matches; never a guess):
+- Walk the side's words; at each position try **current word + next word as the
+  longest known exact phrase FIRST** (phrase-first / longest fit), then the
+   single word, consume-and-MARK the winning span (## 3 consume-and-MARK
+   mechanics below).
+- Binds: level / `max` / EV / stat-stage / `+N` boost tokens, arena words
+  (weather / terrain / hazards), **aliases** (species / move / item / stat /
+  status / weather short forms), and **exact other variables by full name** —
+  items, statuses, natures, abilities — **and the MOVE**: an exact alias or
+  exact full move name (e.g. `eq`, `blitz`, `earthquake`) updates the move
+  variable immediately.
+- Single-word consumption is guarded: a word is consumed as a mod token only
+  when it does NOT begin a longer known species / move / ability / alias phrase
+  contiguous in the side (this is the phrase-first rule — `calm` is not a
+  nature when `Calm Mind` is present, `sand` not arena when `Sand Stream` is).
+  This resolves the concern-1 decapitation cases (`Brave Bird`, `Calm Mind`,
+  `Sand Stream`, `Rock Slide`).
+- **Multi-word / hyphen species special cases:** dex names that span more than
+  one typed word or a hyphen / space forme separator resolve here by
+  species-specific handling (e.g. `rotom wash` → Rotom-Wash, `landorus therian`
+  → Landorus-Therian — the spaced/hyphen forme patterns generally) — NOT left to
+  the fuzzy layer.
+- **The tokenizer MAY fail to fill a necessary variable — that is OK and
+  expected.** A missing variable is not itself an error; the residue layer below
+  exists exactly to fill the gaps.
+
+**Layer 2 — regex over the marked residue** (no deleted gaps; the residue is the
+words no exact phrase claimed):
+- Fuzzy recovery of what layer 1 missed: a **misspelled species name**, leftover
+  words, junk-at-ends, order permutations (e.g. `Mega Venusaur`-style
+  reorderings).
+- Survivor precedence when layer 1 did not claim a class: **ability → item →
+  move → species** (the species match claims LAST). Reasoning: the ability /
+  item / move claims in layer 2 are exact phrase lookups — reliable, they take
+  their words first — while the species matcher is the typo-tolerant/fuzzy one
+  (species is the class users misspell most), so its guess only fills what no
+  exact phrase claimed. A move is bound in layer 1 whenever an exact alias/full
+  name matches, so layer 2 only reaches a move through this residue precedence;
+  on the defender side the zero-move-survivor rule still fires before any move
+  claim.
+
+Rules carried over from the older notes below and still binding: full-name
+contiguity (a phrase matches only over originally adjacent words), consume-and-
+MARK with the side log, per-side dedupe-vs-conflict reconciliation, defender
+side yields ZERO move survivors (hard error), multi-move requires a chain token,
+and the mega-upgrade exact-shape rules. Layer 1's exact-move binding does NOT
+undo the concern-2 resolution: a word that is a pure-status or boosting move
+name (e.g. `toxic`, later `dragon dance` per ## 5) is consumed by its status /
+boost-signal class, never as the queried move — the exact-move match only fires
+for words no higher class claims.
 
 ### Concern 1 (2026-09-05): longest-phrase precedence over single-word stripping
 
@@ -99,12 +196,17 @@ move / species / ability phrase.** Rationale + cases:
 
 Implement as one unified longest-known-phrase matcher across the mod lexicons
 with move/ability/species names consulted as a guard set. Arena-effect
-recognition is its own backlog item — **## 3** (signals are OPTIONAL sugar,
+recognition is its own backlog item — **## 4** (signals are OPTIONAL sugar,
 bare arena words win-by-guard, same-slot conflicts error, explicit-beats-auto),
 queued AFTER this work so it does not bloat it. Still open in this design
 thread: the exact phase order of the sweeps once those land.
 Extraction precedence among survivors (species→ability→move, tie rules) is
 deliberately DEFERRED until the tokenizer works as intended (user 2026-09-05).
+> SUPERSEDED 2026-09-06 — precedence is now **ability → item → move → species**
+> inside the two-layer architecture (see "Resolved architecture" above); the
+> move binds by exact alias/full-name match in layer 1 and never reaches the
+> fuzzy residue as a common-word guess; the species match is the fuzzy,
+> typo-tolerant claim and runs last.
 
 ### Concern 2 (agreed 2026-09-05): phase-1 must also sweep the side-bound bare-word classes
 
@@ -128,7 +230,7 @@ the damage move. Since `toxic` is not a boosting move, whenever the sweep sees
 matcher therefore needs NO positional tie-break for `toxic`.
 
 Boosting-move → boost-signal recognition is now its own backlog item:
-**## 4 below**.
+**## 5 below**.
 
 ### Concern 3 (resolved 2026-09-05): side attribution under free token order
 
@@ -144,6 +246,11 @@ defender side must yield ZERO move survivors — one appearing there is a hard
 error (an early, diagnostic-friendly failure). Extraction of species / ability /
 move out of the survivors, and its precedence rules, are DEFERRED until the
 tokenizer works as intended (see above).
+> SUPERSEDED 2026-09-06 — layer separation + survivor precedence are settled
+> (see "Resolved architecture" above): layer 1 exact phrase-first tokenizer,
+> layer 2 regex over the marked residue for fuzzy recovery; precedence ability →
+> item → move → species (species's fuzzy, typo-tolerant claim runs last).
+> Defender-side zero-move-survivor rule still binding.
 
 ### Tokenizer mechanics: consume-and-MARK, never delete (agreed 2026-09-05)
 
@@ -256,14 +363,14 @@ pokemon to its Mega forme" command. Design decisions recorded in session
   / `-Mega-Y` dex entry is never re-upgraded (existing `!name.endsWith("-Mega")`
   guard covers this; keep it).
 
-## 3. Arena grammar — bare words + OPTIONAL signals (agreed 2026-09-06; queued AFTER ## 2)
+## 4. Arena grammar — bare words + OPTIONAL signals (agreed 2026-09-06; queued AFTER ## 3)
 
 Arena words resolve to their arena condition whether typed BARE or right after
 an optional signal word (`in` / `under` / `after`). Supersedes the earlier
 signal-REQUIRED arena design (2026-09-05; see the historical note below) and
 owns the arena lexicon, forms, guard, conflicts, and precedence. Deliberately
-NOT folded into ## 2 — that section's scope is the free-order tokenizer. Queue:
-AFTER ## 2; implementation lands inside / on top of ## 2's unified
+NOT folded into ## 3 — that section's scope is the free-order tokenizer. Queue:
+AFTER ## 3; implementation lands inside / on top of ## 3's unified
 longest-phrase matcher, where the guard set already lives.
 
 Historical note — why signals are OPTIONAL, not required: signals were first
@@ -289,7 +396,7 @@ resurrect the signal-REQUIRED grammar.
   arena-like is INERT (consumes nothing; the signal stays junk), not an error.
 - **Bare arena words win by guard, never by ordering.** A bare arena single
   word is consumed only when it does NOT begin a longer known move/species/
-  ability phrase present in that side (## 2 concern-1 guard / phrase-first
+  ability phrase present in that side (## 3 concern-1 guard / phrase-first
   across all lexicons). That keeps `rock slide` (the move) and `sand stream`
   (the ability) intact while a lone `rock` / `sand` is arena. Ordering alone
   cannot do this — the arena pass must run BEFORE the nature/ability/item
@@ -342,7 +449,7 @@ DEFERRED to its own session. Collision audit of the signal words themselves
 items; `after` collides only with the move `After You` — acceptable to mangle
 (never calculated).
 
-## 4. Tokenizer recognizes every boosting move and converts it to stat boosts directly
+## 5. Tokenizer recognizes every boosting move and converts it to stat boosts directly
 
 Goal (user 2026-09-05, "implement the boost move rule"): review EVERY boosting
 move in the gen-6 dex, teach the tokenizer to recognize each as a whole phrase
@@ -381,7 +488,43 @@ like a stage boost wherever it appears in the attacker side — writes the
 attacker's `boosts` (and `accStage`/`evaStage`) on the spec — and never claims
 the move slot; the real attack move is recovered from the attacker side's
 survivor words (extraction precedence still deferred). The phrase guard from
-## 2 concern 1 still protects boost-move names that share words with other
+## 3 concern 1 still protects boost-move names that share words with other
 lexicons (e.g. `Calm Mind` vs the nature `calm`).
+
+## 6. Mega upgrade token recognition (user 2026-09-06)
+
+The tokenizer recognizes an OPTIONAL signal that upgrades a side's pokemon to
+its Mega forme. Behavior contract:
+
+- **Signal present + the side's pokemon HAS a Mega forme → silently accept** the
+  upgrade (use the Mega forme).
+- **Signal present + the side's pokemon is ALREADY its Mega forme → silent
+  accept** (no-op; no error, no double upgrade).
+- **Signal present + the side's pokemon has NO possible Mega forme → error
+  message** (fail loud; do not silently fall back to the base forme).
+
+Tracked as its own backlog item here so it is not lost; the detailed shape /
+scope record lives in ## 3 "Mega upgrade signal: exact-shape rule + decisions
+(agreed 2026-09-06)".
+
+## 7. Boost additive (user 2026-09-06)
+
+Design item: boosts are ADDITIVE — distinct recognized boost sources that
+target the same stat add up rather than overwriting or multiplying. The
+recorded scope of "sources" is open (stage tokens, boost-move signals per
+## 5, dynamic `+N` move boosts, etc.); the exact stacking boundaries,
+overflow at ±6, and interaction with the once-per-category / dedupe-vs-conflict
+stat rules are to be settled in a later session.
+
+## 8. Converter-side recognition echo (user 2026-09-06; queued LAST)
+
+The converter's half of the recognition-echo feature (agent half = ## 2).
+Queued AFTER every tokenizer / regex optimization (## 3–## 7), because its
+faithful token→variable spans come from the consume-and-MARK side log that the
+## 3 tokenizer rewrite introduces — building it now on today's
+`stripMatches`-deletes parser means instrumenting code that is about to be
+rewritten. Same presentation contract as ## 2; this item only covers wiring
+the offline converter (`input-converter.mjs` / `damage.mjs`) into it once the
+side log exists.
 
 
