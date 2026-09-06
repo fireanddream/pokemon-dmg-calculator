@@ -590,4 +590,40 @@ Gaps to refine (converter-only now; ## 3 generalizes):
 - For ## 3: `no item` becomes a consumed claim reconciled by the
   dedupe-vs-conflict pass (an item phrase and `no item` in one side = conflict).
 
+## 10. One-liner → converter route: kill LLM extraction (user 2026-09-06; design agreed, implement next session)
+
+Agreed direction: the agent is ONLY a conversational wrapper. It pulls the
+damage-query ONE-LINER out of the user's message — stripping filler like
+"let's do a quick calc" — and hands it to the converter. All extraction and
+defaulting is the converter + `fill.mjs`; the agent authors NO spec JSON and
+computes NO echo spans. Everything is essentially the converter now; the agent
+route and the offline converter route converge on the SAME parser
+(byte-identical by construction). This supersedes today's agent-route prose in
+`AGENTS.md` rule 2/3 and `AGENT-GUIDE.md` step 1 (hand-written "extract → spec
+JSON") once it lands.
+
+Rationale (2026-09-06): hand LLM extraction is the slow + error-prone part of
+a query — canonical dex names (`Aggron-Mega`), private spec keys (`_maxSpa`),
+echo atom-index counting. Removing it makes a single-line query ≈ one tool
+call, and the recognition echo is only as fast as the parse that backs it.
+
+Prerequisites / concerns to settle before building:
+- **Free-order parser (first slice of ## 3).** `input-converter.mjs` today
+  only parses the literal `<atk> uses <move> vs <def>` frame. It must accept
+  sides split by `vs` with NO `uses`: find the move phrase (exact alias / full
+  name, contiguous) in the attacker side, parse each side with the existing
+  `parseCombatant`. User lines like `max spa 252 gengar shadow ball vs max def
+  mega aggron` must work as typed.
+- **Junk tolerance.** The converter hard-errors on stat-less stray numbers
+  (e.g. a redundant `252` beside `max spa`). Decide: converter errors loudly
+  (agent relays / asks the user) vs the agent deletes obvious redundancy before
+  hand-over. Agent edits must otherwise stay limited to conversational filler —
+  reordering and move-finding are converter work, never agent work.
+- **One-shot route script.** `route.mjs "<line>" --chat` = converter → fill →
+  calc → output in one node process (data loaded once), so a query is one tool
+  call with no cold-start tax.
+- **Echo wiring.** Once the free-order parse owns spans, the converter-side
+  recognition echo (## 8) becomes the ONLY echo; drop the agent-side
+  hand-built echo path.
+
 
