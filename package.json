@@ -21,6 +21,7 @@
     "check": "npm run build && node dist/check.js",
     "verify:damage": "npm run build && node scripts/verify-smogon.mjs",
     "verify:acc": "npm run build && node scripts/verify-accuracy.mjs",
+    "verify:echo": "node scripts/verify-echo.mjs",
     "damage": "node scripts/damage.mjs"
   },
   "devDependencies": {

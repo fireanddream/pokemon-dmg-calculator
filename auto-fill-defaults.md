@@ -31,12 +31,14 @@ section break parsing); keep the column order; put exact canonical names
 (abilities, items, pokemon) in species/item/ability cells. Values use plain
 numbers/words — see each table's header.
 
-**Rules for the agent** (see AGENTS.md): the front applies these defaults
-automatically — never add a default to a query the user typed. Translate only
-what the user said; consult this file to predict or explain what the front
-assumed. Every resolved assumption prints on the result card (nature, EVs,
-item, ability, arena), so a wrong guess is visible — never pre-empt the engine
-by guessing.
+**Rules for the agent** (see AGENTS.md): the agent EXTRACTS — it binds the
+tokens it recognizes and never fills a value the user did not state. Name /
+acronym / shorthand lookup belongs in `aliases.md` (extraction); every
+EXPANSION and default below is applied by the front automatically, so the
+agent never pre-computes one. Consult this file only to predict or explain
+what the front assumed. Every resolved assumption prints on the result card
+(nature, EVs, item, ability, arena), so a wrong guess is visible — never
+pre-empt the engine by guessing.
 
 ## Defaults at a glance
 

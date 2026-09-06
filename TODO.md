@@ -63,6 +63,14 @@ as they land.
 
 ## 2. Agent-side recognition echo (user 2026-09-06; FIRST unfinished item)
 
+**STATUS: agent half IMPLEMENTED + verified 2026-09-06** — shared renderer
+`scripts/echo.mjs` (exports `renderEcho(line, spans)`; CLI with `--line` /
+`--spans` / `--chat`), regression guard `scripts/verify-echo.mjs`
+(`npm run verify:echo`, 4/4). The agent route now echoes via the renderer
+before pasting the result card. The always-on echo rule was adopted into
+`AGENTS.md` rule 2 (user-confirmed 2026-09-06). STILL OPEN: converter half =
+## 8 (offline `input-converter.mjs` / `damage.mjs` route does not echo yet).
+
 Show the user exactly what was understood BEFORE the result card or error: echo
 the inquiry input verbatim, and annotate each recognized token with its class
 via an alignment ruler line underneath. Goal: the user instantly sees which
@@ -70,31 +78,55 @@ token confused the agent/converter. Implements the agent half only (the agent
 already knows what it bound — it annotates the user's line while authoring the
 spec; no dependency on the ## 3 tokenizer). The converter half is ## 8.
 
-Presentation (chosen 2026-09-06 — option b, alignment ruler, one label per
-token, short class-only labels):
+Presentation (chosen 2026-09-06, finalized 2026-09-06 — option b, alignment
+ruler, one label per token, short class-only labels):
 
 ```
-Garchomp  Jolly  252 Atk   Blitz   frie  vs  Heatran
- species  nature  ev:atk   move    ???        species
+Garchomp @ Life Orb Jolly  252 Atk Blitz vs Heatran
+species    item     nature ev:atk  move     species
 ```
 
-- Echo is the input reproduced verbatim (top line) with a ruler under it: each
-  recognized token gets one short label (`species` / `nature` / `ev:atk` /
-  `move` / `item` / `status` / `ability` / `boost` / `level` / `arena` /
-  `mega`); a token nothing could place gets `???`. EV labels include the target
-  stat (`ev:atk`). Colored in real terminals (class → fixed color); the ruler
-  form above is the chat-safe / code-block rendering.
-- The ruler column-per-token must stay aligned to the verbatim line; tokens are
-  separated so each label sits under its own token.
-- Order in output: echo first, then the result card — or on a hard error, echo
-  first then the error message, so what-WAS-recognized is visible before the
-  confusing part (same spirit as the converter's "I did recognize:" message).
-- Agent contract: emit the span map (`_spans` or equivalent: text slice + class
-  + canonical value) for every token it actually bound; NEVER fabricate a
-  binding — anything the agent could not place is labeled `???`. Unbound junk is
-  exactly the feedback this feature exists to surface.
-- What the ruler shows is per-side attribution as the agent resolved it (attacker
-  tokens, move, defender tokens, plus `vs` as an unannotated separator).
+**Layout rules (agreed 2026-09-06; shared renderer = `scripts/echo.mjs`):**
+- The top line is the user's WORDS in order with original spelling and
+  punctuation (`@`, `vs`, commas, hyphens all kept as typed); inter-token
+  spacing is re-laid out — single space by default, widened only when a label
+  needs room. It is NOT byte-verbatim: `Jolly  252` above shows the one extra
+  space inserted so `ev:atk` can sit exactly under `252`.
+- Each label starts EXACTLY at its word's first column (left-aligned / leveled,
+  never centered, never drifted).
+- A label may overhang right past its word, but a following label-bearing word
+  is pushed right (by widening the top-line gap) so it never sits within 1
+  column of the previous label's text → at least one blank column between
+  consecutive labels. A label wider than its word must NOT eat that blank.
+- Multi-word bindings (`Life Orb`, `252 Atk`) render as one unit glued with
+  single spaces; the label anchors to the unit's FIRST word.
+- Unannotated atoms (`@`, `vs`, bare punctuation) get no label and keep
+  single-space separation.
+- Label set: `species` / `nature` / `ev:atk` (EV labels include the target
+  stat) / `move` / `item` / `status` / `ability` / `boost` / `level` / `arena`
+  / `mega`; a token the producer could not place gets `???` and is laid out
+  like any other label. Colored in real terminals (class → fixed color); the
+  ruler form above is the chat-safe / code-block rendering.
+- `???` is FEEDBACK, not a blocker: the query still runs to the card. It shows
+  the player exactly which token was not understood.
+- Order in output: echo (top line + ruler, its own fenced block) first, then
+  the result card — or on a hard error, echo first then the error message, so
+  what-WAS-recognized is visible before the confusing part (same spirit as the
+  converter's "I did recognize:" message).
+- Producer contract (agent now, converter in ## 8): emit one span per token it
+  actually bound — as `[firstAtom, lastAtom]` indexes into the whitespace-split
+  line plus a label (agent-side; an internal `_spans` on the spec is NOT sent
+  through the fill|calc|output chain). NEVER fabricate a binding — anything the
+  producer could not place is labeled `???`. Unbound junk is exactly the
+  feedback this feature exists to surface.
+- What the ruler shows is per-side attribution as the producer resolved it
+  (attacker tokens, move, defender tokens, plus `vs` as an unannotated
+  separator).
+- ROUTE DIFFERENCE (accepted): the agent route echoes today; the offline
+  converter route (`input-converter.mjs` / `damage.mjs`) does NOT until ## 8
+  wires it to the same `scripts/echo.mjs` renderer. Feature is not "done" until
+  ## 8 lands. The agent-half rule is adopted in `AGENTS.md` (confirmed
+  2026-09-06); the converter half is ## 8.
 
 ## 3. Converter redesign — free-order side tokenizer (move-safe phrase sweeps, side attribution, consume-and-MARK mechanics) — large project
 
@@ -526,5 +558,36 @@ faithful token→variable spans come from the consume-and-MARK side log that the
 rewritten. Same presentation contract as ## 2; this item only covers wiring
 the offline converter (`input-converter.mjs` / `damage.mjs`) into it once the
 side log exists.
+
+## 9. Converter `no item` handling — same-slot conflict + spelling sweep (user 2026-09-06)
+
+Context (verified 2026-09-06): `input-converter.mjs` strips the phrase
+`no\s*item|itemless` (regex pass BEFORE the nature/ability/item phrase passes)
+and sets `spec.noItem = true` per side; `fill.mjs` passes it through as
+`noItem`; `calc.mjs` uses `!defender.noItem && !defender.mega` to default
+`targetHoldsItem` (so e.g. Knock Off's +50% vs an itemless target is modeled);
+`output.mjs` renders `@ no item` when no item was named. Default is
+inert-held, so `no item` is how a genuinely itemless mon is expressed on both
+routes. Agent token rule: `auto-fill-defaults.md` → "The only times the agent
+adds to the spec".
+
+Gaps to refine (converter-only now; ## 3 generalizes):
+- **Same-slot conflict is SILENT today:** naming an item (or `plate`) AND
+  `no item` on the same side sets both `spec.item`/plate and `spec.noItem`;
+  output shows the item while calc still flips `targetHoldsItem` off. Should
+  be a hard error naming the slot and both claims, mirroring ## 3
+  dedupe-vs-conflict. (Explicit item name + noItem on the same side is
+  contradictory user input; never a silent first/last-wins pick.)
+- **Spelling breadth:** `no-item` is NOT matched (hyphen collapses to the
+  punctuation sentinel before the regex). Decide the accepted spellings
+  (`no item` / `noitem` / `itemless` / `no held item` / hyphen forms).
+- **Attacker-side semantics:** `noItem` on the attacker only affects display;
+  calc's `targetHoldsItem` is defender-only. Confirm nothing should gate on
+  attacker itemlessness (auto-ability picks are item-blind today).
+- Agent/echo: `no item` should carry an `item` class binding (`no item` →
+  label under both words) rather than vanishing — the echo must show the
+  negation was understood. Coordinate with ## 2 span classes when ## 8 lands.
+- For ## 3: `no item` becomes a consumed claim reconciled by the
+  dedupe-vs-conflict pass (an item phrase and `no item` in one side = conflict).
 
 
