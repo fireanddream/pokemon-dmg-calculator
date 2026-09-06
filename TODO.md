@@ -23,7 +23,7 @@ as they land.
   Session notes: `session-tools-archive/SESSION-NOTES-20260906-PLATE-ALIASES.md`.
 
 - **No-"uses" declaration landed (docs).** Project-wide (and matching the
-  accepted grammar contract in ## 2b below): a query is TWO free-order SIDES
+  accepted grammar contract in ## 2 below): a query is TWO free-order SIDES
   split by `vs` — users are NEVER assumed to type `uses`/`use`, and agents must
   not add or require it. `AGENTS.md` rule 2 / rule 3 / the Agent-route
   paragraph were rewritten: the agent route (free-word query → spec JSON →
@@ -61,80 +61,7 @@ as they land.
 
 ---
 
-## 2a. Converter redesign — arena syntax: signal word + arena-only phrase (2026-09-05, in progress)
-
-Arena effects are MARKED, not bare words: one of the signal words `in` / `under`
-/ `after` introduces an arena phrase. Collision audit against moves / abilities /
-species / natures / items: `in` clean, `under` clean, `after` collides only
-with the move `After You` — acceptable to mangle (never calculated; fine if it
-breaks). The 1–2 words AFTER a signal word are checked ONLY against the arena
-lexicon — never against move/species/ability names. That exclusivity is what
-makes the dual-role words safe in the arena slot (`rain dance`, `sandstorm`,
-`spikes`, `rock` mean arena things after a signal, and only there).
-
-Arena-lexicon contents after a signal:
-- Simple weather conditions: rain, sun, sand, hail (user also said "snow" —
-  map per gen-6: hail; confirm during implementation).
-- Full official weather names: harsh sunlight, etc.
-- The moves that set weather: Rain Dance, Sandstorm, Sunny Day, Hail, etc.
-- Weather-setting ability names: Drizzle, Drought, Sand Stream, Snow Warning, etc.
-- Hazards: Spikes and Stealth Rock.
-- Terrains: electric / grassy / misty / psychic.
-
-Hazard + terrain forms that must resolve identically:
-- Spikes layers: `"1 spike(s)"` / `"1spike(s)"` / `"spike(s)1"` / `"spike(s) 1"`
-  all mean the same (1 layer); number variants 1–3.
-- Stealth Rock: `"stealth rock"` or `"rock"` → same effect.
-- Terrains: full name (`"electric terrain"`) or first-letter forms `"E terrain"` /
-  `"Eterrain"` / `"e-terrain"` → all resolve to `electric terrain` (same for
-  G/Grassy, M/Misty, P/Psychic).
-
-Full acronym/alias expansion for arena tokens (the doc-as-code table behind the
-above) is DEFERRED to a dedicated session for this piece of work.
-
-## 3. Tokenizer recognizes every boosting move and converts it to stat boosts directly
-
-Goal (user 2026-09-05, "implement the boost move rule"): review EVERY boosting
-move in the gen-6 dex, teach the tokenizer to recognize each as a whole phrase
-and convert it straight into stat-boost deltas — exactly like a stage token.
-Example: "Dragon Dance Garchomp EQ vs Heatran" ⇒ Garchomp at +1 atk +1 spe
-using Earthquake; Dragon Dance is a BOOST SIGNAL, never the damage move.
-
-Where the mapping comes from: `data/moves-xy.json` — qualifying moves are
-`category: "Non-Damaging"` with `target: "Self"`. CAVEAT (verified 2026-09-05):
-the dex has NO structured stat-change field; the deltas live only in free-text
-`description`s with inconsistent phrasing ("Raises the user's Attack and Speed
-by 1." vs "Raises user's Attack, Defense, accuracy by 1." vs "Raises the user's
-evasiveness by 1."). So do NOT regex the prose — curate a table (repo pattern:
-doc-as-code, `aliases.md`-style) listing move → per-stat stage deltas, hand-
-reviewed against the full Self/Non-Damaging move list once.
-
-Scope rules to settle while curating:
-- Include every non-damaging self-stat raiser: Swords Dance (+2 atk), Nasty
-  Plot (+2 spa), Dragon Dance (+1 atk/+1 spe), Quiver Dance (+1 spa/+1 spd/
-  +1 spe), Bulk Up, Calm Mind, Agility, Rock Polish, Autotomize, Shift Gear,
-  Shell Smash, Hone Claws, Coil, Iron Defense, Cotton Guard, Amnesia, Tail
-  Glow, Growth (note sun doubling), etc.
-- Accuracy/evasion raisers map to the ACC/EVA channels the engine already
-  separates: Double Team / Minimize ⇒ +eva, Coil / Hone Claws' accuracy half
-  ⇒ +acc — acc/eva never change damage/KO numbers.
-- EXCLUDE / decide: Acupressure (random — unmodelable), Belly Drum (max atk at
-  half-HP cost — modelable as +6 atk + hpFraction ½? decide), damaging moves
-  that only boost as a side effect (Power-Up Punch, Fell Stinger — real attack
-  moves, stay in the damage slot), Stockpile (multi-turn), Charge / wish-y
-  effects, and any move whose boost is conditional.
-- A boost signal may coexist with the real move, but a query whose only move is
-  a pure boost (no damaging move on the attacker side anywhere) is a hard error.
-
-Integration (matches the redesign grammar): the boost-move phrase is consumed
-like a stage boost wherever it appears in the attacker side — writes the
-attacker's `boosts` (and `accStage`/`evaStage`) on the spec — and never claims
-the move slot; the real attack move is recovered from the attacker side's
-survivor words (extraction precedence still deferred). The phrase guard from
-## 2b concern 1 still protects boost-move names that share words with other
-lexicons (e.g. `Calm Mind` vs the nature `calm`).
-
-## 2b. Converter redesign — rest of the work: free-order side tokenizer (move-safe phrase sweeps, side attribution, consume-and-MARK mechanics) — held LAST: large project
+## 2. Converter redesign — free-order side tokenizer (move-safe phrase sweeps, side attribution, consume-and-MARK mechanics) — large project
 
 Accepted grammar contract (design session 2026-09-05, still rolling): the query
 always contains a `vs` separator (a query without one is a hard error) and never
@@ -171,10 +98,11 @@ move / species / ability phrase.** Rationale + cases:
   every word-based sweep of phase 1.
 
 Implement as one unified longest-known-phrase matcher across the mod lexicons
-with move/ability/species names consulted as a guard set. The arena-effect
-marked-token syntax that makes the arena sweep trivially safe is now its own
-backlog item — **## 2a** above. Still open in this design thread: the exact
-phase order of the sweeps once those land.
+with move/ability/species names consulted as a guard set. Arena-effect
+recognition is its own backlog item — **## 3** (signals are OPTIONAL sugar,
+bare arena words win-by-guard, same-slot conflicts error, explicit-beats-auto),
+queued AFTER this work so it does not bloat it. Still open in this design
+thread: the exact phase order of the sweeps once those land.
 Extraction precedence among survivors (species→ability→move, tie rules) is
 deliberately DEFERRED until the tokenizer works as intended (user 2026-09-05).
 
@@ -200,7 +128,7 @@ the damage move. Since `toxic` is not a boosting move, whenever the sweep sees
 matcher therefore needs NO positional tie-break for `toxic`.
 
 Boosting-move → boost-signal recognition is now its own backlog item:
-**## 3. above**.
+**## 4 below**.
 
 ### Concern 3 (resolved 2026-09-05): side attribution under free token order
 
@@ -327,5 +255,133 @@ pokemon to its Mega forme" command. Design decisions recorded in session
 - **No-forme idempotence.** A token already resolving to a `-Mega` / `-Mega-X`
   / `-Mega-Y` dex entry is never re-upgraded (existing `!name.endsWith("-Mega")`
   guard covers this; keep it).
+
+## 3. Arena grammar — bare words + OPTIONAL signals (agreed 2026-09-06; queued AFTER ## 2)
+
+Arena words resolve to their arena condition whether typed BARE or right after
+an optional signal word (`in` / `under` / `after`). Supersedes the earlier
+signal-REQUIRED arena design (2026-09-05; see the historical note below) and
+owns the arena lexicon, forms, guard, conflicts, and precedence. Deliberately
+NOT folded into ## 2 — that section's scope is the free-order tokenizer. Queue:
+AFTER ## 2; implementation lands inside / on top of ## 2's unified
+longest-phrase matcher, where the guard set already lives.
+
+Historical note — why signals are OPTIONAL, not required: signals were first
+designed as REQUIRED. A 2026-09-06 review (one-liners like `charizard sun 252
+atk blitz vs landot`) found the collision signals guarded against is mostly
+phantom: weather/hazard/terrain-setting moves and setter abilities converge to
+the same arena state, and no damaging move / species / item is named by a bare
+arena word. The real ambiguities are bare arena words that prefix a longer
+move/ability name (`rock` → `rock slide`, `sand` → `sand stream`) — solved by
+phrase-first matching, i.e. **win by guard**, never by signal scope. Do not
+resurrect the signal-REQUIRED grammar.
+
+### Agreed semantics (user 2026-09-06)
+
+- **Optional signal.** `in` / `under` / `after` are sugar, never required: an
+  arena word is recognized with or without one, in the same pass.
+- **Exclusive arena scope right after a signal.** The word (or word+nextword)
+  immediately after a signal resolves ONLY against the arena lexicons — never a
+  move / species / ability name. Greedy phrase-first within the lexicon: try
+  the 2-word phrase (`rain dance`, `stealth rock`, `electric terrain`,
+  `spikes 2`), then the single word (`sun`, `rock`). Consume signal + phrase;
+  the next word starts its own resolution. A signal followed by nothing
+  arena-like is INERT (consumes nothing; the signal stays junk), not an error.
+- **Bare arena words win by guard, never by ordering.** A bare arena single
+  word is consumed only when it does NOT begin a longer known move/species/
+  ability phrase present in that side (## 2 concern-1 guard / phrase-first
+  across all lexicons). That keeps `rock slide` (the move) and `sand stream`
+  (the ability) intact while a lone `rock` / `sand` is arena. Ordering alone
+  cannot do this — the arena pass must run BEFORE the nature/ability/item
+  sweeps so `in sand stream` is arena, yet bare `sand stream` must still reach
+  the ability pass. Guard resolves both; ordering is not the mechanism
+  ("win by guard is the intended design").
+- **Same-slot conflicts ERROR.** weather / terrain / spikes-layers are
+  independent slots; two DIFFERENT explicitly typed values claiming one slot —
+  within a side or across sides at the arena hoist — is a hard error naming the
+  slot and both values (e.g. `weather: sun vs rain`). Duplicate same-value
+  claims collapse (user redundancy). Stealth Rock is a boolean and cannot
+  conflict. (Contradicts today's silent first-/last-wins behavior; must replace
+  it, and the within-side second-claim overwrite.)
+- **Explicit beats ability-auto (never an error).** An explicitly typed arena
+  condition wins over the weather an auto-picked setter ability would set —
+  already true in fill (`fillWeather` returns early when weather is typed);
+  keep the setter auto-ability pick unchanged (`rain` + a Drought holder ⇒
+  Arena Rain, ability still Drought).
+
+### Arena lexicon (unchanged from the 2026-09-05 design)
+
+- Simple weather: rain, sun, sand, hail — plus `snow` → hail (gen-6; confirmed
+  2026-09-06).
+- Full / official weather names: harsh sunlight, sandstorm, permanent forms,
+  primal weathers (desolate / primordial / delta), etc.
+- Weather-setting moves (Rain Dance, Sandstorm, Sunny Day, Hail, ...) and
+  weather-setting abilities (Drizzle, Drought, Sand Stream, Snow Warning, ...)
+  as arena words.
+- Hazards: Stealth Rock and Spikes.
+- Terrains: electric / grassy / misty / psychic.
+
+### Forms that must resolve identically
+
+- Spikes layers 1–3: `1 spike(s)` / `1spike(s)` / `spike(s)1` / `spike(s) 1`.
+  A number-less `spikes` in an arena position = 3 layers (keeps today's
+  default, now signal-independent). >3 errors as a stray number.
+- Stealth Rock: `stealth rock` or `rock` → same effect.
+- Terrains: full name (`electric terrain`) or first-letter forms
+  (`E terrain` / `Eterrain` / `e-terrain`) → electric; same for G/M/P.
+
+### Recorded examples
+
+- `charizard sun 252 atk blitz vs landot` → weather sun (bare `sun`, no signal).
+- `in sun rock` → `sun` via exclusive scope after `in`, then `rock` bare =
+  Stealth Rock.
+
+Full acronym/alias expansion for arena tokens (doc-as-code table) stays
+DEFERRED to its own session. Collision audit of the signal words themselves
+(2026-09-05): `in` / `under` clean across moves/abilities/species/natures/
+items; `after` collides only with the move `After You` — acceptable to mangle
+(never calculated).
+
+## 4. Tokenizer recognizes every boosting move and converts it to stat boosts directly
+
+Goal (user 2026-09-05, "implement the boost move rule"): review EVERY boosting
+move in the gen-6 dex, teach the tokenizer to recognize each as a whole phrase
+and convert it straight into stat-boost deltas — exactly like a stage token.
+Example: "Dragon Dance Garchomp EQ vs Heatran" ⇒ Garchomp at +1 atk +1 spe
+using Earthquake; Dragon Dance is a BOOST SIGNAL, never the damage move.
+
+Where the mapping comes from: `data/moves-xy.json` — qualifying moves are
+`category: "Non-Damaging"` with `target: "Self"`. CAVEAT (verified 2026-09-05):
+the dex has NO structured stat-change field; the deltas live only in free-text
+`description`s with inconsistent phrasing ("Raises the user's Attack and Speed
+by 1." vs "Raises user's Attack, Defense, accuracy by 1." vs "Raises the user's
+evasiveness by 1."). So do NOT regex the prose — curate a table (repo pattern:
+doc-as-code, `aliases.md`-style) listing move → per-stat stage deltas, hand-
+reviewed against the full Self/Non-Damaging move list once.
+
+Scope rules to settle while curating:
+- Include every non-damaging self-stat raiser: Swords Dance (+2 atk), Nasty
+  Plot (+2 spa), Dragon Dance (+1 atk/+1 spe), Quiver Dance (+1 spa/+1 spd/
+  +1 spe), Bulk Up, Calm Mind, Agility, Rock Polish, Autotomize, Shift Gear,
+  Shell Smash, Hone Claws, Coil, Iron Defense, Cotton Guard, Amnesia, Tail
+  Glow, Growth (note sun doubling), etc.
+- Accuracy/evasion raisers map to the ACC/EVA channels the engine already
+  separates: Double Team / Minimize ⇒ +eva, Coil / Hone Claws' accuracy half
+  ⇒ +acc — acc/eva never change damage/KO numbers.
+- EXCLUDE / decide: Acupressure (random — unmodelable), Belly Drum (max atk at
+  half-HP cost — modelable as +6 atk + hpFraction ½? decide), damaging moves
+  that only boost as a side effect (Power-Up Punch, Fell Stinger — real attack
+  moves, stay in the damage slot), Stockpile (multi-turn), Charge / wish-y
+  effects, and any move whose boost is conditional.
+- A boost signal may coexist with the real move, but a query whose only move is
+  a pure boost (no damaging move on the attacker side anywhere) is a hard error.
+
+Integration (matches the redesign grammar): the boost-move phrase is consumed
+like a stage boost wherever it appears in the attacker side — writes the
+attacker's `boosts` (and `accStage`/`evaStage`) on the spec — and never claims
+the move slot; the real attack move is recovered from the attacker side's
+survivor words (extraction precedence still deferred). The phrase guard from
+## 2 concern 1 still protects boost-move names that share words with other
+lexicons (e.g. `Calm Mind` vs the nature `calm`).
 
 
