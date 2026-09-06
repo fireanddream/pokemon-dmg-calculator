@@ -66,13 +66,55 @@ const CASES = [
       "species       nature ev:atk  item     move           species",
     ],
   },
+  {
+    name: "wrap at width: unit stays intact, ruler follows its words",
+    line: "Max SpA 252 Timid Life Orb Gengar Shadow Ball Sludge Wave vs Calm Mega Blissey",
+    width: 60,
+    spans: [
+      { atoms: [0, 1], label: "ev:spa" },
+      { atoms: [2, 2], label: "???" },
+      { atoms: [3, 3], label: "nature" },
+      { atoms: [4, 5], label: "item" },
+      { atoms: [6, 6], label: "species" },
+      { atoms: [7, 8], label: "move" },
+      { atoms: [9, 10], label: "move" },
+      { atoms: [12, 12], label: "nature" },
+      { atoms: [13, 14], label: "species" },
+    ],
+    expected: [
+      "Max SpA 252 Timid  Life Orb Gengar  Shadow Ball Sludge Wave",
+      "ev:spa  ??? nature item     species move        move",
+      "vs Calm   Mega Blissey",
+      "   nature species",
+    ],
+  },
+  {
+    name: "wrap disabled (width 0): stays two lines even when long",
+    line: "Max SpA 252 Timid Life Orb Gengar Shadow Ball Sludge Wave vs Calm Mega Blissey",
+    width: 0,
+    spans: [
+      { atoms: [0, 1], label: "ev:spa" },
+      { atoms: [2, 2], label: "???" },
+      { atoms: [3, 3], label: "nature" },
+      { atoms: [4, 5], label: "item" },
+      { atoms: [6, 6], label: "species" },
+      { atoms: [7, 8], label: "move" },
+      { atoms: [9, 10], label: "move" },
+      { atoms: [12, 12], label: "nature" },
+      { atoms: [13, 14], label: "species" },
+    ],
+    expected: [
+      "Max SpA 252 Timid  Life Orb Gengar  Shadow Ball Sludge Wave vs Calm   Mega Blissey",
+      "ev:spa  ??? nature item     species move        move           nature species",
+    ],
+  },
 ];
 
 let pass = 0;
 const failures = [];
 console.log("recognition echo");
 for (const c of CASES) {
-  const got = renderEcho(c.line, c.spans).split("\n");
+  const got = renderEcho(c.line, c.spans, c.width ?? 0).split("\n");
   const ok = got.length === c.expected.length && got.every((ln, i) => ln === c.expected[i]);
   if (ok) pass++;
   const marker = ok ? "PASS" : "FAIL";

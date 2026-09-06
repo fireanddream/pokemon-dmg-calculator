@@ -6,6 +6,31 @@ as they land.
 
 ## Done (2026-09-06)
 
+- **Recognition echo: wrap-to-new-line for too-long lines (agent route).**
+  `scripts/echo.mjs` `renderEcho(line, spans, wrapWidth)` now wraps a block
+  wider than the width into word-line/ruler-line row groups, cutting only at
+  gap columns that are blank in BOTH lines and outside every unit's text span —
+  a word, a glued multi-word binding (`Life Orb`, `Sludge Wave`) and a ruler
+  label are never split across a row. CLI gains `--width N` (default 100;
+  `<= 0` never wraps); top line stays NOT byte-exact (extra space fine).
+  Regression: `verify:echo` extended 4/4 → 6/6 (wrap-at-width + width-0
+  cases). Short queries byte-identical to before. Shared renderer ⇒ the
+  offline converter route (## 8) gets the same wrap for free later. Also
+  codified the `max <stat>` span convention (echoes as that stat's `ev:` label
+  anchored under the phrase's first word — NO `max` label class — and any
+  token the shorthand leaves unbound, e.g. a redundant bare `252`, is `???`).
+  Docs: AGENT-GUIDE step 2 bullets; TODO ## 2 layout rules + label set; "New
+  idea notes" 1 marked RESOLVED.
+
+- **Backlog: four new idea notes recorded + `max`/EV collision rule
+  CORRECTED (user).** TODO top gains a "New idea notes (to discuss)" section:
+  (1) echo-too-long → resolved by the wrap item above; (2) `max <stat>` +
+  explicit EV on the same stat ERROR (`max atk` then `120 atk` → hard error);
+  duplicate `max atk max atk` collapses silently; max on different stats
+  coexist; the `max` auto-nature (adamant) never collides — explicit nature
+  overrides. (3) master rule: hyphen in input = space, then prune the alias
+  list. (4) faster agent extraction on one-liners (ties into ## 10).
+
 - **Type+Plate spellings → real plate item (was `## 1`).** `aliases.md`'s
   "Type plates" table is now the doc-as-code source, parsed at startup by
   `scripts/input-converter.mjs` (first slice of the planned aliases.md parser;
@@ -61,15 +86,54 @@ as they land.
 
 ---
 
+## New idea notes (user 2026-09-06; TO DISCUSS — not yet shaped, do not implement from these alone)
+
+Rough captures before they were lost. Expand each into a real design / numbered
+backlog item at the discussion session; where noted they touch an existing item.
+
+1. **Echo printout too long? → RESOLVED 2026-09-06: wrapping implemented.**
+   `renderEcho` now wraps a block wider than a wrap width into row groups (each
+   top line followed by its ruler line), cutting only at gap columns outside
+   every unit's text and blank in both lines — a word, a glued multi-word
+   binding (`Life Orb`, `Sludge Wave`) and a ruler label are never split across
+   rows. CLI: `--width N` (default 100; `N <= 0` = never). Top line was agreed
+   NOT byte-exact (extra space fine). Shared renderer ⇒ the offline converter
+   route (## 8) gets the same wrap for free later.
+
+2. **`max` vs explicit-EV collision (ties into ## 10 / auto-fill-defaults /
+   ## 3 dedupe-vs-conflict) — CORRECTED 2026-09-06 (user).** `max <stat>` and an
+   explicit EV on the SAME stat DO collide and ERROR (`max atk` then `120 atk`
+   → hard error, both claims named — same-slot conflict per ## 3, never an
+   overwrite). But: identical duplicate claims collapse silently (`max atk max
+   atk` → one max, tolerated user redundancy); max on DIFFERENT stats coexist
+   freely (`max atk` + `max spe` both bind). The `max` AUTO-nature (adamant) is
+   only a default: an explicit nature typed in the query (`max atk jolly`)
+   overrides it with no error — explicit nature wins, auto nature never collides.
+
+3. **Master rule: hyphen in input = space.** Normalize every hyphen in the
+   input to a space before anything binds (one master normalization rule), THEN
+   clean the alias list of the hyphen/spaced duplicate forms the rule makes
+   redundant.
+
+4. **Faster agent extraction on one-liners (ties into ## 10).** On a short
+   one-liner inquiry, the agent should recognize "this is a calc ask" and jump
+   straight to the sentence containing `vs` — minimal deliberation. Note from
+   user: "don't think too much, we will discuss later."
+
+---
+
 ## 2. Agent-side recognition echo (user 2026-09-06; FIRST unfinished item)
 
 **STATUS: agent half IMPLEMENTED + verified 2026-09-06** — shared renderer
-`scripts/echo.mjs` (exports `renderEcho(line, spans)`; CLI with `--line` /
-`--spans` / `--chat`), regression guard `scripts/verify-echo.mjs`
-(`npm run verify:echo`, 4/4). The agent route now echoes via the renderer
-before pasting the result card. The always-on echo rule was adopted into
-`AGENTS.md` rule 2 (user-confirmed 2026-09-06). STILL OPEN: converter half =
-## 8 (offline `input-converter.mjs` / `damage.mjs` route does not echo yet).
+`scripts/echo.mjs` (exports `renderEcho(line, spans, wrapWidth)`; CLI with
+`--line` / `--spans` / `--chat` / `--width`), regression guard
+`scripts/verify-echo.mjs` (`npm run verify:echo`, 6/6 incl. wrap). The agent
+route now echoes via the renderer before pasting the result card. The always-on
+echo rule was adopted into `AGENTS.md` rule 2 (user-confirmed 2026-09-06).
+Wrap-to-new-line (too-long echo) added for the agent route 2026-09-06 (see
+"New idea notes" 1). STILL OPEN: converter half = ## 8 (offline
+`input-converter.mjs` / `damage.mjs` route does not echo yet; "labels so far"
+on a converter error is fine to defer).
 
 Show the user exactly what was understood BEFORE the result card or error: echo
 the inquiry input verbatim, and annotate each recognized token with its class
@@ -107,6 +171,11 @@ species    item     nature ev:atk  move     species
   / `mega`; a token the producer could not place gets `???` and is laid out
   like any other label. Colored in real terminals (class → fixed color); the
   ruler form above is the chat-safe / code-block rendering.
+- `max <stat>` shorthand echoes as that stat's EV label (`max atk` → `ev:atk`,
+  `max spa` → `ev:spa` — the label set has NO `max` class), one unit spanning
+  the whole phrase, anchored under its FIRST word. Any leftover token the
+  shorthand displaced (e.g. a redundant bare `252` beside `max spa`, which the
+  parse never binds as an EV) is an unbound junk atom and gets `???`.
 - `???` is FEEDBACK, not a blocker: the query still runs to the card. It shows
   the player exactly which token was not understood.
 - Order in output: echo (top line + ruler, its own fenced block) first, then

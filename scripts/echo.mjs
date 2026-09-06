@@ -15,15 +15,24 @@
 //     pushed so no label sits within one column of the previous label's text,
 //   - multi-word bindings render glued with single spaces; the label anchors to
 //     the binding's FIRST word,
-//   - atoms with no span ("@", "vs", bare punctuation) get no label.
+//   - atoms with no span ("@", "vs", bare punctuation) get no label,
+//   - WRAPPING: renderEcho(line, spans, wrapWidth) breaks a too-long block into
+//     row groups, each with its words and labels kept directly adjacent. Break
+//     columns are chosen only where BOTH lines are blank (inside a widened gap),
+//     so the ruler never splits a label and the top line never splits a word;
+//     each emitted row group is <= wrapWidth columns. Only blocks wider than
+//     wrapWidth wrap (wrapWidth <= 0 = never). The shared renderer means the
+//     offline converter route gets the same wrap for free when ## 8 wires in.
 //
-//   node scripts/echo.mjs --line "<raw query>" --spans '<json>' [--chat]
+//   node scripts/echo.mjs --line "<raw query>" --spans '<json>' [--chat] [--width N]
 //
 // --spans is a JSON array of bindings; each is an atom-index range into the
 // whitespace-split raw line plus a label:
 //   [{"atoms":[0,0],"label":"species"},{"atoms":[2,3],"label":"item"},...]
 // Spans must be contiguous atom ranges and must not overlap. A token the
 // producer could not place is labeled "???" (feedback, not a blocker).
+// --width sets the wrap width in columns (default 100; rows that fit stay on
+// one line).
 import { pathToFileURL } from "node:url";
 
 /** Split the raw line into whitespace atoms (spelling preserved). */
@@ -32,8 +41,53 @@ function atomize(line) {
   return text ? text.split(/\s+/) : [];
 }
 
-/** Build the two-line echo block for a raw line + labeled atom spans. */
-export function renderEcho(line, spans) {
+// Break two same-length aligned lines (words line + ruler line) into row
+// groups, each <= wrapWidth columns, cutting only at gap columns that lie
+// OUTSIDE every unit's text span and are blank in BOTH lines, so no word, no
+// glued multi-word binding (Life Orb, Sludge Wave) and no ruler label is ever
+// split across a row. Rows are emitted as word-line then ruler-line pairs, so
+// a group keeps its labels directly under its words; a group side that is all
+// blank is dropped. A single unit longer than wrapWidth (no gap to cut at) is
+// cut hard at the width limit rather than dropped.
+function wrapAligned(top, ruler, wrapWidth, units) {
+  const total = top.length;
+  const insideUnit = (c) => units.some((u) => u.start <= c && c < u.end);
+  const safe = [];
+  for (let c = 1; c < total; c++) {
+    if (top[c] === " " && ruler[c] === " " && !insideUnit(c)) safe.push(c);
+  }
+  const segs = [];
+  let s = 0;
+  while (s < total) {
+    const lim = Math.min(s + wrapWidth, total);
+    if (lim >= total) {
+      segs.push([s, total]);
+      break;
+    }
+    let b = -1;
+    for (const c of safe) {
+      if (c <= s) continue;
+      if (c > lim) break;
+      b = c;
+    }
+    segs.push([s, b < 0 ? lim : b]);
+    s = b < 0 ? lim : b;
+  }
+  const lines = [];
+  for (const [a, b] of segs) {
+    const t = top.slice(a, b);
+    const r = ruler.slice(a, b);
+    const lead = t.length - t.trimStart().length;
+    const ts = t.slice(lead).trimEnd();
+    const rs = r.slice(lead).trimEnd();
+    if (ts) lines.push(ts);
+    if (rs) lines.push(rs);
+  }
+  return lines.join("\n");
+}
+
+/** Build the echo block for a raw line + labeled atom spans. */
+export function renderEcho(line, spans, wrapWidth = 0) {
   const atoms = atomize(line);
   const n = atoms.length;
   const sorted = [...spans].sort(
@@ -72,7 +126,8 @@ export function renderEcho(line, spans) {
 
   // Lay out: single space between units; before a labeled unit, widen the gap
   // so its label starts no earlier than two columns past the previous label's
-  // text end (guarantees >= 1 blank column between label texts).
+  // text end (guarantees >= 1 blank column between label texts). Each unit's
+  // absolute text span is recorded so a wrap never cuts through it.
   let top = "";
   const placements = [];
   let prevLabEnd = -2;
@@ -85,7 +140,9 @@ export function renderEcho(line, spans) {
       placements.push({ start, label: u.label });
       prevLabEnd = start + u.label.length - 1;
     }
+    u.start = top.length;
     top += u.text;
+    u.end = top.length;
   }
 
   const width = Math.max(
@@ -96,11 +153,17 @@ export function renderEcho(line, spans) {
   for (const p of placements) {
     for (let k = 0; k < p.label.length; k++) ruler[p.start + k] = p.label[k];
   }
-  return `${top.trimEnd()}\n${ruler.join("").trimEnd()}`;
+  const topPadded = top.padEnd(width);
+  const rulerStr = ruler.join("");
+  if (!(wrapWidth > 0) || width <= wrapWidth) {
+    return `${topPadded.trimEnd()}\n${rulerStr.trimEnd()}`;
+  }
+  return wrapAligned(topPadded, rulerStr, wrapWidth, units);
 }
 
 const USAGE = `usage:
-  node scripts/echo.mjs --line "<raw query>" --spans '<json>' [--chat]`;
+  node scripts/echo.mjs --line "<raw query>" --spans '<json>' [--chat] [--width N]
+  --width N   wrap rows wider than N columns (default 100; N <= 0 = never)`;
 
 function cli(argv) {
   const args = argv.slice(2);
@@ -115,6 +178,12 @@ function cli(argv) {
     console.error(USAGE);
     process.exit(1);
   }
+  const widthRaw = pick("--width");
+  const wrapWidth = widthRaw === undefined ? 100 : Number(widthRaw);
+  if (!Number.isFinite(wrapWidth)) {
+    console.error(`echo: --width must be a number, got "${widthRaw}"`);
+    process.exit(1);
+  }
   let spans;
   try {
     spans = JSON.parse(spansRaw);
@@ -123,7 +192,7 @@ function cli(argv) {
     process.exit(1);
   }
   try {
-    const block = renderEcho(line, spans);
+    const block = renderEcho(line, spans, wrapWidth);
     process.stdout.write(chat ? `\`\`\`\n${block}\n\`\`\`\n` : `${block}\n`);
   } catch (err) {
     console.error(`echo: ${err.message}`);

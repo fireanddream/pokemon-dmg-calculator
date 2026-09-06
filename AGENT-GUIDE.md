@@ -119,8 +119,16 @@ node scripts/echo.mjs --line "<the user's query, verbatim>" --spans '<spans>' --
   [{"atoms":[0,0],"label":"species"},{"atoms":[5,6],"label":"ev:atk"},
    {"atoms":[7,8],"label":"move"}]
   ```
+- `max <stat>` shorthand binds as the stat's EV class, one unit spanning the
+  phrase, anchored under its first word: `max atk` → `ev:atk`, `Max SpA` →
+  `ev:spa`. There is NO `max` label class. A stray token the shorthand leaves
+  unbound (a redundant bare `252` beside `max spa`) is `???` — never relabel it
+  as an EV.
 - `vs` and `@` are unannotated (no span). Multi-word tokens span their atoms;
   the label anchors under the FIRST word (layout handled by the renderer).
+- Echoes wider than 100 columns wrap into word-line/ruler-line row groups
+  automatically (`--width N` to change; a value <= 0 never wraps). The renderer
+  never splits a word, a glued binding, or a label across a row.
 - Layout contract, span schema, CLI: the `scripts/echo.mjs` header. Design
   record + full layout rules: `TODO.md` ## 2. Regression guard:
   `npm run verify:echo`.
