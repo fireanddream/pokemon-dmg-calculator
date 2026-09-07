@@ -4,6 +4,61 @@ Standing to-do list for sessions on the loose-English → variables (fuzzy
 parse) work and parser grammar cleanups. Read at session start; tick items off
 as they land.
 
+## Done (2026-09-07)
+
+- **Master hyphen rule IMPLEMENTED (idea note 3) — minus exception + deferrals.**
+  `scripts/input-converter.mjs` gains `hyphenToSpace()` (exported), applied at
+  the top of both `parseCombatant` and `parseQuery` (before ANY tokenization /
+  pass / `uses`-frame split). Every hyphen in the input becomes a space with ONE
+  exception — a minus sign glued to a boost/stage number (`-2 atk`, `atk -2`)
+  stays a minus (a hyphen starting a token whose next char is a digit is kept;
+  nothing else survives). No ranges (`+2-1`) or other digit-adjacent hyphens are
+  protected — user-confirmed: "minus AND a single 1-6 number. No other case."
+  What it fixes, verified by smoke + suites: `mega-Aggron`/`Aggron-Mega`,
+  `Ho-Oh`, `Porygon-2`, `Rotom-Wash` all resolve as species; `X-Scissor` as a
+  move; `@ Life-Orb` binds the item; **`no-item` → `no item`** (closes ## 9's
+  spelling-breadth gap for free); `2-spikes` → `spikes 2` layers;
+  `turn-by-turn` still detected (normalized before the flag test). Dex canon
+  lookup keys are untouched — `norm()` still folds hyphens; the rule only
+  normalizes TYPED lines. Regression: `verify:echo` 6/6, `verify:damage` 63/63,
+  `verify:acc` 44/44. DEFERRED (not part of this slice): (a) the alias-list
+  cleanup idea note 3 describes (hyphen/spaced duplicate forms) — audit later,
+  no hyphenated alias KEYS exist today; (b) the 2-word sweep × EV/boost ×
+  guard interactions are a separate session — see the review below.
+
+- **EV/boost bidirectional review recorded (thought-1 review).** Against the
+  ## 3 free-order sweep, the both-orders EV/stage binding is NOT obsolete — it
+  is a 2-word shape phrase recognized from whichever word sits leftmost. Four
+  implementation notes to honor when the tokenizer lands: (1) `+N hp` dynamic
+  half-eats its phrase today (`hp` leaks into `_ignored`) — consume the whole
+  phrase; (2) the `+N ,` punctuation-dynamic rule is obsolete — in free-order
+  grammar ANY stat-less signed number is the dynamic token (`AGENT-GUIDE` step
+  5), `+N hp` stays only as the explicit converter spelling; (3) stray
+  stat-less numbers: converter hard-errors today while the agent grammar says
+  `???` junk — reconcile under ## 10 junk-tolerance, and NEVER let a number
+  reach the fuzzy species regex; (4) EV/boost should be ONE phrase lexicon in
+  the longest-fit matcher, not a higher-priority pre-pass (`2 spikes` shows the
+  phrase must win from the number's position). Also found: `fill.mjs`
+  `applyMaxFlags` expands only ONE max flag (`else-if`), so `max atk max spa`
+  silently drops `max atk` — contradicts idea-note-2 "max on different stats
+  coexist"; parser also lacks `max spe`/`max hp`. Session notes:
+  `session-tools-archive/SESSION-NOTES-20260907-HYPHEN-RULE.md`.
+
+- **2-word sweep review begun — seams A–I inventoried; A resolved.** Seam-by-
+  seam review of the ## 3 layer-1 sweep recorded VERBATIM (resume point:
+  **seam B**) in
+  `session-tools-archive/SESSION-NOTES-20260907-SWEEP-REVIEW-AI.md`. Seam A
+  (window length) settled: dex fits a 3-word window (species max 3 — 7 entries:
+  the X/Y megas ×2 pairs + `Pikachu-Pop-Star`/`Pikachu-Rock-Star`/
+  `Basculin-Blue-Striped`; moves max 3 — 8 entries; abilities ≤2), so longest
+  recognized phrase ≡ **"the 3-word sweep"** — no unbounded matcher. Species
+  stay on the residue/permutation resolver (length-agnostic; `Mega Charizard X`
+  → `Charizard-Mega-X` etc. already work, no X/Y special rule). Guard reduces
+  to a depth-3 first-word trie. New collision found for seam B: 3-word species
+  collide MID-phrase with class tokens (`Pikachu-Rock-Star` fails — `rock` is
+  swept as the Stealth Rock hazard before species resolution), showing the
+  begin-a-longer-phrase guard alone is insufficient.
+
 ## Done (2026-09-06)
 
 - **Recognition echo: wrap-to-new-line for too-long lines (agent route).**
@@ -114,6 +169,11 @@ backlog item at the discussion session; where noted they touch an existing item.
    input to a space before anything binds (one master normalization rule), THEN
    clean the alias list of the hyphen/spaced duplicate forms the rule makes
    redundant.
+   > IMPLEMENTED 2026-09-07 (`hyphenToSpace` in `scripts/input-converter.mjs`,
+   > applied at the top of `parseCombatant` and `parseQuery`). Exception
+   > (user-confirmed): a minus glued to a boost/stage number (`-2 atk`) stays a
+   > minus — a hyphen that starts a token and is followed by a digit is kept;
+   > NO other case survives (no `+2-1` ranges). Alias-list cleanup still TODO.
 
 4. **Faster agent extraction on one-liners (ties into ## 10).** On a short
    one-liner inquiry, the agent should recognize "this is a calc ask" and jump

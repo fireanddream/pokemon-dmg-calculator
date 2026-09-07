@@ -34,8 +34,27 @@ const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json")
 const PUNCT_BOUNDARY = /[,.;/\\|]/g;
 const PUNCT_SENT = "\u0001";
 // norm() also folds those punctuation chars away so a typed "Mr. Mime"
-// ("mr. mime"), "Mr Mime", or "mrmime" all resolve to the same dex key.
+// ("mr. mime"), "Mr Mime", or "mrmime" all resolve to the same dex key. The
+// dex canon keys themselves are hyphenated ("Rotom-Wash", "Venusaur-Mega"), so
+// norm() keeps folding hyphens for LOOKUPS regardless of the master hyphen
+// rule below — that rule only normalizes the TYPED line, never the canon data.
 const norm = (s) => s.toLowerCase().replace(/[\s',.;/\\|-]/g, "");
+
+// --- Master hyphen rule (idea-note-3): every hyphen in the INPUT is a word
+// separator — it becomes a space — with ONE exception: a minus sign glued to a
+// boost/stage number ("-2 atk", "atk -2") is a signed stage token and stays a
+// minus. No other hyphen survives the rule, so hyphenated formes, spellings,
+// and glues all reduce to plain spaced words before any pass sees them:
+//   "mega-aggron" / "aggron-mega" -> "mega aggron" / "aggron mega" (mega signal)
+//   "2-spikes" -> "2 spikes" (spikes layers)      "no-item" -> "no item"
+//   "life-orb" -> "life orb" (item)               "Porygon-2" -> "Porygon 2"
+// Runs BEFORE tokenization so no later pass special-cases a hyphenated form.
+const hyphenToSpace = (s) =>
+  s.replace(/-/g, (h, i) => {
+    const before = i > 0 ? s[i - 1] : "";
+    const after = s[i + 1] ?? "";
+    return !/[A-Za-z0-9]/.test(before) && /[0-9]/.test(after) ? h : " ";
+  });
 const chart = buildTypeChart(typesData.types);
 const natureByName = new Map(naturesData.natures.map((n) => [n.name.toLowerCase(), n]));
 const moveByName = new Map(movesData.moves.map((m) => [norm(m.name), m]));
@@ -243,6 +262,7 @@ function strayNumberError(raw, side, spec, name, strays) {
 /** Turn "Garchomp @ Life Orb Jolly 252 Atk" into a resolve()-style spec. */
 function parseCombatant(raw, side = "attacker") {
   if (typeof raw !== "string" || !raw.trim()) throw new Error("empty combatant spec");
+  raw = hyphenToSpace(raw);
   const padded = () =>
     ` ${raw.toLowerCase().replace(/[@'"]/g, " ").replace(PUNCT_BOUNDARY, PUNCT_SENT)} `;
   let s = padded();
@@ -618,8 +638,9 @@ function parseMoveChain(text) {
 
 /** Parse "<atk> uses <move> vs <def>"; "turn by turn" asks for the per-turn table. */
 function parseQuery(line) {
-  const flag = /\bturn\s*by\s*turn\b|\bturn-by-turn\b/i.test(line);
-  const clean = line.replace(/\bturn\s*by\s*turn\b|\bturn-by-turn\b/gi, " ");
+  const normed = hyphenToSpace(line);
+  const flag = /\bturn\s*by\s*turn\b/i.test(normed);
+  const clean = normed.replace(/\bturn\s*by\s*turn\b/gi, " ");
   const m = /^(.+?)\s+uses\s+(.+?)\s+vs\s+(.+)$/is.exec(clean.trim());
   if (!m) throw new Error('query must look like: "Garchomp @ Life Orb Jolly 252 Atk uses Earthquake vs Heatran 252 HP"');
   const out = mergeArena({
@@ -633,7 +654,7 @@ function parseQuery(line) {
 }
 
 export {
-  norm, chart, natureByName, moveByName, monByName,
+  norm, hyphenToSpace, chart, natureByName, moveByName, monByName,
   resolveMoveName, parseMoveChain, PLATE_BY_TYPE,
   parseCombatant, mergeArena, parseQuery,
 };
