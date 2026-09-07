@@ -6,6 +6,19 @@ as they land.
 
 ## Done (2026-09-07)
 
+- **Comma adjacency RESOLVED: comma = hard lookahead stop; `claimMoves`
+  patched.** The boost/EV-review open thread is closed (user-confirmed): a `,`
+  is ALWAYS an adjacency-breaker, never inert whitespace — `+2, atk 252` is a
+  stat-less dynamic `+2` + a fresh EV `252 atk` (no strand; the no-comma
+  `+2 atk 252` still errors). `claimMoves` (`scripts/input-converter.mjs`) now
+  marks `,.;/\|` as `\u0001` boundaries so no ≤3-word phrase slice can span
+  one: `Shadow, Ball` / `Focus, Punch` no longer resolve (0 claims → error);
+  the walk still steps over markers, so `EQ, Outrage` / `eq,outrage` /
+  `eq then Outrage` / `eq+outrage` chains are byte-unchanged. Regression:
+  verify:damage 63/63, verify:acc 44/44, verify:echo 6/6. Recorded in
+  `session-tools-archive/SESSION-NOTES-20260907-SWEEP-REVIEW-AI.md` (the
+  pre-C thread).
+
 - **Master hyphen rule IMPLEMENTED (idea note 3) — minus exception + deferrals.**
   `scripts/input-converter.mjs` gains `hyphenToSpace()` (exported), applied at
   the top of both `parseCombatant` and `parseQuery` (before ANY tokenization /
@@ -44,8 +57,8 @@ as they land.
   coexist"; parser also lacks `max spe`/`max hp`. Session notes:
   `session-tools-archive/SESSION-NOTES-20260907-HYPHEN-RULE.md`.
 
-- **2-word sweep review begun — seams A & B RESOLVED; pre-C thread in
-  progress.** Seam-by-seam review of the ## 3 layer-1 sweep (resume point: the
+- **2-word sweep review begun — seams A, B, & C RESOLVED; pre-C thread
+  complete.** Seam-by-seam review of the ## 3 layer-1 sweep (resume point: the
   **boost-vs-EV sweep review**, before seam C) recorded VERBATIM in
   `session-tools-archive/SESSION-NOTES-20260907-SWEEP-REVIEW-AI.md`. Seam A
   (window length) settled: dex fits a 3-word window — longest recognized
@@ -59,6 +72,15 @@ as they land.
   `arceus rock`/`arceus poison`/`genesect burn` silently mis-resolve;
   `arceus electric`/`arceus psychic` work today but break once bare terrain
   claims land) — documented, revisit post-tokenizer, at-worst alias escape.
+  Seam C (1-word cross-lexicon ties) RESOLVED: the full 1-word scan finds
+  exactly 6 colliding words, ALL class-token × full-move-name (`toxic`→status,
+  `hail`/`sandstorm`→weather, `spikes`→hazard, `metronome`→item via existing
+  grammar; `psychic` the only damaging-move tie). Rule: attacker-side bare
+  `psychic` = move Psychic (a user never means bare `psychic` as terrain); the
+  damaging-move name wins over the same-word class token, guard-shaped, no
+  cross-class priority list needed. Invariant adopted: class lexicons must
+  stay 1-word-disjoint — warn loudly at startup if an aliases.md edit creates
+  a tie (implement in the tokenizer session).
 
 - **Two-move delimiter grammar ABOLISHED (2026-09-07; design decision).** The
   `then` / `+` / `and` chain syntax is gone, replaced by **move claiming with

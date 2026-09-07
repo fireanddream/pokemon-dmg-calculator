@@ -620,15 +620,24 @@ function mergeArena(matchup) {
  *   1 distinct move → { single }; 2 distinct → { chain: [m0, m1] } in claimed
  *   order (move 1 lands turn 1, move 2 lands turn 2); 0 moves or >2 distinct
  *   → hard error (stops the parse).
+ * A comma (or the other punctuation boundaries `.;/\|`) is a HARD LOOKAHEAD
+ * STOP: no phrase may span one, so "Shadow, Ball" never reads as Shadow Ball.
+ * The marker atom is stepped over, so single-word claims on either side still
+ * proceed — "EQ, Outrage" / "eq,outrage" still claim both moves.
  */
 function claimMoves(text) {
-  const words = String(text).toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+  const raw = String(text).toLowerCase();
+  // Mark punctuation boundaries so no phrase lookahead ever crosses them.
+  const marked = raw.replace(/[,.;/\\|]+/g, " \u0001 ");
+  const words = marked.replace(/[^a-z0-9\u0001 ]+/g, " ").split(/\s+/).filter(Boolean);
   const claimed = [];
   for (let i = 0; i < words.length; i++) {
     let name = null;
     let len = 0;
     for (let k = Math.min(3, words.length - i); k >= 1 && !name; k--) {
-      const hit = resolveMoveName(words.slice(i, i + k).join(" "));
+      const slice = words.slice(i, i + k);
+      if (slice.includes("\u0001")) continue;
+      const hit = resolveMoveName(slice.join(" "));
       if (hit) { name = hit; len = k; }
     }
     if (name) { claimed.push(name); i += len - 1; }
