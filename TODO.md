@@ -44,20 +44,42 @@ as they land.
   coexist"; parser also lacks `max spe`/`max hp`. Session notes:
   `session-tools-archive/SESSION-NOTES-20260907-HYPHEN-RULE.md`.
 
-- **2-word sweep review begun — seams A–I inventoried; A resolved.** Seam-by-
-  seam review of the ## 3 layer-1 sweep recorded VERBATIM (resume point:
-  **seam B**) in
+- **2-word sweep review begun — seams A & B RESOLVED; pre-C thread in
+  progress.** Seam-by-seam review of the ## 3 layer-1 sweep (resume point: the
+  **boost-vs-EV sweep review**, before seam C) recorded VERBATIM in
   `session-tools-archive/SESSION-NOTES-20260907-SWEEP-REVIEW-AI.md`. Seam A
-  (window length) settled: dex fits a 3-word window (species max 3 — 7 entries:
-  the X/Y megas ×2 pairs + `Pikachu-Pop-Star`/`Pikachu-Rock-Star`/
-  `Basculin-Blue-Striped`; moves max 3 — 8 entries; abilities ≤2), so longest
-  recognized phrase ≡ **"the 3-word sweep"** — no unbounded matcher. Species
-  stay on the residue/permutation resolver (length-agnostic; `Mega Charizard X`
-  → `Charizard-Mega-X` etc. already work, no X/Y special rule). Guard reduces
-  to a depth-3 first-word trie. New collision found for seam B: 3-word species
-  collide MID-phrase with class tokens (`Pikachu-Rock-Star` fails — `rock` is
-  swept as the Stealth Rock hazard before species resolution), showing the
-  begin-a-longer-phrase guard alone is insufficient.
+  (window length) settled: dex fits a 3-word window — longest recognized
+  phrase ≡ **"the 3-word sweep"**, no unbounded matcher; species stay on the
+  residue/permutation resolver. Seam B (guard) settled: guard = same-position
+  longest-fit, single-word class claims only when no 2–3-word phrase starts
+  there (one depth-3 first-word trie; EV/boost/level/`max` fold into the same
+  fit — no separate first pass; no lookbehind). Species join NEITHER the sweep
+  NOR the guard: the full 503-species scan shows the only interior collisions
+  are the deferred forme-word set (`pikachu rock star` hard-errors today;
+  `arceus rock`/`arceus poison`/`genesect burn` silently mis-resolve;
+  `arceus electric`/`arceus psychic` work today but break once bare terrain
+  claims land) — documented, revisit post-tokenizer, at-worst alias escape.
+
+- **Two-move delimiter grammar ABOLISHED (2026-09-07; design decision).** The
+  `then` / `+` / `and` chain syntax is gone, replaced by **move claiming with
+  no delimiter**: `parseMoveChain` → `claimMoves` (`scripts/input-converter.mjs`).
+  Walk the move slot's atoms left→right, longest contiguous exact move
+  phrase/alias (≤3 words) at each position, collect distinct canonical claims.
+  1 distinct = single-move card; 2 distinct = the fixed two-move sequence in
+  claimed order (turn 1 then turn 2); **0 moves or >2 distinct = hard error,
+  stop reading**. Re-naming the same move (incl. alias pairs like `EQ
+  earthquake`) collapses to a single card. Connector words (`then` / `and` /
+  standalone `+` / commas) are inert noise — `rock + spikes`, `in sun and
+  spikes` can no longer be misread as chains. Rationale (user): players use
+  `and`/`+` as ordinary connectors, so the delimiter grammar invited
+  confusion. Verified: `EQ then Outrage` and `EQ Outrage` cards byte-identical;
+  move order = left→right as typed (`Outrage EQ` flips the turns); `EQ,
+  Outrage` now combos (was an unknown-move error); `eq+outrage` still chains;
+  3+ distinct (`EQ Fire Blast Ice Beam`) errors. Docs: OUTPUT-FORMAT two-move
+  section. **SUPERSEDES**: the 2026-09-05 "Multi-move separators narrowed"
+  item below; the ## 3 dedupe-vs-conflict chain-syntax bullets; seam D's
+  "chain atoms claimed in the sweep" wording (the seam D `+2`-glue rule —
+  digit-glued `+N` is always a boost — still stands).
 
 ## Done (2026-09-06)
 
@@ -138,6 +160,9 @@ as they land.
   move slot now fall into single-move lookup and error (`Unknown move: EQ,
   Outrage`). Grammar sentence updated in `AGENTS.md`, `README.md`,
   `OUTPUT-FORMAT.md`. `npm run verify:damage` still 63/63.
+  > SUPERSEDED 2026-09-07 — delimiter grammar ABOLISHED; see the top-of-day
+  > "Two-move delimiter grammar ABOLISHED" bullet. Two moves are claimed by
+  > exact name with no separator; `,`/`;` are inert noise like `then`/`and`.
 
 ---
 
@@ -179,6 +204,21 @@ backlog item at the discussion session; where noted they touch an existing item.
    one-liner inquiry, the agent should recognize "this is a calc ask" and jump
    straight to the sentence containing `vs` — minimal deliberation. Note from
    user: "don't think too much, we will discuss later."
+
+5. **Error-message consolidation after the echo (user 2026-09-07).** Once the
+   recognition echo renders `???` for every unbound token, the player already
+   sees exactly where the converter stopped — do we still need the current zoo
+   of bespoke converter errors ("could not identify a pokemon in ...",
+   "I couldn't place ...", "needs a stat right after it", caps, unknown-move)?
+   Lean: one master "unrecognized input" error whose detail is carried by the
+   echo, while KEEPING a few high-value specific errors the echo cannot show:
+   semantic same-slot conflicts (slot + candidates: `max atk` vs `120 atk`,
+   boost `+2` vs `+1`, item vs `no item`) and the bare-EV-number error
+   (`max atk 252` — an EV-magnitude number with no stat = likely spread typo,
+   errors loud, confirmed 2026-09-07; supersedes the earlier "redundant bare
+   252 → ???" echo convention). Open: where the split lands for move/species
+   not-found (echo `???` vs a message naming the missing slot). Shape at the
+   ## 10 session.
 
 ---
 
@@ -474,6 +514,10 @@ canonical value:
   tokens create distinct move slots, so different values across chain slots are
   legal. Different move values WITHOUT a chain token is a hard error — the
   message should hint the chain tokens.
+  > SUPERSEDED 2026-09-07 — the chain grammar is ABOLISHED (see the top-of-day
+  > "Two-move delimiter grammar ABOLISHED" bullet). Two distinct claimed moves
+  > ARE the two-move calc (no token needed); same-move re-names collapse to
+  > single; the "no chain token" hard error is gone.
 - Same canonical move on both sides of a chain (`EQ then Earthquake`) collapses
   to a single-move card.
 - All checks are per side (a species name repeats legitimately across sides in a

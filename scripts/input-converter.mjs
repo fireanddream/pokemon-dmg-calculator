@@ -10,7 +10,7 @@
 //   ... | node scripts/fill.mjs - | node scripts/calc.mjs - | node scripts/output.mjs -
 //
 // This module also hosts the shared front lexicon (data loads, lookup maps,
-// alias tables, PLATE_BY_TYPE, resolveMoveName, parseMoveChain) that fill.mjs
+// alias tables, PLATE_BY_TYPE, resolveMoveName, claimMoves) that fill.mjs
 // imports — one source for both extractor routes and the defaults stage.
 
 import { readFile } from "node:fs/promises";
@@ -612,28 +612,32 @@ function mergeArena(matchup) {
 }
 
 /**
- * Detect a fixed move sequence in the move slot ("EQ then Outrage", "EQ and
- * Outrage", "EQ + Outrage"). Returns { chain: names } when 2+ moves resolve;
- * { single: name } when separators are present but only one move is left (so
- * we fall back to a regular single-move calc); null when the text is a plain
- * single move (no separators). Throws on an unresolvable move inside a real
- * chain.
+ * Claim the moves out of a move-slot text — NO delimiter grammar. Chain words
+ * (`then` / `and` / `+` / commas) are inert noise; only exact move phrases
+ * matter. Walk the slot's word atoms left→right, take the longest known
+ * contiguous move phrase/alias at each position (dex moves are ≤3 words), and
+ * collect the claims in order. The distinct canonical count decides:
+ *   1 distinct move → { single }; 2 distinct → { chain: [m0, m1] } in claimed
+ *   order (move 1 lands turn 1, move 2 lands turn 2); 0 moves or >2 distinct
+ *   → hard error (stops the parse).
  */
-function parseMoveChain(text) {
-  if (!/\b(?:then|and)\b|[+]/.test(text)) return null;
-  const segs = text.split(/\b(?:then|and)\b|[+]/gi).map((s) => s.trim()).filter(Boolean);
-  if (segs.length < 2) {
-    const only = resolveMoveName(segs[0] ?? "");
-    return only ? { single: only } : null;
+function claimMoves(text) {
+  const words = String(text).toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+  const claimed = [];
+  for (let i = 0; i < words.length; i++) {
+    let name = null;
+    let len = 0;
+    for (let k = Math.min(3, words.length - i); k >= 1 && !name; k--) {
+      const hit = resolveMoveName(words.slice(i, i + k).join(" "));
+      if (hit) { name = hit; len = k; }
+    }
+    if (name) { claimed.push(name); i += len - 1; }
   }
-  const names = segs.map(resolveMoveName);
-  const bad = segs.find((s, i) => !names[i]);
-  if (bad) throw new Error(`Unknown move in combo: "${bad}"`);
-  if (names.length >= 2) {
-    if (names.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${text}")`);
-    return { chain: names };
-  }
-  return null;
+  const seen = new Set();
+  const distinct = claimed.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
+  if (distinct.length === 0) throw new Error(`could not identify a move in: "${text}"`);
+  if (distinct.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${text}")`);
+  return distinct.length === 2 ? { chain: distinct } : { single: distinct[0] };
 }
 
 /** Parse "<atk> uses <move> vs <def>"; "turn by turn" asks for the per-turn table. */
@@ -655,7 +659,7 @@ function parseQuery(line) {
 
 export {
   norm, hyphenToSpace, chart, natureByName, moveByName, monByName,
-  resolveMoveName, parseMoveChain, PLATE_BY_TYPE,
+  resolveMoveName, claimMoves, PLATE_BY_TYPE,
   parseCombatant, mergeArena, parseQuery,
 };
 

@@ -279,11 +279,14 @@ and all end-of-turn effects:
 
 ## Two-move combos (fixed sequence)
 
-A query may chain exactly two moves in the move slot with `then`, `+`, or
-`and` (`"Garchomp uses EQ then Outrage vs Skarmory"`). Move 1 lands turn 1, move
-2 lands turn 2 starting from the defender's surviving HP, then the sim ends.
-Capped at **two moves** (3+ is an error); separators with only one real move
-fall back to a normal single-move card.
+A query may name exactly two moves in the move slot with NO delimiter — the
+moves are claimed by exact name wherever they appear
+(`"Garchomp uses EQ Outrage vs Skarmory"`). Connector words (`then`, `and`,
+`+`, commas) are inert and change nothing. Move 1 lands turn 1, move 2 lands
+turn 2 starting from the defender's surviving HP, then the sim ends. Move order
+= left-to-right as typed. Naming the same move again (or an alias of it)
+collapses to a normal single-move card; **3+ distinct moves is an error**; a
+slot with no recognizable move is an error.
 
 Layout: the shared `Attacker` / `Defender` / `[Arena]` rows, then (only when
 the defender has end-of-turn chip or heal) a `passives:` line, and per-turn

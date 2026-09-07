@@ -11,7 +11,7 @@
 //   node scripts/fill.mjs <spec.json>   (or stdin "-")
 //
 // The shared front lexicon (data loads, lookup maps, PLATE_BY_TYPE,
-// resolveMoveName, parseMoveChain) lives in input-converter.mjs and is
+// resolveMoveName, claimMoves) lives in input-converter.mjs and is
 // imported here — one source for both extractor routes and this stage.
 
 import { readFile } from "node:fs/promises";
@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { calcStats, SHEER_FORCE_MOVES, remapMoveType, resolveWeatherBall } from "../dist/index.js";
 import {
   norm, chart, natureByName, moveByName, monByName,
-  resolveMoveName, parseMoveChain, PLATE_BY_TYPE,
+  resolveMoveName, claimMoves, PLATE_BY_TYPE,
 } from "./input-converter.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -765,13 +765,15 @@ function resolveComboInput(matchup) {
   };
 }
 
-/** Detect a move chain on the matchup; returns "single" or "combo". Mutates
+/** Detect the move shape on the matchup; returns "single" or "combo". Mutates
  *  matchup.moves/matchup.move so the resolvers below see the decided form. */
 function classifyMatchup(matchup) {
-  // fixed move sequence ("uses EQ then Outrage vs ...") routes to the combo
-  // path; stray separators with one surviving move fall back to the regular calc.
+  // Move slot has NO delimiter grammar: claim exact moves from the slot text
+  // (1 = single, 2 distinct = the fixed two-move sequence in claimed order,
+  // 0 or >2 = hard error from claimMoves). Spec routes that already carry a
+  // moves array skip the claiming and only need the combo guard below.
   if (!matchup.moves) {
-    const parsed = parseMoveChain(matchup.move ?? "");
+    const parsed = claimMoves(matchup.move ?? "");
     if (parsed?.chain) matchup.moves = parsed.chain;
     else if (parsed?.single) matchup.move = parsed.single;
   }
