@@ -6,6 +6,37 @@ as they land.
 
 ## Done (2026-09-08)
 
+- **Seam F RESOLVED + IMPLEMENTED (rules set one-by-one 2026-09-08; session
+  notes: SESSION-NOTES-20260908-SEAM-F.md).** The stat-less signed-number /
+  dynamic-boost rules were re-adjudicated because earlier days left
+  contradicting designs. Locked:
+  - **R1 — any stat-less signed `+N`/`-N` is the dynamic boost** (`_plusBoost`,
+    resolved onto the move's stat by fill). The converter no longer hard-errors
+    on `Garchomp +2 uses …`; a signed number only fails to be dynamic when it
+    combines with an adjacent stageable stat (`+2 atk` stage). The `+N hp`
+    anchor spelling is dead.
+  - **R2 — `+N` force-combines with the next stat word.** Stageable stat
+    (`atk/def/spa/spd/spe`, acc/eva) → stage. HP is never stageable, so `+N hp`
+    survives ONLY when hp is doing EV duty (`+2 hp 252` = dynamic `+2` + EV 252
+    HP); `+2 hp` with no EV number after `hp` — and the mirror `hp +2` — HARD
+    ERROR (never the old `[ignored: hp]` leak, never a silent dynamic fallback).
+  - **R3 — the `+N ,` punctuation-boundary branch is DELETED** (dead once R1 +
+    the global comma rule made every stat-less `+N` dynamic).
+  - **R4 — unbound stat WORD and unbound unsigned NUMBER are both hard errors**
+    (`Garchomp hp uses …`, `Garchomp 252 uses …`). This supersedes the older
+    "redundant bare 252 → `???`" echo convention (AGENT-GUIDE step 3 example
+    fixed) and the `needStat` signed-number error text. Errors name every stray
+    and per-kind hint; `strayNumberError` → `strayTokenError`.
+  - **R4 collateral — stat lexicons carry SHORT aliases only.** Removed
+    `special`→spa and `spdefense`→spd from the stat/max maps (user: "we should
+    not even have the full names in lookup" for the two special stats, and HP
+    has no `hit point`); `special attack`/`special defense` two-word phrases
+    were never added. `252 special defense` no longer silently binds SPA — it
+    errors like any unbound number. `atk/def/spe/accuracy/evasion` keep their
+    one-word names. aliases.md stat table updated.
+  - Regression: corpus 31/31 + the 16-case smoke above, verify:damage 63/63,
+    verify:acc 44/44, verify:echo 6/6.
+
 - **Seam E RESOLVED + IMPLEMENTED: spikes lexicon locked, comma = GLOBAL hard
   separator, dedupe confirmed GLOBAL (all user-confirmed 2026-09-08).** The
   number-led arena claim is exactly the spikes lexicon. Final grammar: bare
@@ -25,8 +56,8 @@ as they land.
   bare singular=1/plural=3, value gate, dedupe reconcile; old glued+layers
   regex removed). Docs: ## 4 forms bullet SUPERSEDED, auto-fill-defaults
   hazard row. Verified: 20-case smoke + verify:damage 63/63, verify:acc 44/44,
-  verify:echo 6/6. Seam E verbatim: SWEEP-REVIEW session notes. **Next seam: F**
-  (`+N hp` whole-phrase; stat-less `+N` = dynamic — mostly settled, small).
+  verify:echo 6/6. Seam E verbatim: SWEEP-REVIEW session notes. (Seam F done
+  above; the seams A–I sweep is now fully resolved.)
 
 ## Done (2026-09-07)
 
@@ -80,6 +111,12 @@ as they land.
   silently drops `max atk` — contradicts idea-note-2 "max on different stats
   coexist"; parser also lacks `max spe`/`max hp`. Session notes:
   `session-tools-archive/SESSION-NOTES-20260907-HYPHEN-RULE.md`.
+  > Notes (1) and (2) SUPERSEDED 2026-09-08 by seam F (see Done 2026-09-08):
+  > the `+N hp` phrase is NOT kept — the spelling is dead and unbound `hp`
+  > after a boost HARD-ERRORS (never leaks, never "eat the whole phrase"); and
+  > the "`+N hp` = explicit converter spelling" premise is gone because stat-less
+  > `+N` alone is dynamic everywhere (R1). Notes (3) and (4) still stand for
+  > the ## 3 tokenizer session.
 
 - **2-word sweep review begun — seams A, B, & C RESOLVED; pre-C thread
   complete.** Seam-by-seam review of the ## 3 layer-1 sweep (resume point: the
@@ -265,6 +302,15 @@ backlog item at the discussion session; where noted they touch an existing item.
    252 → ???" echo convention). Open: where the split lands for move/species
    not-found (echo `???` vs a message naming the missing slot). Shape at the
    ## 10 session.
+   > **R4 REVISIT POINT (2026-09-08 seam F):** R4 generalized the bare-number
+   > error above to *unbound stat WORDS* too — a lone `hp`, a lone `atk`, or a
+   > stranded number is a HARD ERROR in the converter (never `???`, never
+   > `[ignored: …]`; see the seam-F Done bullet + SESSION-NOTES-20260908-SEAM-F).
+   > If this session relaxes errors toward `???` junk tolerance, R4 is the
+   > first rule to re-examine: is a stray stat word "very likely a spread typo"
+   > (hard error, as ruled) or honest junk the echo should just surface? The
+   > two camps map to the converter route (strict today) vs the future agent /
+   > echo route (## 8 / ## 10). Deliberate, don't silently inherit either way.
 
 ---
 

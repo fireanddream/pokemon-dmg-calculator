@@ -118,13 +118,16 @@ Silk Scarf.
 
 ## Stat abbreviations
 
-Used for EVs (`252 atk`) and stat-stage tokens (`-1 atk`, `+2 spa`):
+Used for EVs (`252 atk`) and stat-stage tokens (`-1 atk`, `+2 spa`). Short
+forms only — the two special stats and HP have NO English full names in the
+lookup (`special`, `special attack`/`special defense`, `hit point(s)` are all
+rejected; nobody types them and the fragments create fake partial matches):
 
 | You type | Resolves to |
 |---|---|
 | `atk` / `attack` | atk |
 | `def` / `defense` | def |
-| `spa` / `spatk` / `special` / `spc` | spa |
+| `spa` / `spatk` / `spc` | spa |
 | `spd` / `spdef` / `sdef` | spd |
 | `spe` / `speed` | spe |
 | `acc` / `accuracy` | accuracy stage |

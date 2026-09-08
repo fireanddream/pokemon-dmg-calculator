@@ -242,21 +242,29 @@ function describeSpec(spec, name) {
   return parts;
 }
 
-/** Hard error for digit/signed tokens nothing claimed: list what WAS recognized,
- *  quote the strays, and explain in plain words what the converter expected. */
-function strayNumberError(raw, side, spec, name, strays) {
+/** Hard error for digit/stat tokens nothing claimed: list what WAS recognized,
+ *  quote the strays, and explain in plain words what the converter expected.
+ *  An unbound stat WORD and an unbound unsigned NUMBER are both mistakes —
+ *  signed numbers never strand (a stat-less +N/-N is always the dynamic
+ *  boost). */
+function strayTokenError(raw, side, spec, name, stats, digits) {
   const rec = describeSpec(spec, name);
-  const quoted = strays.map((t) => `"${t}"`).join(", ");
-  const needStat = strays.some((t) => /^[+-]/.test(t));
-  return [
+  const quoted = [...stats, ...digits].map((t) => `"${t}"`).join(", ");
+  const lines = [
     `I couldn't place ${quoted} on the ${side}.`,
     rec.length ? `I did recognize: ${rec.join(" · ")}.` : "",
-    needStat
-      ? `A +/- number needs its stat right after it: "+2 atk" / "atk +2" for a stage, "+1 acc" for accuracy, or "+N hp" to boost the move's stat. "${strays[0]}" had none, so nothing happened to it.`
-      : `A bare number needs a stat to be an EV ("252 atk" / "atk 252", "188 HP" / "HP 188"), or a +/- sign to be a stage. "${strays[0]}" has neither, so nothing happened to it.`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ];
+  if (digits.length) {
+    lines.push(`A bare number needs a stat right next to it to be an EV ("252 atk" / "atk 252", "188 HP" / "HP 188"). "${digits[0]}" had none, so nothing bound it.`);
+  }
+  if (stats.length) {
+    const w = stats[0];
+    const statHint = w === "hp"
+      ? `"hp" is a stat word with nothing bound to it. HP can't take a stage, so a lone "hp" (as in "+2 hp") binds nothing — write the boost as "+2" alone, or give hp its own EV ("+2 hp 252").`
+      : `"${w}" is a stat word with nothing bound to it — an EV needs a number right next to it ("252 hp" / "hp 252") and a stage needs a +/- sign ("+2 atk").`;
+    lines.push(statHint);
+  }
+  return lines.filter(Boolean).join("\n");
 }
 
 /** Turn "Garchomp @ Life Orb Jolly 252 Atk" into a resolve()-style spec. */
@@ -278,23 +286,30 @@ function parseCombatant(raw, side = "attacker") {
   //   EV       "252 atk" / "atk 252" / "188 HP" / "HP 188"  (0-252, any stat)
   //   stage    a +/- number bound to a battle stat, either order: "+2 atk",
   //            "atk +2"  (HP is NOT stageable) — and "+1 acc"/"+1 eva"
-  //   dynamic  "+N hp" (HP can't take the stage) OR "+N" sitting on a
-  //            punctuation boundary ("+2, ATK 252" is a list, never a stage):
-  //            an attack-move boost resolved onto the move's stat by fill.mjs.
+  //   dynamic  a stat-less "+N"/"-N" anywhere (no stageable stat adjacent):
+  //            a boost resolved onto the move's stat by fill.mjs. A "+N hp"
+  //            only survives when hp is doing EV duty ("+2 hp 252"); a lone
+  //            hp next to +N is an unbound stat and fails loud below.
   // Atoms that form no investment phrase (species, nature, "sand", ...) are
   // left in place for the word passes below.
+  //
+  // Stat aliases are SHORT forms only: no English full-name words for the
+  // two special stats ("special", "special attack"/"special defense") and no
+  // "hit point(s)" for HP — nobody types them and they fragment into fake
+  // partial matches. atk/def/spe keep their one-word names ("attack",
+  // "defense", "speed"); spa/spd keep only spa/spatk/spc and spd/spdef/sdef.
   const STAGE_ALIAS = {
     atk: "atk", attack: "atk", def: "def", defense: "def",
-    spa: "spa", spatk: "spa", special: "spa", spc: "spa",
+    spa: "spa", spatk: "spa", spc: "spa",
     spd: "spd", spdef: "spd", sdef: "spd", spe: "spe", speed: "spe",
   };
   const EV_ALIAS = { hp: "hp", ...STAGE_ALIAS };
   const ACC_EVA_ALIAS = { acc: "acc", accuracy: "acc", eva: "eva", evasion: "eva" };
   const MAX_ALIAS = {
     atk: "_maxAtk", attack: "_maxAtk", phys: "_maxAtk",
-    spa: "_maxSpa", spatk: "_maxSpa", special: "_maxSpa", spc: "_maxSpa",
+    spa: "_maxSpa", spatk: "_maxSpa", spc: "_maxSpa",
     def: "_maxDef", defense: "_maxDef",
-    spd: "_maxSpd", spdef: "_maxSpd", sdef: "_maxSpd", spdefense: "_maxSpd",
+    spd: "_maxSpd", spdef: "_maxSpd", sdef: "_maxSpd",
   };
   const evs = {};
   const specBoosts = () => (spec.boosts = spec.boosts ?? {});
@@ -340,15 +355,17 @@ function parseCombatant(raw, side = "attacker") {
       spec[MAX_ALIAS[atoms[i + 1].t]] = true; eat(i, 2); i++; continue;
     }
 
-    // signed number leader: "+N <stat/acc/eva>" stage, "+N hp" dynamic, or
-    // "+N" on a punctuation boundary = dynamic list item
+    // signed number leader: "+N <stageable stat>" stage ("+2 atk", "+1 acc"),
+    // else a STAT-LESS dynamic boost ("+N" anywhere with no stageable stat to
+    // combine with). HP is not stageable, so "+N hp" never stages — hp only
+    // survives as an EV ("+2 hp 252"); a lone hp beside +N is an unbound stat
+    // and fails loud in the residue check. The comma-boundary special case is
+    // gone: the global comma rule already made any stat-less +N dynamic.
     if (isSigned(tok)) {
       const nxt = atoms[i + 1];
       if (adjacent(i) && nxt && STAGE_ALIAS[nxt.t]) { addStage(nxt.t, tok[0], tok.slice(1)); eat(i, 2); i++; continue; }
       if (adjacent(i) && nxt && ACC_EVA_ALIAS[nxt.t]) { addAccEva(nxt.t, tok[0], tok.slice(1)); eat(i, 2); i++; continue; }
-      if (adjacent(i) && nxt && nxt.t === "hp") { setPlus(tok[0], tok.slice(1)); eat(i); continue; }
-      if (nxt && /\u0001/.test(gapToNext(i))) { setPlus(tok[0], tok.slice(1)); eat(i); continue; }
-      continue; // stray signed number: left for the end-of-clause numeric check
+      setPlus(tok[0], tok.slice(1)); eat(i); continue;
     }
 
     // stat leader: "<stat> +N" stage or "<stat> N" EV (stat-first canonical)
@@ -604,11 +621,13 @@ function parseCombatant(raw, side = "attacker") {
     }
   }
   spec.name = name;
-  // A digit/signed token no pass claimed is a mistake, not flavor: fail loud
+  // A digit/stat token no pass claimed is a mistake, not flavor: fail loud
   // and show what WAS understood so the user can fix just the bad part.
-  const strayNumbers = (ignored ?? []).filter((t) => /\d/.test(t));
-  if (strayNumbers.length) {
-    throw new Error(strayNumberError(raw, side, spec, name, strayNumbers));
+  const STAT_WORD = new Set([...Object.keys(EV_ALIAS), ...Object.keys(ACC_EVA_ALIAS)]);
+  const strayStats = (ignored ?? []).filter((w) => STAT_WORD.has(w));
+  const strayNumbers = (ignored ?? []).filter((t) => /\d/.test(t) && !STAT_WORD.has(t));
+  if (strayStats.length || strayNumbers.length) {
+    throw new Error(strayTokenError(raw, side, spec, name, strayStats, strayNumbers));
   }
   if (ignored.length) spec._ignored = ignored.join(" ");
   return spec;

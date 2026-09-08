@@ -71,7 +71,9 @@ by `vs`; every token binds to the species in its own side.
      agent must agree on the same token shapes).
    Worked example — `+2 atk 252 hp 252 garchomp` on a side: `+2 atk` = stage
    +2 atk on Garchomp · `252 hp` = EV 252 HP on Garchomp · the trailing `252`
-   has no stat word → unbound junk (`???`), never guessed as atk/spe.
+   has no stat word → a HARD ERROR (an EV-magnitude number with no stat to
+   assign is "very likely an EV spread missing its stat"; never guessed as
+   atk/spe, never silent `???`).
 4. **Author the spec JSON** — the same record `input-converter.mjs` emits.
    Shape:
    ```json
@@ -95,10 +97,14 @@ by `vs`; every token binds to the species in its own side.
    needed — ASK the user instead of guessing.
 5. **Stat-less `+N`/`-N` is a dynamic-boost token, not a stat choice.** A lone
    `+1`/`-2` on a side (e.g. "Ferrothorn +1") means "boost the move's stat /
-   the stat the move targets". Transcribe it as the front's dynamic-boost token
-   (the spelling the converter reads, `+N hp`, i.e. the spec's `_plusBoost`);
+   the stat the move targets". Transcribe it as the spec's `_plusBoost` token
+   (bare `+N`/`-N` — the converter reads a stat-less signed number as dynamic
+   anywhere; there is no `+N hp` spelling);
    `fill.mjs` decides WHICH stat (attacker: the move's stat; defender: the stat
    the move targets). NEVER pick the stat yourself — that is a fill rule.
+   An unbound stat word (e.g. a lone `hp`) or an unbound unsigned EV-magnitude
+   number (e.g. a lone `252`) is a HARD ERROR — HP can't take a stage, so
+   `+2 hp` without an EV number after `hp` fails loud.
 
 ## 2. Recognition echo (MUST, before any card or error)
 
