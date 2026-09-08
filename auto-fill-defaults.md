@@ -60,7 +60,7 @@ next time the front runs.
 | Ability | auto-picked (see the ability sections below) | name any ability |
 | Weather | none | `sand`, `sun`, `rain`, `hail`, `permanent sandstorm`, ... |
 | Terrain | none | `electric / grassy / misty / psychic terrain` |
-| Entry hazards | none | `rock`, `spike1` / `spike2` / `spike3` |
+| Entry hazards | none | `rock`; Spikes: `spike` = 1 layer, `spikes` = 3, or a spaced count either order (`2 spikes` / `spikes 2` / `spikes x2`) |
 | Screens / other conditions | none | not modeled unless typed |
 | Ability stat changes | never auto-applied (Intimidate, Download, ...) | type the stage explicitly |
 

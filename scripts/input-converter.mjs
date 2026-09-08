@@ -475,18 +475,38 @@ function parseCombatant(raw, side = "attacker") {
   const clearPass = stripMatches(s, String.raw`no\s*weather|clear\s*weather|clear\s*skies`);
   s = clearPass.text;
 
-  // entry hazards ("rock" = Stealth Rock, "spike1/2/3" / "spikes x2" = layers)
+  // entry hazards: Stealth Rock ("rock") and Spikes layers 1-3. The count is
+  // SPACE-separated in either order — "2 spikes" / "spikes 2" / "spike 1" — or
+  // in x-notation — "spikes x2" / "x2 spikes" / "2x spikes" / "×2 spikes" — and
+  // the word's own number never matters (a count 1-3 wins). A BARE "spike" is
+  // 1 layer, "spikes" is 3. Glued digit forms ("1spike", "spikes2") and the
+  // "N layers of …" spelling are NOT recognized (noise). Counts are 1-3 only:
+  // a >3 number next to spikes stays unbound and hits the bare-number error.
+  // The punctuation sentinel breaks every phrase (comma = hard separator).
+  // Same value from several scans collapses (dedupe); different values error.
   const srPass = stripMatches(s, String.raw`\b(?:stealth\s*rock|stealthrock|sr|stealth\s*rocks|rock)\b`);
   s = srPass.text;
   if (srPass.hits.length) spec.stealthRock = true;
-  const spikePass = stripMatches(
-    s,
-    String.raw`\b(?:(\d)\s*layers?\s+of\s+)?spikes?(?:\s*[x×]?\s*(\d))?\b|\b(\d)\s+spikes?\b|\bspikes?([123])\b`
-  );
-  s = spikePass.text;
-  if (spikePass.hits.length) {
-    const groups = spikePass.hits[0].slice(1).map((g) => (g ? Number(g) : null));
-    spec.spikes = groups.find((g) => g != null) ?? 3;
+  const SPIKE_PHRASES = [
+    String.raw`spikes?\s+[123]\s*[x×]`, // "spikes 2x"
+    String.raw`spikes?\s+[x×]\s*[123]`, // "spikes x2"
+    String.raw`spikes?\s+[123]`,        // "spikes 2"
+    String.raw`[123]\s*[x×]\s+spikes?`, // "2x spikes"
+    String.raw`[x×]\s*[123]\s+spikes?`, // "x2 spikes"
+    String.raw`[123]\s+spikes?`,        // "2 spikes"
+  ];
+  const numberedSpike = stripMatches(s, String.raw`\b(?:${SPIKE_PHRASES.join("|")})\b`);
+  s = numberedSpike.text;
+  const claims = numberedSpike.hits.map((m) => Number(m[0].match(/\d+/)[0]));
+  const bareSpike = stripMatches(s, String.raw`\bspikes?\b`);
+  s = bareSpike.text;
+  for (const m of bareSpike.hits) claims.push(m[0].toLowerCase().endsWith("s") ? 3 : 1);
+  if (claims.length) {
+    const first = claims[0];
+    if (claims.some((c) => c !== first)) {
+      throw new Error(`conflicting spikes layers: ${[...new Set(claims)].join(" vs ")}`);
+    }
+    spec.spikes = first;
   }
 
   // terrain tokens

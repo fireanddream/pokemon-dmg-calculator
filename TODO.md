@@ -4,6 +4,30 @@ Standing to-do list for sessions on the loose-English → variables (fuzzy
 parse) work and parser grammar cleanups. Read at session start; tick items off
 as they land.
 
+## Done (2026-09-08)
+
+- **Seam E RESOLVED + IMPLEMENTED: spikes lexicon locked, comma = GLOBAL hard
+  separator, dedupe confirmed GLOBAL (all user-confirmed 2026-09-08).** The
+  number-led arena claim is exactly the spikes lexicon. Final grammar: bare
+  `spike` = 1 layer / `spikes` = 3; a SPACE-separated count either order wins
+  (`2 spikes` / `spikes 2` / `spike 1`); x-notation both orders both spellings
+  (`spikes x2` / `x2 spikes` / `spikes 2x` / `2x spikes`, `×`); counts
+  value-gate 1-3 (`4 spikes` strands → bare-number error, never a claim);
+  **glued digit forms (`1spike`, `spikes2`) are noise, NOT recognized**; the
+  `N layers of (to) spikes` spelling is OUT OF SCOPE (closes the seam-A
+  4-word tension; the sweep stays bound-3). **Comma breaks EVERY recognition
+  rule** — no claim/phrase/adjacency of any kind may span one (generalized
+  from the claimMoves/EV decision). **Dedupe is global:** same slot + same
+  value from several scans = silent collapse; different values = hard error
+  naming the slot and every candidate (`conflicting spikes layers: 2 vs 3`).
+  `spike`/`spikes` is never a move (hazard-setting move, seam G / ## 4).
+  IMPLEMENTED in `input-converter.mjs` `spikePass` (rewritten: space/x forms,
+  bare singular=1/plural=3, value gate, dedupe reconcile; old glued+layers
+  regex removed). Docs: ## 4 forms bullet SUPERSEDED, auto-fill-defaults
+  hazard row. Verified: 20-case smoke + verify:damage 63/63, verify:acc 44/44,
+  verify:echo 6/6. Seam E verbatim: SWEEP-REVIEW session notes. **Next seam: F**
+  (`+N hp` whole-phrase; stat-less `+N` = dynamic — mostly settled, small).
+
 ## Done (2026-09-07)
 
 - **Comma adjacency RESOLVED: comma = hard lookahead stop; `claimMoves`
@@ -657,9 +681,17 @@ resurrect the signal-REQUIRED grammar.
 
 ### Forms that must resolve identically
 
-- Spikes layers 1–3: `1 spike(s)` / `1spike(s)` / `spike(s)1` / `spike(s) 1`.
-  A number-less `spikes` in an arena position = 3 layers (keeps today's
-  default, now signal-independent). >3 errors as a stray number.
+- Spikes layers 1–3: a SPACE-separated count in either order (`2 spikes` /
+  `spikes 2` / `spike 1`), or x-notation (`spikes x2` / `x2 spikes` /
+  `2x spikes` / `×2 spikes`); the word's own number never matters when a
+  count is typed. A BARE `spike` = 1 layer, `spikes` = 3. Glued digit forms
+  (`1spike`, `spikes2`) and the `N layers of …` spelling are NOT recognized
+  (noise). Counts are 1–3 only; a >3 number beside `spikes` strands and hits
+  the bare-number error. Comma = hard separator (breaks every spike phrase).
+  Same-value claims from several scans collapse; different values error.
+  > Forms IMPLEMENTED 2026-09-08 in `input-converter.mjs` `spikePass` (this
+  > supersedes the earlier `1spike(s)` / `spike(s)1` glued-forms requirement —
+  > glued forms are now noise, user-confirmed).
 - Stealth Rock: `stealth rock` or `rock` → same effect.
 - Terrains: full name (`electric terrain`) or first-letter forms
   (`E terrain` / `Eterrain` / `e-terrain`) → electric; same for G/M/P.
