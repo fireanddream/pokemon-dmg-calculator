@@ -48,6 +48,7 @@ Status legend:
 | Soul Dew / Thick Club / Light Ball / Deep Sea Tooth / Deep Sea Scale | done | Species stat multipliers (Latios/Latias, Marowak/Cubone, Pikachu, Clamperl). |
 | Plates | done | All 17 plates parse by name AND by the `<Type> plate` spelling (`@ Fairy Plate` → Pixie Plate — source of truth: aliases.md "Type plates" table, parsed at startup). A bare `plate` picks by the move's **effective** type (a Pixilate Hyper Voice gets Pixie Plate); Normal has no plate, so `normal plate` / `plate` + a Normal move → Silk Scarf. |
 | Metronome | not implemented | Consecutive-use power ramp (multi-turn; low priority). |
+| Self stat-raisers in the move slot (Dragon Dance, Swords Dance, ...) | done (boost signals) | A boosting move typed as the attack move is **never** the damage move: it converts to attacker stat stages (table source: aliases.md "## Boosting moves", doc-as-code; additive with typed stages, each stat capped +-6) and never occupies a combo slot. Pure status moves (Toxic, Will-O-Wisp) can't be the queried move either. See the contributor note below. |
 
 ## Moves
 
@@ -109,6 +110,17 @@ helper in `src/damage-calc.ts` that, given the matchup, computes the aura
 multiplier for the effective move type and feeds both the attacker and defender
    sides; wire auto-defaulting in `scripts/fill.mjs` and add coverage rows to
 `scripts/verify-smogon.mjs`.
+
+**Boosting moves' secondary costs are intentionally not modeled** when a setup
+move in the move slot converts to attacker stages (see the "Moves" row above /
+aliases.md "## Boosting moves"): Belly Drum's 50%-HP cost is ignored (the move
+reads as a flat +6 Atk), Growth's sun doubling is ignored (always +1 Atk/+1
+SpA), and Autotomize's weight cut is ignored (+2 Spe only — the user's own
+weight is unchanged, so a Heavy Slam would not weaken). These are intended:
+the tool answers "how much damage", not "what does this setup cost". If you
+want them modeled, the cleanest place is the boost-signal fold in
+`scripts/fill.mjs` (`foldBoostSignals`) plus a way to express the HP/weight/
+sun context on the attacker spec, with coverage rows in the corpus replay.
 
 **Move-order-dependent mechanics** (Analytic, Avalanche, Flash Fire's attacker
 boost, "attacker was hit last turn") are **intentionally not implemented**, and

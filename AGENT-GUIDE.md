@@ -53,6 +53,12 @@ by `vs`; every token binds to the species in its own side.
    Keep shorthand the user typed as INTENT TOKENS (`max atk`, `plate`) — the
    EXPANSION of those is a fill rule, not yours. The card prints what got
    resolved (nature/EVs/item/ability) — wrong assumptions are visible there.
+   A **self-stat-raising move** name (Dragon Dance, Swords Dance, Belly Drum,
+   ... — see `aliases.md` "## Boosting moves") is a BOOST SIGNAL, never the
+   move: author its per-stat stages on the attacker's `boosts` and leave the
+   move slot to the damaging attack ("Dragon Dance Garchomp EQ vs Heatran" ⇒
+   `boosts: { atk: 1, spe: 1 }`, `move: "Earthquake"`). Pure status words
+   (`toxic`, `burned`, ...) on a side are that mon's status, never a move.
 3. **Token shapes & ownership — bind numbers and boosts by SHAPE, not
    position.** A boost and an EV are both a NUMBER + a STAT WORD, adjacent, in
    EITHER order (`+2 atk`/`atk +2`, `252 hp`/`hp 252`); stat words are

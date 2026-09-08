@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { calcStats, SHEER_FORCE_MOVES, remapMoveType, resolveWeatherBall } from "../dist/index.js";
 import {
   norm, chart, natureByName, moveByName, monByName,
-  resolveMoveName, claimMoves, PLATE_BY_TYPE,
+  resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES,
 } from "./input-converter.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -774,6 +774,7 @@ function classifyMatchup(matchup) {
   // moves array skip the claiming and only need the combo guard below.
   if (!matchup.moves) {
     const parsed = claimMoves(matchup.move ?? "");
+    if (parsed.signals) foldBoostSignals(matchup.attacker, parsed.signals);
     if (parsed?.chain) matchup.moves = parsed.chain;
     else if (parsed?.single) matchup.move = parsed.single;
   }
@@ -782,6 +783,33 @@ function classifyMatchup(matchup) {
     return "combo";
   }
   return "single";
+}
+
+const clampStage = (n) => Math.max(-6, Math.min(6, n));
+
+/** Fold BOOST-SIGNAL moves (aliases.md "## Boosting moves", doc-as-code) onto
+ *  the ATTACKER as stat stages. A boosting move in the move slot is never the
+ *  damage move: claimMoves returns its canonical name in `signals`, and each
+ *  converts to its per-stat stage deltas here. Multiple signals coexist and are
+ *  ADDITIVE with each other and with any typed stages / the stat-less dynamic
+ *  boost — e.g. `-1` + Dragon Dance + Swords Dance + EQ = +2 atk/+1 spe EQ —
+ *  and every stat clamps to the ±6 stage range. Acc/eva signals (Coil, Hone
+ *  Claws, Double Team, Minimize) land on the acc/eva channels (never damage). */
+function foldBoostSignals(spec, signals) {
+  if (!spec || !Array.isArray(signals) || !signals.length) return;
+  for (const name of signals) {
+    const d = BOOST_MOVES.get(name);
+    if (!d) continue;
+    for (const k of ["atk", "def", "spa", "spd", "spe"]) {
+      if (!d[k]) continue;
+      spec.boosts = spec.boosts ?? {};
+      const v = clampStage((spec.boosts[k] ?? 0) + d[k]);
+      if (v) spec.boosts[k] = v;
+      else delete spec.boosts[k];
+    }
+    if (d.acc) spec._accStage = clampStage((spec._accStage ?? 0) + d.acc);
+    if (d.eva) spec._evaStage = clampStage((spec._evaStage ?? 0) + d.eva);
+  }
 }
 
 /** Emit the resolved calc-input object for a parsed matchup. */

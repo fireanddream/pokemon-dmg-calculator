@@ -115,7 +115,7 @@ const SPECIES_ALIASES = new Map([
 // move acronyms (resolved when the whole move field normalizes to the key)
 const MOVE_ALIASES = new Map([
   ["bb", "Brave Bird"], ["eq", "Earthquake"], ["blitz", "Flare Blitz"],
-  ["draco", "Draco Meteor"],
+  ["draco", "Draco Meteor"], ["dd", "Dragon Dance"], ["sd", "Swords Dance"],
 ]);
 /** Resolve a typed move string (incl. acronyms) to its canonical dex name, or null. */
 function resolveMoveName(text) {
@@ -160,6 +160,58 @@ let PLATE_BY_TYPE = parsePlateTable(ALIAS_DOC);
 if (!PLATE_BY_TYPE) {
   console.warn("WARNING: aliases.md \"Type plates\" table not found or unparseable; using built-in plate fallback.");
   PLATE_BY_TYPE = { ...BUILTIN_PLATES };
+}
+
+// --- Boosting moves: gen-6 self-stat-raising moves that act as BOOST SIGNALS.
+// A boosting move typed in the move slot is NEVER the damage move: it converts
+// to attacker stat stages (see fill.mjs foldBoostSignals) instead of claiming a
+// move slot. Doc-as-code table in aliases.md "## Boosting moves" (parsed at
+// startup, mirroring the Type plates table); BUILTIN_BOOST_MOVES is only the
+// fallback when the file can't be read or the table is broken.
+const BUILTIN_BOOST_MOVES = new Map(Object.entries({
+  "Acid Armor": { def: 2 }, Agility: { spe: 2 }, Amnesia: { spd: 2 },
+  Autotomize: { spe: 2 }, Barrier: { def: 2 }, "Belly Drum": { atk: 6 },
+  "Bulk Up": { atk: 1, def: 1 }, "Calm Mind": { spa: 1, spd: 1 },
+  Coil: { atk: 1, def: 1, acc: 1 }, "Cosmic Power": { def: 1, spd: 1 },
+  "Cotton Guard": { def: 3 }, "Defend Order": { def: 1, spd: 1 },
+  "Defense Curl": { def: 1 }, "Double Team": { eva: 1 },
+  "Dragon Dance": { atk: 1, spe: 1 }, Growth: { atk: 1, spa: 1 },
+  Harden: { def: 1 }, "Hone Claws": { atk: 1, acc: 1 }, Howl: { atk: 1 },
+  "Iron Defense": { def: 2 }, Meditate: { atk: 1 }, Minimize: { eva: 2 },
+  "Nasty Plot": { spa: 2 }, "Quiver Dance": { spa: 1, spd: 1, spe: 1 },
+  "Rock Polish": { spe: 2 }, Sharpen: { atk: 1 },
+  "Shell Smash": { atk: 2, def: -1, spa: 2, spd: -1, spe: 2 },
+  "Shift Gear": { atk: 1, spe: 2 }, "Swords Dance": { atk: 2 },
+  "Tail Glow": { spa: 3 }, Withdraw: { def: 1 }, "Work Up": { atk: 1, spa: 1 },
+}));
+
+/** Parse the aliases.md "Boosting moves" table into a Map<canonical move name,
+ *  stage deltas>. Rows: Move | atk | def | spa | spd | spe | acc | eva (blank
+ *  = 0). Every move name must resolve in the dex, or the table is treated as
+ *  broken (the caller warns and falls back to BUILTIN_BOOST_MOVES). */
+function parseBoostMoves(doc) {
+  const section = mdSection(doc, "Boosting moves");
+  if (!section) return null;
+  const cols = ["atk", "def", "spa", "spd", "spe", "acc", "eva"];
+  const out = new Map();
+  for (const cells of mdTableRows(section)) {
+    if (cells.length < 8) return null;
+    const entry = moveByName.get(norm(cells[0]));
+    if (!entry) return null;
+    const d = {};
+    for (let i = 0; i < cols.length; i++) {
+      const n = Number(cells[1 + i]);
+      if (Number.isFinite(n) && n !== 0) d[cols[i]] = n;
+    }
+    out.set(entry.name, d);
+  }
+  return out.size ? out : null;
+}
+
+let BOOST_MOVES = parseBoostMoves(ALIAS_DOC);
+if (!BOOST_MOVES) {
+  console.warn("WARNING: aliases.md \"Boosting moves\" table not found or unparseable; using built-in boost-move fallback.");
+  BOOST_MOVES = BUILTIN_BOOST_MOVES;
 }
 
 const ITEM_NAMES = [
@@ -656,20 +708,28 @@ function mergeArena(matchup) {
  * matter. Walk the slot's word atoms left→right, take the longest known
  * contiguous move phrase/alias at each position (dex moves are ≤3 words), and
  * collect the claims in order. The distinct canonical count decides:
- *   1 distinct move → { single }; 2 distinct → { chain: [m0, m1] } in claimed
+ *   1 distinct → { single }; 2 distinct → { chain: [m0, m1] } in claimed
  *   order (move 1 lands turn 1, move 2 lands turn 2); 0 moves or >2 distinct
  *   → hard error (stops the parse).
  * A comma (or the other punctuation boundaries `.;/\|`) is a HARD LOOKAHEAD
  * STOP: no phrase may span one, so "Shadow, Ball" never reads as Shadow Ball.
  * The marker atom is stepped over, so single-word claims on either side still
  * proceed — "EQ, Outrage" / "eq,outrage" still claim both moves.
- */
+ *
+ * NON-DAMAGING moves never occupy the slot. A self-stat-raising move (in the
+ * BOOST_MOVES table — aliases.md "## Boosting moves", doc-as-code) is a BOOST
+ * SIGNAL: it is returned in `signals` (deduped canonical names) for the caller
+ * to fold onto the attacker as stat stages, and is NOT counted as a move. Any
+ * other Non-Damaging move (Toxic, Will-O-Wisp, Protect, a hazard/weather
+ * setter, ...) is a class token, never the queried attack move — it is
+ * consumed and dropped. A slot with no damaging move at all hard-errors. */
 function claimMoves(text) {
   const raw = String(text).toLowerCase();
   // Mark punctuation boundaries so no phrase lookahead ever crosses them.
   const marked = raw.replace(/[,.;/\\|]+/g, " \u0001 ");
   const words = marked.replace(/[^a-z0-9\u0001 ]+/g, " ").split(/\s+/).filter(Boolean);
   const claimed = [];
+  const signals = [];
   for (let i = 0; i < words.length; i++) {
     let name = null;
     let len = 0;
@@ -679,13 +739,30 @@ function claimMoves(text) {
       const hit = resolveMoveName(slice.join(" "));
       if (hit) { name = hit; len = k; }
     }
-    if (name) { claimed.push(name); i += len - 1; }
+    if (name) {
+      const move = moveByName.get(norm(name));
+      if (move?.category !== "Non-Damaging") {
+        claimed.push(name);
+      } else if (BOOST_MOVES.has(name)) {
+        signals.push(name); // boost signal: attacker stages, never a move
+      }
+      i += len - 1;
+    }
   }
   const seen = new Set();
   const distinct = claimed.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
-  if (distinct.length === 0) throw new Error(`could not identify a move in: "${text}"`);
+  const sseen = new Set();
+  const boostSignals = signals.filter((n) => (sseen.has(n) ? false : (sseen.add(n), true)));
+  if (distinct.length === 0) {
+    if (boostSignals.length) {
+      throw new Error(`only boosting moves (no damaging move) in: "${text}" - a setup move like Dragon Dance only sets attacker stages (+1 atk/+1 spe); add the attack move, e.g. "Dragon Dance Earthquake"`);
+    }
+    throw new Error(`could not identify a damaging move in: "${text}"`);
+  }
   if (distinct.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${text}")`);
-  return distinct.length === 2 ? { chain: distinct } : { single: distinct[0] };
+  const result = distinct.length === 2 ? { chain: distinct } : { single: distinct[0] };
+  if (boostSignals.length) result.signals = boostSignals;
+  return result;
 }
 
 /** Parse "<atk> uses <move> vs <def>"; "turn by turn" asks for the per-turn table. */
@@ -707,7 +784,7 @@ function parseQuery(line) {
 
 export {
   norm, hyphenToSpace, chart, natureByName, moveByName, monByName,
-  resolveMoveName, claimMoves, PLATE_BY_TYPE,
+  resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES,
   parseCombatant, mergeArena, parseQuery,
 };
 

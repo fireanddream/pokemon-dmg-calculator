@@ -11,8 +11,9 @@ in one place.
 > `scripts/input-converter.mjs` (the offline extractor), which is what the
 > parser actually reads today. Wiring those tables into the parser (so an edit
 > here changes what the front accepts) is planned future work — see
-> `OVERHAUL-PLAN.md` WS1. The **Type plates** table is the exception: it is
-> parsed at startup, so an edit there changes plate resolution immediately.
+> `OVERHAUL-PLAN.md` WS1. The **Type plates** and **Boosting moves** tables are
+> the exceptions: both are parsed at startup, so an edit there changes plate /
+> boost-signal resolution immediately.
 >
 > Full canonical names (species, moves, items, abilities, natures) come from
 > the dex data in `data/` and are accepted as-is without an alias. This file
@@ -58,6 +59,8 @@ Usage: `chomp uses EQ vs lando` — both sides resolve before damage is computed
 | `eq` | Earthquake |
 | `blitz` | Flare Blitz |
 | `draco` | Draco Meteor |
+| `dd` | Dragon Dance |
+| `sd` | Swords Dance |
 
 Usage: `Garchomp uses EQ vs Skarmory`. Full move names (`Earthquake`,
 `Hidden Power`) and most multi-word move names work without an acronym.
@@ -115,6 +118,62 @@ Silk Scarf.
 | Rock | Stone Plate |
 | Steel | Iron Plate |
 | Water | Splash Plate |
+
+## Boosting moves
+
+This table is **machine-parsed at startup** (`scripts/input-converter.mjs`), like
+the Type plates table. It lists the gen-6 **self-stat-raising moves** that act as
+**boost signals**, never as the damage move: a boosting move typed in the move
+slot (or, later, on the attacker side under the free-order grammar) converts to
+attacker stat stages instead of occupying a move slot. `Dragon Dance` +
+`Earthquake` means Garchomp at `+1 atk / +1 spe` using Earthquake — never a
+"Dragon Dance then Earthquake" combo. Multiple signals coexist additively and
+stack with any typed stages, each stat capped at +-6.
+
+Columns are the stage delta per stat (blank = 0). Acc/eva are the
+accuracy/evasion stage channels — they never change damage/KO numbers.
+
+| Move | atk | def | spa | spd | spe | acc | eva |
+|---|---|---|---|---|---|---|---|
+| Acid Armor | | +2 | | | | | |
+| Agility | | | | | +2 | | |
+| Amnesia | | | | +2 | | | |
+| Autotomize | | | | | +2 | | |
+| Barrier | | +2 | | | | | |
+| Belly Drum | +6 | | | | | | |
+| Bulk Up | +1 | +1 | | | | | |
+| Calm Mind | | | +1 | +1 | | | |
+| Coil | +1 | +1 | | | | +1 | |
+| Cosmic Power | | +1 | | +1 | | | |
+| Cotton Guard | | +3 | | | | | |
+| Defend Order | | +1 | | +1 | | | |
+| Defense Curl | | +1 | | | | | |
+| Double Team | | | | | | | +1 |
+| Dragon Dance | +1 | | | | +1 | | |
+| Growth | +1 | | +1 | | | | |
+| Harden | | +1 | | | | | |
+| Hone Claws | +1 | | | | | +1 | |
+| Howl | +1 | | | | | | |
+| Iron Defense | | +2 | | | | | |
+| Meditate | +1 | | | | | | |
+| Minimize | | | | | | | +2 |
+| Nasty Plot | | | +2 | | | | |
+| Quiver Dance | | | +1 | +1 | +1 | | |
+| Rock Polish | | | | | +2 | | |
+| Sharpen | +1 | | | | | | |
+| Shell Smash | +2 | -1 | +2 | -1 | +2 | | |
+| Shift Gear | +1 | | | | +2 | | |
+| Swords Dance | +2 | | | | | | |
+| Tail Glow | | | +3 | | | | |
+| Withdraw | | +1 | | | | | |
+| Work Up | +1 | | +1 | | | | |
+
+What is deliberately NOT here (and why): moves whose stat raise is conditional
+or multi-turn (Charge, Stockpile, Geomancy, Power Trick), random (Acupressure),
+or not a stat stage (Focus Energy raises the crit ratio). The intended
+simplifications for the rows that ARE here — Belly Drum's HP cost, Growth's sun
+doubling, Autotomize's weight cut — are documented in `ENGINE-GAPS.md`
+("Intentional simplifications").
 
 ## Stat abbreviations
 

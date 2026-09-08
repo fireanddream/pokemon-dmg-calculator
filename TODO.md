@@ -6,6 +6,33 @@ as they land.
 
 ## Done (2026-09-08)
 
+- **Move→boost signals IMPLEMENTED (## 5 first slice; user-confirmed
+  2026-09-08).** A self-stat-raising move typed in the move slot is NEVER the
+  damage move: `claimMoves` gates on dex category — damaging moves claim as
+  before; moves in the new **Boosting moves** doc-as-code table (aliases.md
+  `## Boosting moves`, parsed at startup like the Type plates table;
+  `BUILTIN_BOOST_MOVES` fallback) become **boost signals** returned in
+  `parsed.signals`; any other Non-Damaging move (Toxic, Will-O-Wisp, hazards,
+  weather setters, Protect, ...) is a class token and never occupies a slot
+  (0 damaging claims → hard error, so the old "uses Bulk Up → no damage" card
+  is retired). `fill.mjs` `classifyMatchup` folds signals onto the attacker via
+  `foldBoostSignals` — ADDITIVE with each other and with typed stages and the
+  stat-less dynamic boost, each stat capped ±6 (`-1` + DD + SD + EQ →
+  `+2 atk / +1 spe` EQ; `+5 atk` + SD clamps at `+6`). Acc/eva signals (Coil /
+  Hone Claws → acc, Double Team / Minimize → eva) land on the acc/eva channels
+  (never damage). **Intended simplifications (documented in ENGINE-GAPS.md,
+  aura-style):** Belly Drum's 50%-HP cost ignored (flat +6 atk), Growth's sun
+  doubling ignored (always +1 atk/+1 spa), Autotomize's weight cut ignored
+  (+2 spe only). New move acronyms: `dd` → Dragon Dance, `sd` → Swords Dance.
+  Agent rule added to AGENT-GUIDE step 1 (author the signal's stages, never the
+  move). Corpus: `no-damage-move` line (Bulk Up-only, now a hard error) →
+  `boost-signal-dd-eq`. Remaining for ## 5: boost-signal recognition on the
+  free-order attacker SIDE (## 3 / ## 10), echo spans, and the excluded-move
+  list is the conditional/random ones (Charge, Stockpile, Geomancy, Power
+  Trick, Acupressure, Focus Energy). Verified: corpus 31/31, verify:damage
+  63/63, verify:acc 44/44, verify:echo 6/6. Session notes:
+  `session-tools-archive/SESSION-NOTES-20260908-BOOST-SIGNALS.md`.
+
 - **Seam F RESOLVED + IMPLEMENTED (rules set one-by-one 2026-09-08; session
   notes: SESSION-NOTES-20260908-SEAM-F.md).** The stat-less signed-number /
   dynamic-boost rules were re-adjudicated because earlier days left
@@ -755,6 +782,13 @@ items; `after` collides only with the move `After You` — acceptable to mangle
 (never calculated).
 
 ## 5. Tokenizer recognizes every boosting move and converts it to stat boosts directly
+
+> **STATUS: first slice IMPLEMENTED 2026-09-08** — the converter slot path (see
+> the top "Move→boost signals IMPLEMENTED" Done bullet): boost-move table
+> (aliases.md "## Boosting moves"), `claimMoves` category gating, additive fold
+> in `fill.mjs`. Still open: boost-signal recognition when the boost phrase sits
+> on the free-order attacker SIDE (## 3 / ## 10 grammar), echo spans for the
+> converted signals, and the acc/eva channel display.
 
 Goal (user 2026-09-05, "implement the boost move rule"): review EVERY boosting
 move in the gen-6 dex, teach the tokenizer to recognize each as a whole phrase
