@@ -10,7 +10,7 @@ printed.
 
 ```
 node scripts/damage.mjs <matchup.json>
-node scripts/damage.mjs "<atk> uses <move> vs <def>"
+node scripts/damage.mjs "<attacker side ...> vs <defender side ...>"
 node scripts/damage.mjs "<atk>" "<move>" "<def>"
 node scripts/damage.mjs                  # interactive prompt ("calc> ")
 ```
@@ -18,7 +18,7 @@ node scripts/damage.mjs                  # interactive prompt ("calc> ")
 Staged (offline) pipeline — the same card, split into its four stages:
 
 ```
-node scripts/input-converter.mjs "<atk> uses <move> vs <def>"    # 1. extract -> spec JSON
+node scripts/input-converter.mjs "<attacker side ...> vs <defender side ...>"    # 1. extract -> spec JSON
 node scripts/fill.mjs <spec.json>                                # 2. fill + resolve -> calc input JSON
 node scripts/calc.mjs <resolved.json>                            # 3. calculate -> result bag JSON
 node scripts/output.mjs <result.json>                            # 4. render the card (terminal text)
@@ -56,7 +56,8 @@ typed request is visible next to the answer:
 
 The echo is the exact query line (including `turn by turn`, status words, etc.).
 In the three-argument form (`"<atk>" "<move>" "<def>"`) the echo is
-reconstructed as `"<atk> uses <move> vs <def>"`; JSON-file runs have no echo.
+reconstructed as `"<atk> <move> vs <def>"` (never a manufactured `uses` word);
+JSON-file runs have no echo.
 
 One run prints one card block. Blocks are separated by a blank line (a newline
 leads each block). Rows appear in a fixed order and may be omitted as noted:
@@ -280,13 +281,13 @@ and all end-of-turn effects:
 ## Two-move combos (fixed sequence)
 
 A query may name exactly two moves in the move slot with NO delimiter — the
-moves are claimed by exact name wherever they appear
-(`"Garchomp uses EQ Outrage vs Skarmory"`). Connector words (`then`, `and`,
-`+`, commas) are inert and change nothing. Move 1 lands turn 1, move 2 lands
-turn 2 starting from the defender's surviving HP, then the sim ends. Move order
-= left-to-right as typed. Naming the same move again (or an alias of it)
+moves are claimed by exact name wherever they appear on the attacker side
+(`"Garchomp EQ Outrage vs Skarmory"`). Connector words (`then`, `and`, `+`,
+commas, `use`/`uses`) are inert and change nothing. Move 1 lands turn 1, move 2
+lands turn 2 starting from the defender's surviving HP, then the sim ends. Move
+order = left-to-right as typed. Naming the same move again (or an alias of it)
 collapses to a normal single-move card; **3+ distinct moves is an error**; a
-slot with no recognizable move is an error.
+side with no recognizable damaging move is an error.
 
 Layout: the shared `Attacker` / `Defender` / `[Arena]` rows, then (only when
 the defender has end-of-turn chip or heal) a `passives:` line, and per-turn

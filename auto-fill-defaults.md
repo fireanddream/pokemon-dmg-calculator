@@ -102,7 +102,10 @@ the orb does nothing on the blocked types (a note is shown, no status is set).
 nature depends on the species' base stats when the EV spread drops one attacking
 stat: if base Atk ≤ base SpA the nature lowers **Atk** (Bold / Calm); if base
 Atk > base SpA it lowers **SpA** (Impish / Careful). A nature the user names
-explicitly always wins over the shorthand default.
+explicitly always wins over the shorthand default. When several `max` tokens
+are typed, every one expands (different stats coexist); if no explicit nature is
+typed the FIRST-typed `max`'s nature wins, and the merged EVs must not exceed
+the 510 total cap (an over-total is a hard error).
 
 | Token | HP | ATK | DEF | SPA | SPD | SPE | Nature if base Atk ≤ SpA | Nature if base Atk > SpA |
 |---|---|---|---|---|---|---|---|---|
@@ -110,10 +113,19 @@ explicitly always wins over the shorthand default.
 | `max spa` | 0 | 0 | 0 | 252 | 0 | 0 | Modest | Modest |
 | `max def` | 252 | 0 | 252 | 0 | 0 | 0 | Bold | Impish |
 | `max spd` | 252 | 0 | 0 | 0 | 252 | 0 | Calm | Careful |
+| `max spe` | 0 | 0 | 0 | 0 | 0 | 252 | Timid (special move) | Jolly (physical move) |
+| `max hp` | 252 | 0 | 0 | 0 | 0 | 0 | none | none |
+
+`max spe` / `max speed` picks its auto-nature by the side's move: Timid for a
+special move, Jolly for a physical one (fallback: Jolly when base Atk > SpA,
+else Timid — e.g. the defender, which has no move). `max hp` carries NO
+auto-nature (no nature boosts HP).
 
 Shorthands and plain `N <stat>` EV tokens merge (e.g. `max atk` + `252 HP` sets
-Atk 252 and HP 252). Plain nature/EV defaults remain in force for every stat not
-covered by a token.
+Atk 252 and HP 252), except an explicit EV on the stat a `max` NAMES conflicts
+with it when the values differ (same value collapses). An explicit HP EV
+overrides the HP that `max def` / `max spd` imply. Plain nature/EV defaults
+remain in force for every stat not covered by a token.
 
 ## Weather setters
 

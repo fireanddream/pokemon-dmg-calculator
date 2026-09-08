@@ -49,7 +49,8 @@ in one place.
 | `tornadust` / `tornadustherian` | Tornadus-Therian |
 | `tornadusi` / `tornadusincarnate` | Tornadus |
 
-Usage: `chomp uses EQ vs lando` — both sides resolve before damage is computed.
+Usage: `chomp EQ vs lando` — both sides resolve before damage is computed
+(the move is claimed anywhere on the attacker side; no `uses` word).
 
 ## Move acronyms
 
@@ -62,7 +63,7 @@ Usage: `chomp uses EQ vs lando` — both sides resolve before damage is computed
 | `dd` | Dragon Dance |
 | `sd` | Swords Dance |
 
-Usage: `Garchomp uses EQ vs Skarmory`. Full move names (`Earthquake`,
+Usage: `Garchomp EQ vs Skarmory`. Full move names (`Earthquake`,
 `Hidden Power`) and most multi-word move names work without an acronym.
 
 ## Item acronyms

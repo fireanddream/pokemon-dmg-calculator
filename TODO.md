@@ -6,6 +6,43 @@ as they land.
 
 ## Done (2026-09-08)
 
+- **Free-order frame slice + `max`-flags fix IMPLEMENTED; full tokenizer sweep
+  left for a future session.** Thread-by-thread rulings (T1–T8 + the 3-arg CLI)
+  recorded in `session-tools-archive/SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md`.
+  What landed:
+  - **Grammar:** `parseQuery` is now a `vs`-split of two FREE-ORDER sides (no
+    `vs` = hard error; >1 `vs` = error). The `uses`/`use` syntax is REMOVED end
+    to end — never an anchor, never manufactured (`input-converter.mjs` and
+    `damage.mjs` 3-arg forms now synthesize `<atk> <move> vs <def>`), inert if
+    typed. The damaging move is claimed by exact name anywhere on the ATTACKER
+    side (`claimAttackerMoves`, aligned tokenization so only claimed phrases are
+    blanked — signs/punctuation survive); boost signals fold via
+    `classifyMatchup`'s pre-claimed-signals path; the defender NEVER runs a move
+    claim. Free-order smoke (move-first, `uses` typed, defender-side move-word
+    junk, DD-signal combos) verified.
+  - **Junk (T2):** plain junk words (`then`/`and`/`with`/misspellings) are
+    SILENTLY DROPPED — `_ignored` and the `ignored:` card flag are gone
+    (corpus cards lose their `[ignored: in]` / `[ignored: + +]` flags by
+    design). R4 hard errors STAND (stray stat words / EV-magnitude numbers).
+  - **`max` flags (T3):** `applyMaxFlags` expands EVERY flag (no more else-if
+    drop), records claim order (first-typed max wins the auto-nature war),
+    added `max spe`/`max speed` (Timid by a special move, Jolly by physical;
+    base-Atk-vs-SpA fallback for a moverless defender) and `max hp` (no
+    auto-nature), same-stat EV-vs-max conflicts error (equal collapses),
+    implied HP inside `max def`/`max spd` is overridden by an explicit HP EV,
+    and merged EVs over the 510 cap hard-error. auto-fill-defaults.md shorthand
+    table + prose updated.
+  - **Corpus:** the 30 text lines were REWRITTEN to the no-`uses` free-order
+    form (same cards). Verified against a worktree baseline at HEAD: cards are
+    byte-identical except the echoed query line and the intended junk-flag
+    removals. `verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 6/6,
+    corpus chaincheck "all identical".
+  - Docs swept for the stale `uses` frame (AGENTS.md, AGENT-GUIDE.md,
+    OUTPUT-FORMAT.md, aliases.md, USAGE blocks, TODO status notes). STILL OPEN
+    (next session): the ## 3 two-layer sweep (consume-and-MARK + side log),
+    species-as-span residue resolution, ## 4 arena signals, mega shape, ## 8
+    echo wiring, ## 10 `route.mjs`.
+
 - **Move→boost signals IMPLEMENTED (## 5 first slice; user-confirmed
   2026-09-08).** A self-stat-raising move typed in the move slot is NEVER the
   damage move: `claimMoves` gates on dex category — damaging moves claim as
@@ -333,11 +370,17 @@ backlog item at the discussion session; where noted they touch an existing item.
    > error above to *unbound stat WORDS* too — a lone `hp`, a lone `atk`, or a
    > stranded number is a HARD ERROR in the converter (never `???`, never
    > `[ignored: …]`; see the seam-F Done bullet + SESSION-NOTES-20260908-SEAM-F).
-   > If this session relaxes errors toward `???` junk tolerance, R4 is the
-   > first rule to re-examine: is a stray stat word "very likely a spread typo"
-   > (hard error, as ruled) or honest junk the echo should just surface? The
-   > two camps map to the converter route (strict today) vs the future agent /
-   > echo route (## 8 / ## 10). Deliberate, don't silently inherit either way.
+>    If this session relaxes errors toward `???` junk tolerance, R4 is the
+>    first rule to re-examine: is a stray stat word "very likely a spread typo"
+>    (hard error, as ruled) or honest junk the echo should just surface? The
+>    two camps map to the converter route (strict today) vs the future agent /
+>    echo route (## 8 / ## 10). Deliberate, don't silently inherit either way.
+>    **RESOLVED 2026-09-08 (T2):** R4 STANDS — stray stat words + EV-magnitude
+>    numbers stay hard errors (the echo can't substitute: `???` ≠ "will corrupt
+>    your numbers"). PLAIN junk words (incl. `then`/`and`/`with`/`uses`) are
+>    SILENTLY DROPPED — no error, no `_ignored`, no `ignored:` flag, no label,
+>    no `???`. The converter echo's `???` class effectively retires for junk.
+>    See `SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md` T2.
 
 ---
 
@@ -418,8 +461,10 @@ species    item     nature ev:atk  move     species
 
 ## 3. Converter redesign — free-order side tokenizer (move-safe phrase sweeps, side attribution, consume-and-MARK mechanics) — large project
 
-**STATUS: design closed 2026-09-06 → implementation in a FUTURE session** (not
-started). The architecture below (## 3 "Resolved architecture") supersedes the
+**STATUS: design closed 2026-09-06; free-order frame rulings recorded 2026-09-08
+(RECORD: `session-tools-archive/SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md`).**
+The two-layer sweep itself remains a FUTURE session. The architecture below
+(## 3 "Resolved architecture") supersedes the
 still-rolling phrasing in the older subsections where they contradict it; the
 older text stays as the design record.
 
@@ -566,6 +611,12 @@ defender side must yield ZERO move survivors — one appearing there is a hard
 error (an early, diagnostic-friendly failure). Extraction of species / ability /
 move out of the survivors, and its precedence rules, are DEFERRED until the
 tokenizer works as intended (see above).
+> SUPERSEDED (concern 3, 2026-09-08): the defender side NEVER runs a move token
+> at all — a damaging-move word on the defender side is not even classified as
+> a move; it is plain junk. The "defender yields ZERO move survivors (hard
+> error)" rule (architecture + concern 3 + concern-2 era notes) is DEAD, folded
+> into the T2 junk ruling (silent drop, no `???`). See
+> `SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md` T1/T2.
 > SUPERSEDED 2026-09-06 — layer separation + survivor precedence are settled
 > (see "Resolved architecture" above): layer 1 exact phrase-first tokenizer,
 > layer 2 regex over the marked residue for fuzzy recovery; precedence ability →
@@ -899,6 +950,13 @@ Gaps to refine (converter-only now; ## 3 generalizes):
 
 ## 10. One-liner → converter route: kill LLM extraction (user 2026-09-06; design agreed, implement next session)
 
+> STATUS 2026-09-08: free-order frame slice implemented this session (the
+> `vs`-split `parseQuery`, `use/uses` inert end-to-end, move pre-claim + strip,
+> junk silent-drop, corpus rewritten to no-`uses`, 3-arg CLIs stop manufacturing
+> `use(s)`). Still open from here: junk tolerance is fully ruled (T2: junk
+> silently dropped; R4 hard errors stand); route.mjs one-shot script, converter
+> echo wiring (## 8), and the ## 3 two-layer sweep remain.
+
 Agreed direction: the agent is ONLY a conversational wrapper. It pulls the
 damage-query ONE-LINER out of the user's message — stripping filler like
 "let's do a quick calc" — and hands it to the converter. All extraction and
@@ -915,12 +973,11 @@ echo atom-index counting. Removing it makes a single-line query ≈ one tool
 call, and the recognition echo is only as fast as the parse that backs it.
 
 Prerequisites / concerns to settle before building:
-- **Free-order parser (first slice of ## 3).** `input-converter.mjs` today
-  only parses the literal `<atk> uses <move> vs <def>` frame. It must accept
-  sides split by `vs` with NO `uses`: find the move phrase (exact alias / full
-  name, contiguous) in the attacker side, parse each side with the existing
-  `parseCombatant`. User lines like `max spa 252 gengar shadow ball vs max def
-  mega aggron` must work as typed.
+- **Free-order parser (first slice of ## 3).** DONE 2026-09-08 (this session):
+  `parseQuery` is now a `vs`-split over two free-order sides with NO `uses`; the
+  move phrase (exact alias / full name) is claimed anywhere on the attacker side
+  and its words are blanked before each side's `parseCombatant`. User lines like
+  `max spa 252 gengar shadow ball vs max def mega aggron` parse as typed.
 - **Junk tolerance.** The converter hard-errors on stat-less stray numbers
   (e.g. a redundant `252` beside `max spa`). Decide: converter errors loudly
   (agent relays / asks the user) vs the agent deletes obvious redundancy before
@@ -932,5 +989,80 @@ Prerequisites / concerns to settle before building:
 - **Echo wiring.** Once the free-order parse owns spans, the converter-side
   recognition echo (## 8) becomes the ONLY echo; drop the agent-side
   hand-built echo path.
+
+---
+
+## Build order — what remains of the tokenizer overhaul (addendum 2026-09-08)
+
+This section is a step-by-step build list, NOT a numbered backlog item — it does
+not change any `## N` heading (renumbering is a multi-document sweep; don't do
+it). Follow the steps top to bottom; each lands with `verify:damage` 63/63,
+`verify:acc` 44/44, `verify:echo` 6/6 green and the corpus chaincheck "all
+identical". The design record for every step lives in ## 3 (layers/seams),
+## 4 (arena), ## 5/## 6 (boost signals, mega), ## 8 (echo), ## 10 (route) and
+`session-tools-archive/SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md`.
+
+Context already landed 2026-09-08 (the "free-order frame slice"): `vs`-split
+`parseQuery`, `use/uses` inert, junk silent-drop (T2), the 3-arg CLIs stop
+manufacturing `use(s)`, the corpus is rewritten to no-`uses` lines, and the
+`max` flags fix is in. What remains is the sweep proper:
+
+1. **Layer-1 unified sweep (replaces `parseCombatant`'s regex passes).** One
+   per-position longest-fit claim walk over each side's atoms: shape-phrases
+   (EV `252 atk` / `atk 252`, stage `±N atk` / `atk ±N`, acc/eva stages,
+   stat-less `±N` dynamic boost, `level`, `max <stat>`) compete longest-first
+   with literal aliases and dex full names (moves/abilities/items/statuses/
+   arena) exactly as ## 3's "Resolved architecture" describes. consume-and-MARK
+   (a reserved marker atom + a side log mapping marker → variable) REPLACES
+   `stripMatches` deletion. The boost-signal + move claim now done by
+   `claimAttackerMoves` folds INTO this sweep (seam-G gating stays). Comma is a
+   global hard separator. Gate: corpus cards unchanged + suites green.
+
+2. **Seam-B guard trie.** A depth-3 first-word trie over every claimable
+   phrase; a single-word class claim (nature/status/weather/hazard/item-acro)
+   fires only when no 2–3-word phrase starts at that position — `calm` is not a
+   nature when `Calm Mind` is present, `sand` not arena when `Sand Stream` is,
+   `rock` not Stealth Rock when `Rock Slide` is. No lookbehind. Gate: the guard
+   smoke list from ## 3.
+
+3. **Species-as-span residue resolution (layer 2).** Species come off the
+   marked residue as a tolerant best contiguous 1–3-word run (dex name +
+   species alias + forme-order permutation for `Mega Venusaur`), junk tolerated
+   on both sides; replaces today's whole-residue permutation + ends-junk
+   fallback. Species stay OUT of the sweep and the guard; fuzzy/typo-tolerant
+   recovery is species-only. Gate: species resolve in both orders next to junk,
+   incl. `Mega <x> X/Y` formes.
+
+4. **Mega exact-shape signal (## 6 scope).** Read `mega`, `mega-<x>`,
+   `<x>-mega` only on leftover species words; a signal naming a base with no
+   `-Mega` forme HARD-ERRORS; an already-`-Mega` token is never re-upgraded.
+   Gate: the ## 3 mega decision list (incl. `Mega Launcher` ability, Meganium/
+   Yanmega/Megahorn non-matches).
+
+5. **Arena grammar (## 4) inside the sweep.** Bare arena words + the optional
+   `in`/`under`/`after` signals with exclusive post-signal scope; terrain first-
+   letter forms; bare words win by guard; same-slot conflicts error; explicit
+   beats ability-auto. (Spikes grammar already landed 2026-09-08.)
+
+6. **Seam-C startup warning + guard.** Warn loudly at startup if a single-word
+   key appears in two class lexicons (aliases.md edit guard), and add a smoke
+   that class tables stay 1-word-disjoint. No behavior change when clean.
+
+7. **Converter-side echo (## 8).** Wire the offline converter route into
+   `scripts/echo.mjs` using the step-1 side log's claim→atom spans. Per the T2
+   ruling, plain junk words render as unannotated atoms (NO `???` label; the
+   `???` class is retired for junk); R4 strays and Tier-1 errors keep their
+   messages. Drop the agent's hand-built echo path once this owns spans.
+
+8. **One-shot route (## 10).** `route.mjs "<line>" --chat` = converter → fill →
+   calc → output in one node process (data loaded once), so a one-liner query is
+   one tool call. Then retire the agent-route prose in AGENTS.md rule 2/3 and
+   AGENT-GUIDE.md step 1 (agents stop authoring spec JSON/spans).
+
+9. **Forme-word collision set (post-tokenizer review).** Once the sweep works,
+   revisit `pikachu rock star`, `arceus rock`, `arceus poison`, `arceus
+   electric/psychic` (terrain interaction), `genesect burn`, `arc-rock`; at-worst
+   alias escape (`<forme spelling>` → canonical dex name). Do NOT touch before
+   step 1–3 land.
 
 

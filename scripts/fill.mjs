@@ -73,6 +73,10 @@ const BUILTIN_SHORTHAND = {
   "max spa": { evs: { spa: 252 }, low: "Modest", high: "Modest" },
   "max def": { evs: { hp: 252, def: 252 }, low: "Bold", high: "Impish" },
   "max spd": { evs: { hp: 252, spd: 252 }, low: "Calm", high: "Careful" },
+  // spe/hp (2026-09-08): natures handled in code, not via low/high — max spe is
+  // Timid/Jolly by the side's move (base-Atk-vs-SpA fallback), max hp sets none.
+  "max spe": { evs: { spe: 252 }, low: "Jolly", high: "Jolly" },
+  "max hp": { evs: { hp: 252 }, low: "", high: "" },
 };
 const BUILTIN_ORB = {
   "Flame Orb": { status: "brn", blocked: ["Fire"] },
@@ -121,7 +125,7 @@ function parseShorthand(doc) {
   for (const cells of mdTableRows(section)) {
     if (cells.length < 8) continue;
     const token = stripMdCell(cells[0]).toLowerCase();
-    if (!/^max (atk|spa|def|spd)$/.test(token) || !BUILTIN_SHORTHAND[token]) continue;
+    if (!/^max (atk|spa|def|spd|spe|hp)$/.test(token) || !BUILTIN_SHORTHAND[token]) continue;
     const names = ["hp", "atk", "def", "spa", "spd", "spe"];
     const evs = {};
     for (let i = 0; i < 6; i++) {
@@ -512,34 +516,82 @@ function defaultAbilityName(spec, move, matchup, isAttacker) {
   return entry.abilities[0];
 }
 
-/** Apply the max atk/spa/def/spd shorthands (fixed EV+nature defaults). The
- *  expansion (EV spread + nature per base-Atk-vs-SpA) comes from
- *  auto-fill-defaults.md's EV / nature shorthand table (SHORTHAND). */
-function applyMaxFlags(spec) {
+/** Apply the max atk/spa/def/spd/spe/hp shorthands. RULES (user 2026-09-08,
+ *  SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md T3):
+ *  - EVERY set max flag expands (fixes the old else-if that dropped one of
+ *    `max atk max spa`); identical re-claims collapse.
+ *  - Same-stat conflict: an explicit EV on the stat a max NAMES errors when it
+ *    differs (dedupe-vs-conflict) and collapses when equal. The implied HP
+ *    component of max def / max spd does NOT conflict — an explicit HP EV
+ *    overrides it (explicit beats auto).
+ *  - Total EVs after expansion + explicit EVs must be <= 510 (max def / max spd
+ *    carry HP 252, so e.g. max atk + max def = 756 and errors).
+ *  - Auto-nature (only when none typed): the FIRST-typed max's nature wins;
+ *    explicit nature always beats any auto. max atk/spa/def/spd use the
+ *    shorthand's low/high (dropSpa picks); max spe is Timid (special move) /
+ *    Jolly (physical move), base-Atk-vs-SpA fallback when no move (defender);
+ *    max hp sets NO auto-nature.
+ *  The EV spreads come from auto-fill-defaults.md's shorthand table. */
+function applyMaxFlags(spec, move, side) {
   if (!spec) return;
-  // defensive natures: lower the weaker attacking stat — Bold/Calm (-Atk) when
-  // ATK<=SpA, Impish/Careful (-SpA) otherwise.
+  const MAP = { _maxAtk: "atk", _maxSpa: "spa", _maxDef: "def", _maxSpd: "spd", _maxSpe: "spe", _maxHp: "hp" };
+  const flags = Object.keys(MAP).filter((f) => spec[f]);
+  if (!flags.length) return;
   const entry = monByName.get(norm(spec.name ?? ""));
   const dropSpa = entry && entry.baseStats.atk > entry.baseStats.spa;
-  const use = (token) => {
-    const def = SHORTHAND[token];
-    if (!def) return;
-    spec.evs = { ...(spec.evs ?? {}), ...def.evs };
-    if (!spec.nature) spec.nature = dropSpa ? def.high : def.low;
-  };
-  if (spec._maxDef) {
-    use("max def");
-    delete spec._maxDef;
-  } else if (spec._maxSpd) {
-    use("max spd");
-    delete spec._maxSpd;
-  } else if (spec._maxSpa) {
-    use("max spa");
-    delete spec._maxSpa;
-  } else if (spec._maxAtk) {
-    use("max atk");
-    delete spec._maxAtk;
+
+  // merge every shorthand's EVs; same stat twice with the same value collapses
+  // (max def + max spd both carry hp 252), different values would be a conflict.
+  const merged = {};
+  for (const f of flags) {
+    const named = MAP[f];
+    const def = SHORTHAND["max " + named];
+    if (!def) continue;
+    const val = def.evs[named];
+    const explicit = spec.evs?.[named];
+    if (explicit != null && explicit !== val) {
+      throw new Error(`max ${named} conflicts with ${explicit} ${named} — "max ${named}" means ${val} ${named.toUpperCase()} EVs; type one or the other`);
+    }
+    for (const [st, v] of Object.entries(def.evs)) {
+      if (merged[st] != null && merged[st] !== v) {
+        throw new Error(`conflicting max shorthand EVs on ${st.toUpperCase()}: ${merged[st]} vs ${v}`);
+      }
+      merged[st] = v;
+    }
   }
+  // explicit EVs win over a max shorthand's implied components (e.g. hp inside
+  // max def / max spd); named-stat conflicts already errored above.
+  spec.evs = { ...merged, ...(spec.evs ?? {}) };
+  const total = Object.values(spec.evs).reduce((a, b) => a + b, 0);
+  if (total > 510) {
+    throw new Error(`max shorthand EVs total ${total} (> 510 cap) — "max def" and "max spd" already carry HP 252, so they only combine with one other max on a non-bulk stat`);
+  }
+
+  // auto-nature: first-typed max wins (spec._maxOrder from the converter);
+  // agent-authored specs without an order fall back to the old priority.
+  if (!spec.nature) {
+    const order = (spec._maxOrder ?? []).filter((f) => flags.includes(f));
+    const fallback = ["_maxDef", "_maxSpd", "_maxSpa", "_maxAtk", "_maxSpe", "_maxHp"];
+    const setter = (order.length ? order : fallback).find((f) => flags.includes(f));
+    let nature = null;
+    if (setter) {
+      const named = MAP[setter];
+      if (named === "spe") {
+        if (side === "attacker" && move?.category === "Special") nature = "Timid";
+        else if (side === "attacker" && move?.category === "Physical") nature = "Jolly";
+        else nature = dropSpa ? "Jolly" : "Timid";
+      } else if (named === "hp") {
+        nature = null; // no nature raises HP — leave the neutral / explicit default
+      } else {
+        const def = SHORTHAND["max " + named];
+        nature = def ? (dropSpa ? def.high : def.low) : null;
+      }
+    }
+    if (nature) spec.nature = nature;
+  }
+
+  for (const f of flags) delete spec[f];
+  delete spec._maxOrder;
 }
 
 /**
@@ -571,7 +623,7 @@ function inferOrbStatus(spec) {
  *  the stat it follows, and pick a default ability when none was named. */
 function fillCombatant(spec, move, matchup, side) {
   if (!spec) return;
-  applyMaxFlags(spec);
+  applyMaxFlags(spec, move, side);
   inferOrbStatus(spec);
   if (spec._plusBoost && move?.category) {
     // dynamic boost: on the attacker it hits the stat the move uses; on the
@@ -669,14 +721,12 @@ function resolvePlate(attacker, move, effWeather) {
   return `no plate boosts ${effType}`;
 }
 
-/** Build the Move-row flag list for a single card (crit / screens / ignored
- *  junk tokens / plate + orb notes) from the parsed specs and resolved context. */
+/** Build the Move-row flag list for a single card (crit / screens / plate +
+ *  orb notes) from the parsed specs and resolved context. */
 function cardFlags(matchup, spec, plateNote) {
   const flags = [];
   if (matchup.crit) flags.push("crit");
   if (matchup.screens) flags.push(matchup.screens);
-  if (spec.attacker?._ignored) flags.push(`ignored: ${spec.attacker._ignored}`);
-  if (spec.defender?._ignored) flags.push(`ignored: ${spec.defender._ignored}`);
   if (plateNote) flags.push(plateNote);
   if (spec.attacker?._plateNote) flags.push(spec.attacker._plateNote);
   if (spec.defender?._plateNote) flags.push(spec.defender._plateNote);
@@ -770,8 +820,13 @@ function resolveComboInput(matchup) {
 function classifyMatchup(matchup) {
   // Move slot has NO delimiter grammar: claim exact moves from the slot text
   // (1 = single, 2 distinct = the fixed two-move sequence in claimed order,
-  // 0 or >2 = hard error from claimMoves). Spec routes that already carry a
-  // moves array skip the claiming and only need the combo guard below.
+  // 0 or >2 = hard error from claimMoves). The free-order converter route
+  // (parseQuery) pre-claims and attaches parsed.signals + move/moves itself —
+  // fold any pre-claimed signals, then only claim when no moves array exists.
+  if (matchup.signals) {
+    foldBoostSignals(matchup.attacker, matchup.signals);
+    delete matchup.signals;
+  }
   if (!matchup.moves) {
     const parsed = claimMoves(matchup.move ?? "");
     if (parsed.signals) foldBoostSignals(matchup.attacker, parsed.signals);

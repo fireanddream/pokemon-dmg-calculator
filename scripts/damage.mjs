@@ -6,7 +6,7 @@
 // pipeline together for interactive / one-shot use:
 // front (input-converter -> fill) -> calc (calc.mjs) -> render (output.mjs).
 //
-//   node scripts/damage.mjs "<atk> uses <move> vs <def>"   prints the card
+//   node scripts/damage.mjs "<attacker side ...> vs <defender side ...>"   card
 //   node scripts/damage.mjs "<query>" --resolved           emits the calc-input
 //       JSON (identical to the converter->fill chain output) for the chain:
 //       damage --resolved | calc - | output -   (or input-converter | fill | calc | output)
@@ -53,7 +53,7 @@ function emitResolvedJson(matchup) {
 // --- entry points ---
 const USAGE = `usage:
   node scripts/damage.mjs <matchup.json>
-  node scripts/damage.mjs "<atk> uses <move> vs <def>"
+  node scripts/damage.mjs "<attacker side ...> vs <defender side ...>"
   node scripts/damage.mjs "<atk>" "<move>" "<def>"
   (no args)           interactive prompt
   add --resolved to any query to emit the resolved calc-input JSON instead of
@@ -63,7 +63,7 @@ const USAGE = `usage:
 
 function repl() {
   console.log(USAGE.replace(/^/gm, "  "));
-  console.log("\n  example: Garchomp @ Life Orb Jolly 252 Atk uses Earthquake vs Heatran 252 HP");
+  console.log("\n  example: Garchomp @ Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP");
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("calc> ", (line) => {
     line = line.trim();
@@ -95,7 +95,9 @@ if (args.length === 0) {
   const input = resolveQuery(args[0]);
   process.stdout.write(wantResolved ? JSON.stringify(input, null, 2) + "\n" : runResolved(input));
 } else if (args.length >= 3) {
-  const line = `${args[0]} uses ${args.slice(1, args.length - 1).join(" ")} vs ${args[args.length - 1]}`;
+  // Explicit <atk> <move> <def> compat form; NEVER manufactures a "uses" word
+  // (2026-09-08 ruling) — the canonical line is the free-order vs form.
+  const line = `${args[0]} ${args.slice(1, args.length - 1).join(" ")} vs ${args[args.length - 1]}`;
   const input = resolveQuery(line);
   process.stdout.write(wantResolved ? JSON.stringify(input, null, 2) + "\n" : runResolved(input));
 } else {

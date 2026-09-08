@@ -9,8 +9,8 @@ answering a damage query lives in `AGENT-GUIDE.md` — read it when a query
 fires.**
 
 Pipeline: an **agent** (free-word query → spec JSON — users are NOT assumed to
-type `uses`/`use`) or `input-converter.mjs` (compat extractor that only accepts
-the literal `<atk> uses <move> vs <def>` frame, kept for canned / corpus lines)
+type `uses`/`use`; `use(s)` is inert everywhere) or `input-converter.mjs`
+(offline extractor: `vs` splits two free-order sides, NO `uses` syntax)
 → `scripts/fill.mjs` (defaults + resolve: spec JSON → calc-input JSON; rules
 parsed from `auto-fill-defaults.md`) → `scripts/calc.mjs` (pure math) →
 `scripts/output.mjs` (result card; OWNS the layout). `damage.mjs` is a thin

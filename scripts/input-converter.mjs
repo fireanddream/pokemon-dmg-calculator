@@ -245,14 +245,15 @@ for (const [type, item] of Object.entries(PLATE_BY_TYPE)) {
 const ITEM_PHRASES = [...ITEM_ALIAS.keys()].sort((a, b) => b.length - a.length);
 
 const USAGE = `usage:
-  node scripts/input-converter.mjs "<atk> uses <move> vs <def>"   (spec JSON)
-  node scripts/input-converter.mjs <atk> <move> <def>              (explicit args)
+  node scripts/input-converter.mjs "<attacker side ...> vs <defender side ...>"   (spec JSON)
+  node scripts/input-converter.mjs <atk> <move> <def>                              (explicit args)
 
   input-converter is the OFFLINE extractor. It converts one natural-language
   line into the spec JSON (the variables the user stated; defaults NOT filled).
-  An agent route produces the same spec JSON. Either feeds fill.mjs, which
-  applies auto-fill-defaults.md and resolves to the calc-input JSON calc.mjs
-  consumes:
+  "vs" is the mandatory splitter; sides are free-order (the move is claimed by
+  exact name anywhere on the attacker side). There is NO "uses" syntax. An
+  agent route produces the same spec JSON. Either feeds fill.mjs, which applies
+  auto-fill-defaults.md and resolves to the calc-input JSON calc.mjs consumes:
     node scripts/input-converter.mjs "<query>" | node scripts/fill.mjs - | node
     scripts/calc.mjs - | node scripts/output.mjs -
 
@@ -357,11 +358,17 @@ function parseCombatant(raw, side = "attacker") {
   };
   const EV_ALIAS = { hp: "hp", ...STAGE_ALIAS };
   const ACC_EVA_ALIAS = { acc: "acc", accuracy: "acc", eva: "eva", evasion: "eva" };
+  // "max atk" / "max spa" / "max def" / "max spd" / "max spe" / "max hp"
+  // (2026-09-08: spe/speed and hp added. max spe's auto-nature is Timid/Jolly by
+  // move in fill.mjs; max hp sets no auto-nature. "spec"/"band"/... stay
+  // item-acro only — seam C: class lexicons must stay 1-word-disjoint.)
   const MAX_ALIAS = {
     atk: "_maxAtk", attack: "_maxAtk", phys: "_maxAtk",
     spa: "_maxSpa", spatk: "_maxSpa", spc: "_maxSpa",
     def: "_maxDef", defense: "_maxDef",
     spd: "_maxSpd", spdef: "_maxSpd", sdef: "_maxSpd",
+    spe: "_maxSpe", speed: "_maxSpe",
+    hp: "_maxHp",
   };
   const evs = {};
   const specBoosts = () => (spec.boosts = spec.boosts ?? {});
@@ -402,9 +409,13 @@ function parseCombatant(raw, side = "attacker") {
       spec.level = Math.min(100, Math.max(1, Number(atoms[i + 1].t))); eat(i, 2); i++; continue;
     }
 
-    // "max atk" / "max spa" / "max def" / "max spd" (HP/speed have no shorthand)
+    // "max atk" / "max spa" / "max def" / "max spd" / "max spe" / "max hp".
+    // Claim order is RECORDED (first-typed max wins the auto-nature war in
+    // fill.mjs applyMaxFlags when several maxes coexist).
     if (tok === "max" && adjacent(i) && MAX_ALIAS[atoms[i + 1].t]) {
-      spec[MAX_ALIAS[atoms[i + 1].t]] = true; eat(i, 2); i++; continue;
+      const key = MAX_ALIAS[atoms[i + 1].t];
+      if (!spec[key]) (spec._maxOrder = spec._maxOrder ?? []).push(key);
+      spec[key] = true; eat(i, 2); i++; continue;
     }
 
     // signed number leader: "+N <stageable stat>" stage ("+2 atk", "+1 acc"),
@@ -673,15 +684,16 @@ function parseCombatant(raw, side = "attacker") {
     }
   }
   spec.name = name;
-  // A digit/stat token no pass claimed is a mistake, not flavor: fail loud
-  // and show what WAS understood so the user can fix just the bad part.
+  // T2 junk ruling (2026-09-08): R4 hard errors stand for a digit/stat token no
+  // pass claimed (fail loud, show what WAS understood). PLAIN junk words (the
+  // rest of `ignored`) are SILENTLY DROPPED — no _ignored, no "ignored:" card
+  // flag, no echo label or `???`.
   const STAT_WORD = new Set([...Object.keys(EV_ALIAS), ...Object.keys(ACC_EVA_ALIAS)]);
   const strayStats = (ignored ?? []).filter((w) => STAT_WORD.has(w));
   const strayNumbers = (ignored ?? []).filter((t) => /\d/.test(t) && !STAT_WORD.has(t));
   if (strayStats.length || strayNumbers.length) {
     throw new Error(strayTokenError(raw, side, spec, name, strayStats, strayNumbers));
   }
-  if (ignored.length) spec._ignored = ignored.join(" ");
   return spec;
 }
 
@@ -723,13 +735,24 @@ function mergeArena(matchup) {
  * other Non-Damaging move (Toxic, Will-O-Wisp, Protect, a hazard/weather
  * setter, ...) is a class token, never the queried attack move — it is
  * consumed and dropped. A slot with no damaging move at all hard-errors. */
-function claimMoves(text) {
+/** Tokenize text the way move claiming does (punctuation -> \u0001 sentinel
+ *  atoms, everything else non-alnum -> space) and return the word list. */
+function moveTokenize(text) {
   const raw = String(text).toLowerCase();
   // Mark punctuation boundaries so no phrase lookahead ever crosses them.
   const marked = raw.replace(/[,.;/\\|]+/g, " \u0001 ");
-  const words = marked.replace(/[^a-z0-9\u0001 ]+/g, " ").split(/\s+/).filter(Boolean);
+  return marked.replace(/[^a-z0-9\u0001 ]+/g, " ").split(/\s+/).filter(Boolean);
+}
+
+/** Longest-fit exact move scan over word atoms. Returns the claimed DAMAGING
+ *  move names, the boost-signal names, and the word indexes each consumed (a
+ *  damaging phrase and a boost signal consume their words; a dropped
+ *  Non-Damaging class move consumes nothing so a side pass can still claim it
+ *  as its class token). */
+function scanMoveWords(words) {
   const claimed = [];
   const signals = [];
+  const usedIdx = [];
   for (let i = 0; i < words.length; i++) {
     let name = null;
     let len = 0;
@@ -743,41 +766,101 @@ function claimMoves(text) {
       const move = moveByName.get(norm(name));
       if (move?.category !== "Non-Damaging") {
         claimed.push(name);
+        for (let j = i; j < i + len; j++) usedIdx.push(j);
       } else if (BOOST_MOVES.has(name)) {
         signals.push(name); // boost signal: attacker stages, never a move
+        for (let j = i; j < i + len; j++) usedIdx.push(j);
       }
       i += len - 1;
     }
   }
+  return { claimed, signals, usedIdx };
+}
+
+/** Dedupe + enforce the 1-or-2-move rule. Throws naming `quote` on 0 / >2. */
+function finishMoveClaim(claimed, signals, quote) {
   const seen = new Set();
   const distinct = claimed.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
   const sseen = new Set();
   const boostSignals = signals.filter((n) => (sseen.has(n) ? false : (sseen.add(n), true)));
   if (distinct.length === 0) {
     if (boostSignals.length) {
-      throw new Error(`only boosting moves (no damaging move) in: "${text}" - a setup move like Dragon Dance only sets attacker stages (+1 atk/+1 spe); add the attack move, e.g. "Dragon Dance Earthquake"`);
+      throw new Error(`only boosting moves (no damaging move) in: "${quote}" - a setup move like Dragon Dance only sets attacker stages (+1 atk/+1 spe); add the attack move, e.g. "Dragon Dance Earthquake"`);
     }
-    throw new Error(`could not identify a damaging move in: "${text}"`);
+    throw new Error(`could not identify a damaging move in: "${quote}"`);
   }
-  if (distinct.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${text}")`);
+  if (distinct.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${quote}")`);
   const result = distinct.length === 2 ? { chain: distinct } : { single: distinct[0] };
   if (boostSignals.length) result.signals = boostSignals;
   return result;
 }
 
-/** Parse "<atk> uses <move> vs <def>"; "turn by turn" asks for the per-turn table. */
+function claimMoves(text) {
+  const words = moveTokenize(text);
+  const { claimed, signals } = scanMoveWords(words);
+  return finishMoveClaim(claimed, signals, text);
+}
+
+/** Claim the damaging move(s) out of a free-order ATTACKER SIDE and blank their
+ *  words (plus boost-signal words) out of the side text, so the residue handed
+ *  to parseCombatant holds only species + modifier + class-token words — an
+ *  exact move never pollutes species resolution, and a misspelled move is junk.
+ *  Dropped Non-Damaging class moves are LEFT in the residue (parseCombatant
+ *  claims them as their status/hazard/weather/... class). Returns the blanked
+ *  residue plus the claim result ({ single } / { chain } / signals). */
+function claimAttackerMoves(text) {
+  const lo = String(text).toLowerCase();
+  // Aligned tokenization that mirrors claimMoves' word list EXACTLY (a
+  // punctuation run -> one \u0001 token) but keeps every real token's span in
+  // `lo` — so claimed move words can be blanked out of the ORIGINAL side text.
+  // Only claimed move phrases are removed; signs / digits / punctuation the
+  // combatant parser still needs ("+2 atk", "-1 acc", "@ Life Orb", commas)
+  // survive untouched.
+  const matcher = /[,.;/\\|]+|[a-z0-9]+/g;
+  const toks = [];
+  for (const m of lo.matchAll(matcher)) {
+    const ch = m[0];
+    if (/[,.;/\\|]/.test(ch)) toks.push({ t: "\u0001", a: m.index, b: m.index + ch.length });
+    else toks.push({ t: ch, a: m.index, b: m.index + ch.length });
+  }
+  const words = toks.map((x) => x.t);
+  const { claimed, signals, usedIdx } = scanMoveWords(words);
+  const result = finishMoveClaim(claimed, signals, text);
+  if (!usedIdx.length) return { residue: text, ...result };
+  const chars = [...lo];
+  for (const idx of usedIdx) {
+    const { a, b } = toks[idx];
+    for (let k = a; k < b; k++) chars[k] = " ";
+  }
+  return { residue: chars.join(""), ...result };
+}
+
+/** Parse a free-order damage line. `vs` is the MANDATORY splitter — a query
+ *  without one is a hard error; text left of `vs` is the attacker side, right
+ *  is the defender. There is NO `uses` syntax: `use`/`uses` are inert and
+ *  silently dropped like any junk word. Tokens within a side are free-order —
+ *  the move is claimed by exact phrase wherever it appears on the ATTACKER side
+ *  and its words are removed before the side's combatant parse; the defender
+ *  NEVER runs a move claim (a stray move-ish word there is silent junk).
+ *  "turn by turn" asks for the per-turn table. */
 function parseQuery(line) {
   const normed = hyphenToSpace(line);
   const flag = /\bturn\s*by\s*turn\b/i.test(normed);
-  const clean = normed.replace(/\bturn\s*by\s*turn\b/gi, " ");
-  const m = /^(.+?)\s+uses\s+(.+?)\s+vs\s+(.+)$/is.exec(clean.trim());
-  if (!m) throw new Error('query must look like: "Garchomp @ Life Orb Jolly 252 Atk uses Earthquake vs Heatran 252 HP"');
+  const clean = normed.replace(/\bturn\s*by\s*turn\b/gi, " ").replace(/\s+/g, " ").trim();
+  const parts = clean.split(/\bvs\b/i).map((p) => p.trim()).filter(Boolean);
+  if (parts.length !== 2) {
+    throw new Error('a query needs exactly one "vs" splitting the attacker from the defender, e.g. "Garchomp @ Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP"');
+  }
+  const [attackerSide, defenderSide] = parts;
+  const claim = claimAttackerMoves(attackerSide);
   const out = mergeArena({
-    attacker: parseCombatant(m[1], "attacker"),
-    move: m[2].trim(),
-    defender: parseCombatant(m[3], "defender"),
+    attacker: parseCombatant(claim.residue, "attacker"),
+    defender: parseCombatant(defenderSide, "defender"),
     showTurns: flag,
   });
+  if (claim.single) out.move = claim.single;
+  else out.moves = claim.chain;
+  if (claim.signals) out.signals = claim.signals;
   out._query = line.trim();
   return out;
 }
@@ -799,12 +882,14 @@ if (isMain) {
   if (args.length === 1) {
     writeSpec(parseQuery(args[0]));
   } else if (args.length >= 3) {
+    // Explicit <atk> <move> <def> compat form. NEVER manufactures a "uses"
+    // word (2026-09-08): the canonical line is the free-order vs form.
     const mc = mergeArena({
       attacker: parseCombatant(args[0], "attacker"),
       move: args.slice(1, args.length - 1).join(" "),
       defender: parseCombatant(args[args.length - 1], "defender"),
     });
-    mc._query = args[0] + " uses " + args.slice(1, args.length - 1).join(" ") + " vs " + args[args.length - 1];
+    mc._query = args[0] + " " + args.slice(1, args.length - 1).join(" ") + " vs " + args[args.length - 1];
     writeSpec(mc);
   } else {
     console.error(USAGE);

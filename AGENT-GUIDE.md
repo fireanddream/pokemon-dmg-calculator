@@ -33,9 +33,10 @@ the other side rather than inventing one.
 canonical values. It never fills a value the user did not state.**
 
 The user is NOT assumed to type `uses`/`use`; never expect, add, or require
-it. (The literal `<atk> uses <move> vs <def>` frame is only a compat input for
-the offline converter, step 5.) Read the query as TWO FREE-ORDER SIDES split
-by `vs`; every token binds to the species in its own side.
+it. `use(s)` is INERT everywhere: the offline converter dropped the `uses`
+frame entirely (2026-09-08) — a typed `use(s)` is silently ignored junk. Read
+the query as TWO FREE-ORDER SIDES split by `vs`; every token binds to the
+species in its own side.
 
 1. **Split sides.** Text left of `vs` = attacker side, right = defender side.
 2. **Bind tokens.** Walk each side's words and bind each recognized token to a
@@ -169,8 +170,8 @@ block then report the error message — never substitute your own numbers.
 
 ## 5. Routing notes
 
-- The OFFLINE converter route (`input-converter.mjs` / `damage.mjs`) only
-  accepts the canned `<atk> uses <move> vs <def>` frame. It does NOT produce
+- The OFFLINE converter route (`input-converter.mjs` / `damage.mjs`) reads the
+  same free-order `vs`-split grammar (no `uses` anywhere). It does NOT produce
   the recognition echo yet (accepted; TODO ## 8). Use the agent route above
   whenever a query reaches a chat window.
 - Card layout is owned by `output.mjs` and pinned in `OUTPUT-FORMAT.md` — the
