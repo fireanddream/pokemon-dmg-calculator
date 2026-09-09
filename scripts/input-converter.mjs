@@ -29,14 +29,15 @@ const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json")
 // Punctuation chars `, . ; / \ |` act as hard TOKEN BOUNDARIES everywhere: a
 // "+2," must not reach over its comma and bind "ATK 252" as a stage, and
 // "HP, 252" is two separate tokens. During scanning they are kept as a
-// non-space sentinel so no `\s*` regex crosses one; the sentinel is collapsed
-// to a space just before species-name resolution.
+// non-space sentinel so no phrase regex crosses one.
 const PUNCT_BOUNDARY = /[,.;/\\|]/g;
 const PUNCT_SENT = "\u0001";
-// norm() also folds those punctuation chars away so a typed "Mr. Mime"
-// ("mr. mime"), "Mr Mime", or "mrmime" all resolve to the same dex key. The
-// dex canon keys themselves are hyphenated ("Rotom-Wash", "Venusaur-Mega"), so
-// norm() keeps folding hyphens for LOOKUPS regardless of the master hyphen
+// norm() also folds those punctuation chars away, so a typed "Mr. Mime"
+// ("mr. mime"), "Mr Mime", or "mrmime" all fold to the same glued lookup key
+// (species claims match on it; "Mr Mime" typed across a real space still
+// folds, but a `.` between the words is a hard boundary and splits the claim).
+// The dex canon keys themselves are hyphenated ("Rotom-Wash", "Venusaur-Mega"),
+// so norm() keeps folding hyphens for LOOKUPS regardless of the master hyphen
 // rule below — that rule only normalizes the TYPED line, never the canon data.
 const norm = (s) => s.toLowerCase().replace(/[\s',.;/\\|-]/g, "");
 
@@ -311,10 +312,11 @@ function strayTokenError(raw, side, spec, name, stats, digits) {
 // ===========================================================================
 // ## 3 layer-1 UNIFIED SWEEP — claim lexicons (replaces parseCombatant's
 // regex passes). Every claimable LITERAL phrase (class tokens + shape words)
-// is registered below; species names are deliberately absent (seam A/B:
-// species resolve from the unclaimed residue, so no class word inside a
-// multi-word species name is ever consumed). Claim keys are the phrase's
-// words lowercased and space-joined — a phrase matches only over ORIGINALLY
+// is registered below; SPECIES are claimed from the same sweep by exact
+// glued-run lookup against monByName + SPECIES_ALIASES (see speciesKeyAt) —
+// no class word inside a multi-word species name is ever consumed because a
+// longer species phrase claims first. Claim keys are the phrase's words
+// lowercased and space-joined — a phrase matches only over ORIGINALLY
 // ADJACENT words (comma / `.;/\|` hard-boundary sentinels break adjacency).
 // The per-position walk lives in parseCombatant below.
 
@@ -417,8 +419,9 @@ for (const phrase of NO_ITEM_PHRASES) registerClaim(phrase, "noitem");
  *  forms). A single word claims only when no longer claimable phrase starts
  *  at that position — the seam-B guard falls straight out of the length
  *  ordering. Claimed spans are MARKED (a side log, never deleted) so leftover
- *  words keep their layout; unclaimed words are the residue that species
- *  resolution reads. Same-slot claims collapse when identical and hard-error
+ *  words keep their layout. Species claim in the same sweep as exact
+ *  glued-run matches (canon dex names + species aliases; no fuzzy/typo
+ *  recovery). Same-slot claims collapse when identical and hard-error
  *  when different (dedupe-vs-conflict). Attacker move claims are validated
  *  (1 or 2 distinct) and ride back on spec._claim for parseQuery to lift. */
 function parseCombatant(raw, side = "attacker", opts = {}) {
@@ -459,6 +462,17 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   const adjacent = (i) => atoms[i + 1] != null && gapToNext(i) != null && !/\u0001/.test(gapToNext(i));
   const contiguous = (i, len) => { for (let k = i; k < i + len - 1; k++) if (!adjacent(k)) return false; return true; };
   const keyAt = (i, len) => atoms.slice(i, i + len).map((x) => x.t).join(" ");
+  // Species look up by the GLUED norm of the run (same key space monByName
+  // and SPECIES_ALIASES use): "rotom wash", "rotom-wash", and "rotomwash"
+  // all fold to "rotomwash". Exact match only — a run resolves when its
+  // glued form IS a dex canon name or a species alias, nothing fuzzier.
+  const speciesKeyAt = (i, len) => {
+    const glue = norm(atoms.slice(i, i + len).map((x) => x.t).join(" "));
+    const hit = monByName.get(glue);
+    if (hit) return hit.name;
+    const alias = SPECIES_ALIASES.get(glue);
+    return alias && monByName.has(norm(alias)) ? monByName.get(norm(alias)).name : null;
+  };
 
   const clamp6 = (x) => Math.max(-6, Math.min(6, x));
   const evs = {};
@@ -534,6 +548,12 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
         if (move && BOOST_MOVES.has(name)) {
           signalNames.push(name); log("boost", i, len); return len;
         }
+      }
+      const sp = speciesKeyAt(i, len);
+      if (sp) {
+        if (claimSlot("species", sp)) spec.name = sp;
+        log("species", i, len);
+        return len;
       }
       const entries = CLAIM_MAP.get(key);
       if (entries) {
@@ -617,102 +637,32 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   }
   if (Object.keys(evs).length) spec.evs = evs;
 
-  // Attacker move claims fold in here: validate (1 or 2 distinct) before
-  // species resolution so the move errors keep their old precedence.
+  // Attacker move claims fold in here: validate (1 or 2 distinct) before the
+  // species-missing check so the move errors keep their old precedence.
   if (claimMovesHere) {
     spec._claim = finishMoveClaim(moveNames, signalNames, raw);
   }
 
-  // leftover (unclaimed) words = species; dex names are "Venusaur-Mega" while
-  // players say "Mega Venusaur", so reorderings are tried too. The side log
-  // (T6) keeps the claim→atom spans the ## 8 echo needs.
+  // Species were claimed DURING the sweep (speciesKeyAt, exact glued-run
+  // match against monByName + SPECIES_ALIASES). No residue resolver, no
+  // permutations, no fuzzy/typo recovery — a correctly spelled canon name or
+  // alias claims, anything else is junk or a missing-species error. The side
+  // log (T6) keeps the claim→atom spans the ## 8 echo needs.
   spec._sideLog = sideLog;
   const words = atoms.filter((_, k) => !used[k]).map((x) => x.t);
-  const rest = words.join(" ");
-  const found = [];
-  const tryOrder = (arr) => {
-    const hit = monByName.get(norm(arr.join(" ")));
-    if (hit) found.push({ name: hit.name, words: arr });
-  };
-  const permutations = (arr) => {
-    if (arr.length > 5) return [arr];
-    const out = [];
-    const go = (a, k) => {
-      if (k === a.length) return out.push([...a]);
-      for (let i = k; i < a.length; i++) {
-        [a[k], a[i]] = [a[i], a[k]];
-        go(a, k + 1);
-        [a[k], a[i]] = [a[i], a[k]];
-      }
-    };
-    go([...arr], 0);
-    return out;
-  };
-  tryOrder(words);
-  for (const perm of permutations(words)) tryOrder(perm);
-  let name = null;
-  let ignored = [];
-  if (!found.length) {
-    const alias = SPECIES_ALIASES.get(norm(words.join(" ")));
-    if (alias && monByName.has(norm(alias))) found.push({ name: monByName.get(norm(alias)).name, words });
-  }
-  if (found.length) {
-    const seenSp = new Set();
-    const unique = found.filter((f) => {
-      const k = norm(f.name);
-      if (seenSp.has(k)) return false;
-      seenSp.add(k);
-      return true;
-    });
-    unique.sort((a, b) => b.name.length - a.name.length);
-    name = unique[0].name;
-    const usedSp = new Set(unique[0].words.map((w) => w.toLowerCase()));
-    ignored = words.filter((w) => !usedSp.has(w.toLowerCase()));
-    if (unique.length > 1) {
-      const others = [...seenSp].filter((k) => k !== norm(name));
-      name += ` (${others.map((k) => monByName.get(k).name).join(", ")} also matches)`;
-    }
-  } else {
-    const tryResolve = (n) => {
-      const hit = monByName.get(norm(n));
-      if (hit) return hit.name;
-      const alias = SPECIES_ALIASES.get(norm(n));
-      return alias && monByName.has(norm(alias)) ? monByName.get(norm(alias)).name : null;
-    };
-    for (let i = words.length - 1; i >= 1 && !name; i--) {
-      name = tryResolve(words.slice(0, i).join(" "));
-      if (name) ignored = words.slice(i);
-    }
-    for (let i = 1; i < words.length && !name; i++) {
-      name = tryResolve(words.slice(i).join(" "));
-      if (name) ignored = words.slice(0, i);
-    }
-  }
-  if (!name) {
+  if (!spec.name) {
+    const rest = words.join(" ");
     throw new Error(`could not identify a pokemon in: "${raw}" (leftover: "${rest}")`);
   }
-  // "Mega <alias/full name>" (e.g. "Mega Chomp"): the base pokemon resolved
-  // above; if it has a Mega forme in the dex, use that instead of the base.
-  if (words.some((w) => w.toLowerCase() === "mega") && !name.endsWith("-Mega")) {
-    const cands = dexData.pokemon
-      .filter((p) => p.name.startsWith(`${name}-Mega`))
-      .map((p) => p.name)
-      .sort((a, b) => b.length - a.length);
-    if (cands.length) {
-      name = cands[0];
-      ignored = ignored.filter((w) => w.toLowerCase() !== "mega");
-    }
-  }
-  spec.name = name;
   // T2 junk ruling (2026-09-08): R4 hard errors stand for a digit/stat token no
   // claim bound (fail loud, show what WAS understood). PLAIN junk words (the
-  // rest of `ignored`) are SILENTLY DROPPED — no _ignored, no "ignored:" card
-  // flag, no echo label or `???`.
+  // rest of the leftover) are SILENTLY DROPPED — no _ignored, no "ignored:"
+  // card flag, no echo label or `???`.
   const STAT_WORD = new Set([...Object.keys(EV_ALIAS), ...Object.keys(ACC_EVA_ALIAS)]);
-  const strayStats = (ignored ?? []).filter((w) => STAT_WORD.has(w));
-  const strayNumbers = (ignored ?? []).filter((t) => /\d/.test(t) && !STAT_WORD.has(t));
+  const strayStats = words.filter((w) => STAT_WORD.has(w));
+  const strayNumbers = words.filter((t) => /\d/.test(t) && !STAT_WORD.has(t));
   if (strayStats.length || strayNumbers.length) {
-    throw new Error(strayTokenError(raw, side, spec, name, strayStats, strayNumbers));
+    throw new Error(strayTokenError(raw, side, spec, spec.name, strayStats, strayNumbers));
   }
   return spec;
 }

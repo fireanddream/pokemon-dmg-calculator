@@ -6,6 +6,31 @@ as they land.
 
 ## Done (2026-09-09)
 
+- **Species claim IN the sweep; layer-2 residue/permutation resolver DELETED
+  (user 2026-09-09: "tokenizer recognizes anything correctly spelled, no fuzzy
+  lookup").** `scripts/input-converter.mjs` only: `parseCombatant` now claims
+  SPECIES as ordinary literals in the unified walk via `speciesKeyAt` — an
+  exact GLUED-RUN match (≤3 contiguous words, `norm`-folded) against
+  `monByName` then `SPECIES_ALIASES`. No residue layer, no permutations, no
+  whole-join alias pass, no ends-junk fallback, no "(also matches)", and the
+  standalone-`mega` post-claim upgrade is GONE (deferred to build-order step 4
+  / ## 6). What a correctly spelled canon name or alias claims resolves; a
+  misspelling is the existing "could not identify a pokemon" hard error (no
+  fuzzy). Species claims feed the same dedupe-vs-conflict slot machinery —
+  two different species on one side now hard-error (`conflicting species`).
+  Free-order junk around a species is silently dropped on BOTH sides (inner
+  junk now tolerated, where the old ends-junk trimming only survived edge
+  junk). Accidental wins: `rotom wash`, `charizard-mega-x`, `deoxys-attack`,
+  `porygon z`, `aegislash blade` all resolve from canon/alias data alone;
+  `landorus-t` still resolves (alias data, not a rule). REGRESSIONS ACCEPTED
+  (rules deferred, per user): reordered `Mega Charizard`-style spellings and
+  bare-forme abbreviations NOT in the alias table now fall back to the base
+  species or error; corpus `mega` line rewritten to canon
+  `Charizard-Mega-X Flamethrower …`. Verified: verify:damage 63/63,
+  verify:acc 44/44, verify:echo 6/6, corpus chaincheck "all identical",
+  plus targeted smokes (junk around species, two-species conflict, typo'd
+  species error, hyphen/forme canon spellings). Session notes:
+  `session-tools-archive/SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`.
 - **Tokenizer overhaul build-order step 1 IMPLEMENTED — the ## 3 layer-1
   unified sweep; step 2 (seam-B guard) CLOSED by it.** `scripts/
   input-converter.mjs` only (+306/−317): `parseCombatant`'s regex passes
@@ -46,9 +71,12 @@ as they land.
     verify:acc 44/44, verify:echo 6/6, corpus chaincheck "all identical".
     Session notes:
     `session-tools-archive/SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`.
-  - **Next:** build-order step 3 (species-as-span residue resolution), then
-    steps 4–9 (mega exact shape, arena grammar ## 4, seam-C startup warning,
-    converter echo ## 8, route.mjs ## 10, forme-word collisions).
+  - **Next:** build-order step 4 (mega exact shape / ## 6 — re-add the
+    standalone-`mega` and reorder upgrade as exact-shape rules), then steps
+    5–9 (arena grammar ## 4, seam-C startup warning, converter echo ## 8,
+    route.mjs ## 10, forme-word collisions). Species claims landed
+    2026-09-09 and SUPERSEDED build-order step 3 — see the new Done bullet
+    above (step 3's residue/permutation design is dead).
 
 ## Done (2026-09-08)
 
@@ -1087,6 +1115,13 @@ manufacturing `use(s)`, the corpus is rewritten to no-`uses` lines, and the
    fallback. Species stay OUT of the sweep and the guard; fuzzy/typo-tolerant
    recovery is species-only. Gate: species resolve in both orders next to junk,
    incl. `Mega <x> X/Y` formes.
+   > **SUPERSEDED 2026-09-09 (user):** no residue layer, no fuzzy — species
+   > claim IN the sweep as exact glued-run literals (`speciesKeyAt`,
+   > monByName + SPECIES_ALIASES). The permutation/ends-junk resolver and the
+   > standalone-`mega` upgrade were deleted. See the top "Species claim IN the
+   > sweep" Done bullet. Left for later (deliberate): forme-order reorders
+   > (`Mega <x>`), abbreviation spellings not in the alias table, and the
+   > `Mega <x> X/Y` upgrade → step 4 / ## 6 exact-shape rules.
 
 4. **Mega exact-shape signal (## 6 scope).** Read `mega`, `mega-<x>`,
    `<x>-mega` only on leftover species words; a signal naming a base with no
