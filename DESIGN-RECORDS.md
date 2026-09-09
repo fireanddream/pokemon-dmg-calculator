@@ -112,8 +112,8 @@ longest-fit claim walk over each side's atoms:
   match). Same canonical move claimed twice (`EQ then Earthquake`) collapses
   to a single-move card.
 
-Open scope, in implementation order — see `TODO.md` build-order steps 4–9:
-mega exact-shape upgrade (§7), arena grammar (§5), seam-C startup warning
+Open scope, in implementation order — see `TODO.md` build-order steps 5–9:
+arena grammar (§5), seam-C startup warning
 (class lexicons stay 1-word-disjoint), converter-side echo (§4 tail),
 one-shot `route.mjs` (§11), forme-word collision set (§3).
 
@@ -227,7 +227,7 @@ hard error (no "uses Bulk Up → no damage" card).
   are ever wanted, the cleanest place is `foldBoostSignals` plus a way to
   express the HP/weight/sun context on the attacker spec.
 
-## 7. Mega upgrade token — exact-shape rules (contract for TODO step 4)
+## 7. Mega upgrade token — exact-shape rules (IMPLEMENTED 2026-09-09, TODO step 4)
 
 `mega` (standalone), `mega-<base>`, or `<base>-mega` reads as "upgrade this
 side's pokemon to its Mega forme". Behavior contract:
@@ -240,31 +240,44 @@ side's pokemon to its Mega forme". Behavior contract:
 Design decisions (verified against the current lexicons):
 
 - **Scope.** The signal binds only to its side's species and is read only on
-  leftover species words. Move-slot words never reach species resolution, so
-  `Mega Punch` / `Mega Kick` / `Mega Drain` / `Megahorn` can never be misread
-  as an upgrade. Ability `Mega Launcher` (two-word, space form) is consumed
-  by the ability pass FIRST — its `mega` never leaks (verified `with Mega
-  Launcher`). No other "mega"-containing token exists in the side lexicons.
-- **Exact shapes only.** Standalone word `mega`, hyphen-glued `mega-` prefix,
-  hyphen-glued `-mega` suffix. NO bare-substring or word-edge regex — that is
-  what protects `Meganium` / `Yanmega` (and single-word move `Megahorn`):
-  they contain edge-adjacent "mega" with no hyphen and keep resolving as
+  leftover species words. The master hyphen rule folds `mega-<base>` and
+  `<base>-mega` into the same two-word space forms as `Mega <base>` and
+  `<base> Mega`, so ALL shapes are the two adjacency orders above.
+- **Exact shapes only.** Standalone word `mega`, adjacent to the species word,
+  either side. NO bare-substring or word-edge regex — that is what protects
+  `Meganium` / `Yanmega` (and single-word move `Megahorn`): they contain
+  edge-adjacent "mega" with no standalone word and keep resolving as
   themselves.
 - **`mega- <x>` / `<x> -mega` with a space** (nothing glued across the
   hyphen) stays junk and falls into the existing "could not identify a
   pokemon" hard error. No special handling.
 - **`-X` / `-Y` formes stay explicit.** Charizard / Mewtwo have no plain
-  `<base>-Mega`; the upgrade must not fabricate one. `Mega Charizard X`,
-  `Charizard-Mega-X` (and same for Y) already resolve; a bare `Mega
-  Charizard` keeps the dex-order pick — unchanged, out of scope.
+  `<base>-Mega`; the upgrade must not fabricate one. `Charizard-Mega-X` /
+  `Mewtwo-Mega-Y` (and the same suffix glued runs) resolve as themselves, and
+  the reorder spellings `zard X` / `zardx` / `charizard x` / `charizardx`
+  (plus the Y mirrors `zardy` / `charizard y`) are species aliases to the
+  `-Mega-X` / `-Mega-Y` entries. A bare `Mega Charizard` / `Mega Mewtwo`
+  keeps the base dex-order pick with the `mega` as junk — unchanged, out of
+  scope (no hard error).
 - **No-forme idempotence.** A token already resolving to a `-Mega` /
-  `-Mega-X` / `-Mega-Y` dex entry is never re-upgraded (keep the
-  `!name.endsWith("-Mega")` guard).
-- **Implementation shape (step 4):** re-add the standalone-`mega` and
-  reorder upgrade as exact-shape rules on the species claim. Today `Mega
-  Charizard`-style reorder spellings and abbreviation formes not in the alias
-  table fall back to the base species or error — deliberate, accepted
-  2026-09-09.
+  `-Mega-X` / `-Mega-Y` dex entry is never re-upgraded.
+- **"Mega X" moves and "Mega Launcher" win by longer phrase.** A `mega` word
+  that starts a known 2–3 word phrase (`Mega Punch` / `Mega Kick` / `Mega
+  Drain` moves, ability `Mega Launcher`) is never an upgrade signal. This
+  resolves the pre-step-4 collisions where a mega-capable base directly
+  preceded one: `Venusaur Mega Drain` = base Venusaur + the move Mega Drain
+  (the `base mega` glued run SPLITS back to base + move), and `Clawitzer Mega
+  Launcher ...` keeps the ability. `Megahorn` is single-word, so it never
+  interacts with a `base mega` run at all. The split-back is GENERAL: a
+  `-Mega`-forme run whose trailing word starts a longer phrase splits back to
+  base, so `Charizard X-Scissor` (via the `charizard x` alias) reads as base
+  Charizard + the move X-Scissor.
+- **Implementation.** `claimSpecies` in `input-converter.mjs` handles the
+  upgrade on the species claim: adjacent `mega` (prefix or suffix) upgrades to
+  `<base>-Mega` when it exists (span logged as `mega` for the step-7 echo);
+  bases with only `-X`/`-Y` formes keep the base pick; bases with NO mega
+  forme at all hard-error. Corpus locks: `mega-prefix`, `mega-move-guard`,
+  `mega-ability-guard`.
 
 ## 8. Error & junk philosophy — R4 / T2 rulings (2026-09-07/08)
 

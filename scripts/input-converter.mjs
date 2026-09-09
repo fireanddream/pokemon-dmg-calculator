@@ -105,6 +105,8 @@ const SPECIES_ALIASES = new Map([
   ["rotomf", "Rotom-Fan"], ["rotomfan", "Rotom-Fan"],
   ["rotomm", "Rotom-Mow"], ["rotommow", "Rotom-Mow"],
   ["chomp", "Garchomp"], ["ttar", "Tyranitar"], ["tar", "Tyranitar"],
+  ["zard", "Charizard"], ["zardx", "Charizard-Mega-X"], ["zardy", "Charizard-Mega-Y"],
+  ["charizardx", "Charizard-Mega-X"], ["charizardy", "Charizard-Mega-Y"],
   ["landorust", "Landorus-Therian"], ["landorustherian", "Landorus-Therian"],
   ["landot", "Landorus-Therian"], ["lando", "Landorus"],
   ["landorusi", "Landorus"], ["landorusincarnate", "Landorus"],
@@ -474,6 +476,34 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     return alias && monByName.has(norm(alias)) ? monByName.get(norm(alias)).name : null;
   };
 
+  // --- mega exact-shape upgrade (DESIGN-RECORDS §7, TODO step 4) ---
+  // A standalone `mega` word binds to its side's species ONLY as an adjacent
+  // prefix ("Mega Garchomp") or suffix ("Blissey Mega"). Suffix `-Mega` formes
+  // are normally claimed by the glued-run species lookup above ("Garchomp
+  // Mega" -> Garchomp-Mega); the standalone-suffix path here fires only when
+  // that run DIDN'T match, i.e. the base has no `-Mega` forme, and is what
+  // raises the no-forme hard error.
+  const isMegaForme = (name) => name.includes("-Mega");
+  const megaNameAt = (base) => {
+    const name = `${base}-Mega`;
+    return monByName.has(norm(name)) ? name : null;
+  };
+  const hasXYForme = (base) =>
+    monByName.has(norm(`${base}-Mega-X`)) || monByName.has(norm(`${base}-Mega-Y`));
+  // A longer known phrase starting at `j` wins over the upgrade signal:
+  // "Mega Punch/Kick/Drain" (move), "Mega Launcher" (ability), "X-Scissor"
+  // (move, for the `charizard x` alias). True = "a longer claimable phrase
+  // starts here", false = "`j` is a bare word".
+  const longerPhraseAt = (j) => {
+    for (let len = 2; len <= Math.min(3, n - j); len++) {
+      if (!contiguous(j, len)) break;
+      const key = keyAt(j, len);
+      if (resolveMoveName(key)) return true;
+      if (CLAIM_MAP.has(key)) return true;
+    }
+    return false;
+  };
+
   const clamp6 = (x) => Math.max(-6, Math.min(6, x));
   const evs = {};
   const specBoosts = () => (spec.boosts = spec.boosts ?? {});
@@ -533,6 +563,51 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     }
   }
 
+  /** Species claim with the §7 mega exact-shape upgrade. Returns the claim
+   *  length (from `i`) or 0 when the mega signal is out of scope. Rules:
+   *  - adjacent standalone `mega`, prefix or suffix, upgrades to `-Mega` when
+   *    that forme exists (silent, span logged as `mega`);
+   *  - a base with only `-Mega-X`/`-Mega-Y` formes (Charizard/Mewtwo) keeps
+   *    the base pick, mega stays junk — out of scope, never fabricated;
+   *  - a base with NO mega forme at all is a HARD ERROR (never fall back);
+   *  - an already-`-Mega` token is never re-upgraded, and when its run's
+   *    trailing word also starts a longer phrase ("Garchomp Mega Punch" = the
+   *    move Mega Punch, "Charizard X-Scissor" = the move X-Scissor) the run
+   *    splits back to the base species so the move claims its words. */
+  function claimSpecies(sp, i, len) {
+    const left = i > 0 && !used[i - 1] && atoms[i - 1].t === "mega" && adjacent(i - 1) ? i - 1 : -1;
+    const right = i + len < n && !used[i + len] && atoms[i + len].t === "mega" && adjacent(i + len - 1) ? i + len : -1;
+    const upgrade = left !== -1 ? left : right;
+    if (upgrade !== -1 && !isMegaForme(sp) && !longerPhraseAt(upgrade)) {
+      const megaName = megaNameAt(sp);
+      if (megaName) {
+        if (claimSlot("species", megaName)) spec.name = megaName;
+        log("species", i, len);
+        log("mega", upgrade, 1);
+        if (left !== -1) eat(left, 1);
+        eat(i, len);
+        return len;
+      }
+      if (hasXYForme(sp)) {
+        if (claimSlot("species", sp)) spec.name = sp;
+        log("species", i, len);
+        return len;
+      }
+      throw new Error(`"${sp}" has no Mega forme`);
+    }
+    if (isMegaForme(sp)) {
+      const base = speciesKeyAt(i, len - 1);
+      if (base && !isMegaForme(base) && longerPhraseAt(i + len - 1)) {
+        if (claimSlot("species", base)) spec.name = base;
+        log("species", i, len - 1);
+        return len - 1;
+      }
+    }
+    if (claimSlot("species", sp)) spec.name = sp;
+    log("species", i, len);
+    return len;
+  }
+
   function literalClaimAt(i) {
     const maxL = Math.min(3, n - i);
     for (let len = maxL; len >= 1; len--) {
@@ -551,9 +626,8 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
       }
       const sp = speciesKeyAt(i, len);
       if (sp) {
-        if (claimSlot("species", sp)) spec.name = sp;
-        log("species", i, len);
-        return len;
+        const upgrade = claimSpecies(sp, i, len);
+        if (upgrade) return upgrade;
       }
       const entries = CLAIM_MAP.get(key);
       if (entries) {

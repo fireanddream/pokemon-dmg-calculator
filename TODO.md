@@ -6,32 +6,34 @@ engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
 carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
-**State 2026-09-09:** tokenizer build-order steps 1–3 are DONE (unified
+**State 2026-09-09:** tokenizer build-order steps 1–4 are DONE (unified
 longest-fit claim sweep; seam-B guard closed by it; species claims IN the
-sweep — residue/fuzzy resolver deleted). Working tree green at the last
-commit: `verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 6/6, corpus
-chaincheck "all identical".
+sweep — residue/fuzzy resolver deleted; mega exact-shape upgrade incl. the
+"Mega X move / Mega Launcher" longer-phrase guards). Working tree green at the
+last commit: `verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 6/6,
+corpus chaincheck "all identical".
 
 ---
 
 ## Build order — what remains of the tokenizer overhaul
 
-Steps 1–3 are done; the design contract for each open step lives in the
+Steps 1–4 are done; the design contract for each open step lives in the
 `DESIGN-RECORDS.md` section cited. Each step lands with `verify:damage` 63/63,
 `verify:acc` 44/44, `verify:echo` 6/6 green and the corpus chaincheck "all
 identical". Record of done steps: step 1 →
 `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`, step 3 →
-`SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`.
+`SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`, step 4 →
+`SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md`.
 
 1. ✅ **Layer-1 unified sweep** (was "build step 1") — DONE 2026-09-09.
 2. ✅ **Seam-B guard** — DONE 2026-09-09 (closed by step 1; no trie built).
 3. ✅ **Species claim in the sweep** (was "residue resolution", SUPERSEDED) —
    DONE 2026-09-09: exact glued-run literals, no residue layer/fuzzy.
-4. **Mega exact-shape signal** (was `## 6` scope). Read `mega`, `mega-<x>`,
-   `<x>-mega` only on leftover species words; a signal naming a base with no
-   `-Mega` forme HARD-ERRORS; an already-`-Mega` token is never re-upgraded.
-   Re-adds the standalone-`mega` / reorder upgrade as exact-shape rules.
-   Contract: `DESIGN-RECORDS.md` §7.
+4. ✅ **Mega exact-shape signal** (was `## 6` scope) — DONE 2026-09-09:
+   standalone `mega` upgrades an adjacent species to `-Mega` (prefix or
+   suffix); no-forme bases HARD-ERROR; `-X`/`-Y` bases keep the base pick;
+   already-`-Mega` never re-upgraded; `Mega Punch/Kick/Drain` moves and
+   `Mega Launcher` win by longer phrase. Contract: `DESIGN-RECORDS.md` §7.
 5. **Arena grammar inside the sweep** (was `## 4`). Bare arena words + the
    optional `in`/`under`/`after` signals with exclusive post-signal scope;
    terrain first-letter forms; bare words win by guard; same-slot conflicts
@@ -99,6 +101,7 @@ identical". Record of done steps: step 1 →
 
 | When | What | Record |
 | --- | --- | --- |
+| 2026-09-09 | Mega exact-shape upgrade: prefix/suffix `mega`, no-forme hard error, `Mega X` move + `Mega Launcher` guards | `SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md` |
 | 2026-09-09 | Species claim IN the sweep; residue resolver deleted (step 3) | `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md` |
 | 2026-09-09 | Tokenizer step-1 unified sweep + step 2 closed | `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md` |
 | 2026-09-08 | Free-order `vs` frame (uses inert), junk silent-drop, max-flag expansion | `SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md` |

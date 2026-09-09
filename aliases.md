@@ -41,6 +41,11 @@ in one place.
 | `rotomm` / `rotommow` | Rotom-Mow |
 | `chomp` | Garchomp |
 | `ttar` / `tar` | Tyranitar |
+| `zard` | Charizard |
+| `zardx` / `zard x` | Charizard-Mega-X |
+| `zardy` / `zard y` | Charizard-Mega-Y |
+| `charizardx` / `charizard x` | Charizard-Mega-X |
+| `charizardy` / `charizard y` | Charizard-Mega-Y |
 | `landorust` / `landorustherian` / `landot` | Landorus-Therian |
 | `lando` | Landorus |
 | `landorusi` / `landorusincarnate` | Landorus |
