@@ -1,0 +1,39 @@
+# SPEED BENCHMARKS — level-50 Speed lookup (Speed tab, workbook page 1).
+#
+# One row per base Speed stat, one column per investment, so Boosted and
+# Neutral (and No EV) values for the same base stat line up on the same row.
+# Rows sorted by base stat low->high. Values are the Speed stat at level 50,
+# IV 31:
+#   Boosted = +Speed nature (Jolly/Timid/Naive/Hasty) x1.1, 252 EVs
+#   Neutral = no speed nature, 252 EVs
+#   No EV   = neutral, 0 EVs
+#
+# tsv2xlsx.py reads this file and writes it as the first sheet; edit this TSV,
+# not the xlsx. Blank cells mean that base stat was not provided for that
+# investment. A Pokemon whose calculated value already exists in its column is
+# not added again.
+Base	Boosted	Neutral	No EV
+50	106	97	
+60			75
+61	118		76
+70	128	117	85
+75	134		
+77	136		92
+80	139	127	95
+85	145	132	
+88	148	135	
+90	150	137	105
+91	151	138	106
+95	156		
+100	161	147	115
+102	163	149	
+105	167	152	
+108	170		
+110	172		
+111	173		
+113	176		
+115	178		
+120	183		
+130	194		
+145	211		
+150	216	197	
