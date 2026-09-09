@@ -5,7 +5,8 @@ docs ship in this repo. This file is injected whole at every session start, so
 it deliberately holds only the **always-on rules** (MUST OBEY below) plus an
 **index**. The deep reference prose lives in the repo docs — read the index,
 then the doc you need; never try to memorize it all. **The full how-to for
-answering a damage query lives in `AGENT-GUIDE.md` — read it when a query
+answering a damage query is the `pokemon-damage-calc` skill (project skill,
+`.opencode/skills/pokemon-damage-calc/SKILL.md`) — load it when a query
 fires.**
 
 Pipeline: an **agent** (free-word query → spec JSON — users are NOT assumed to
@@ -18,17 +19,17 @@ compat card CLI gluing the same chain.
 
 ## MUST OBEY — routing, tool-only truth, defaults, verbatim output
 
-**1. Identified damage queries go through `AGENT-GUIDE.md` — never ad hoc.**
-If an inquiry is identified as a pokemon damage calc — damage / KO / accuracy /
-chip numbers between sides ("Garchomp Dragon Claw vs Heatran", "does X one-shot
-Y", "how many hits to KO Y", "what % does Z do") — you MUST answer it through
-the staged pipeline per `AGENT-GUIDE.md` (extract → spec JSON → echo → `fill |
-calc | output --chat` → paste verbatim). Do NOT go look up info or improvise:
-the engine, staged scripts, data files, and docs are the ONLY source of truth
-for numbers — no web research, no memorized stats, no knowledge from other
-gens. If a calc can't be modeled, report the limit (`ENGINE-GAPS.md`) rather
-than inventing numbers. A query without `vs` is not answerable yet — ask for
-the other side.
+**1. Identified damage queries go through the `pokemon-damage-calc` skill —
+never ad hoc.** If an inquiry is identified as a pokemon damage calc — damage /
+KO / accuracy / chip numbers between sides ("Garchomp Dragon Claw vs Heatran",
+"does X one-shot Y", "how many hits to KO Y", "what % does Z do") — you MUST
+load the skill and answer it through the staged pipeline it defines (extract →
+spec JSON → echo → `fill | calc | output --chat` → paste verbatim). Do NOT go
+look up info or improvise: the engine, staged scripts, data files, and docs
+are the ONLY source of truth for numbers — no web research, no memorized
+stats, no knowledge from other gens. If a calc can't be modeled, report the
+limit (`DESIGN-RECORDS.md`) rather than inventing numbers. A query without
+`vs` is not answerable yet — ask for the other side.
 
 **2. Answer shape: recognition echo, then the card — both pasted verbatim.**
 Before any card or error, show what you understood: render
@@ -37,7 +38,7 @@ Before any card or error, show what you understood: render
 paste that fenced block verbatim. Then paste the output script's card block
 **verbatim, byte for byte** — never summarize, restate, reformat, hand-write,
 or substitute your own numbers; on a stage error, report the error. Details,
-span schema, and token lexicons: `AGENT-GUIDE.md` steps 1–2.
+span schema, and token lexicons: the `pokemon-damage-calc` skill steps 1–2.
 
 **3. Defaults policy: `fill.mjs` fills the defaults — you never do.** Your job
 is EXTRACTION: bind every token you recognize (consulting `aliases.md` for
@@ -66,13 +67,13 @@ Read the section you need from the file that owns it; never memorize these.
 
 | Topic | Where it lives |
 | --- | --- |
-| **How to answer a damage query end to end** (extract → spec JSON → echo → chain → paste; worked example) | **`AGENT-GUIDE.md`** |
+| **How to answer a damage query end to end** (extract → spec JSON → echo → chain → paste; worked example) | **`pokemon-damage-calc` skill** (`.opencode/skills/pokemon-damage-calc/SKILL.md`) |
 | Query tokens & side shapes: word/phrase lexicons in `input-converter.mjs` passes; name/acronym tables (species, move, item, stat, status, weather, type plates) in **`aliases.md`** (doc-as-code); investment/stat-stage/arena token rules + "only times the agent adds to the spec" in **`auto-fill-defaults.md`** | `aliases.md` · `auto-fill-defaults.md` · `input-converter.mjs` |
 | Defaults the engine applies, EV/nature shorthands, orbs, weather setters, ability pick order, the only times the agent adds to the spec | **`auto-fill-defaults.md`** (doc-as-code, parsed by `fill.mjs`) |
-| Recognition echo: layout contract + span schema + CLI | `scripts/echo.mjs` header · `TODO.md` ## 2 (design record) |
+| Recognition echo: layout contract + span schema + CLI | `scripts/echo.mjs` header · `DESIGN-RECORDS.md` "Recognition echo" |
 | Two-move combos · turn-by-turn sim | **`OUTPUT-FORMAT.md`** "Two-move combos (fixed sequence)" · "Turn-by-turn block" |
 | Accuracy/evasion: modeled SEPARATELY from damage — acc tokens never change damage/KO numbers (`verify:damage` stays byte-identical to the oracle); engine `src/accuracy.ts`, `npm run verify:acc` | **`OUTPUT-FORMAT.md`** "Chance to hit all attacks" + `src/accuracy.ts` |
-| Dynamic-power (variable BP) moves + what the CLI can/can't model | **`ENGINE-GAPS.md`** |
+| Design records + engine coverage: grammar/tokenizer/arena/boost/mega contracts, known engine gaps & intentional simplifications | **`DESIGN-RECORDS.md`** |
 | Result-card contract (layout owned by `output.mjs`) | **`OUTPUT-FORMAT.md`** |
 | Backlog / approved work / open threads | **`TODO.md`** |
 | Repo layout, team DB, tools | "Project layout" below · `myteam/` · `teams_tools/` |
@@ -91,6 +92,12 @@ Read the section you need from the file that owns it; never memorize these.
   verify scripts (`verify:echo`, `verify:damage`, `verify:acc`).
 - `auto-fill-defaults.md` · `aliases.md` · `OUTPUT-FORMAT.md` — doc-as-code rule
   stores parsed at startup / by the parser; edit these, not the scripts.
+- `DESIGN-RECORDS.md` — binding design contracts (grammar/tokenizer/echo/
+  arena/boost/mega) + the engine-coverage inventory & intentional
+  simplifications (merges the former `ENGINE-GAPS.md`). Read before touching
+  the front; the README-to-be.
+- `TODO.md` — lean future-session backlog (open build steps + threads);
+  history lives in `session-tools-archive/SESSION-NOTES-*.md`.
 - `examples/` — sample case JSON files (`.resolved.json` = calc-stage input).
 - `myteam/` — the user's **custom team database** (manual, user-authored;
   `teams.tsv` master, `teams.xlsx` derived). NOT official Smogon data — may

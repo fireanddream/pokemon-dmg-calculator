@@ -1,13 +1,22 @@
-# AGENT-GUIDE.md — how to answer a damage query (agent route)
+---
+name: pokemon-damage-calc
+description: Use for Pokemon damage / KO / accuracy / chip calculations in the pokemon-dmg-calculator repo. Triggers on queries like "Garchomp Dragon Claw vs Heatran", "does X one-shot Y", "how many hits to KO Y", "what % does Z do", or any damage-query sentence containing "vs". Owns the full extraction → spec JSON → echo → fill|calc|output --chat → paste-verbatim procedure; the repo engine and data are the ONLY source of truth. Use ONLY when a damage calc between two sides is being asked.
+---
+
+# Pokemon damage calc (agent route) — how to answer a damage query
 
 Operational manual for the DEFAULT (agent) route of the gen-6 damage
-calculator. Read this in full BEFORE answering any inquiry identified as a
-pokemon damage calc. It owns the extraction → spec → echo → chain → paste
-procedure that AGENTS.md deliberately keeps as short obligations.
+calculator in this repo. Work through it end to end BEFORE answering any
+inquiry identified as a pokemon damage calc. It owns the extraction → spec →
+echo → chain → paste procedure that `AGENTS.md` deliberately keeps as short
+obligations.
+
+Run every command from the repo root (the directory containing `scripts/`,
+`data/`, `AGENTS.md`).
 
 This guide is procedural glue. The LEXICONS and RULE STORES it points at are
 the authoritative content (`aliases.md`, `auto-fill-defaults.md`); never copy
-their tables here.
+their tables here. Engine limits / unmodeled effects: `DESIGN-RECORDS.md`.
 
 ## 0. Trigger + do-not clause (MUST OBEY)
 
@@ -25,7 +34,7 @@ the other side rather than inventing one.
   knowledge from other gens. The engine, staged scripts, data files, and docs
   in this repo are the ONLY source of truth for numbers.
 - If a calc can't be modeled (dynamic-power moves, unmodelable effects), say
-  so — see `ENGINE-GAPS.md` — never improvise numbers.
+  so — see `DESIGN-RECORDS.md` — never improvise numbers.
 
 ## 1. Extract — user words → spec JSON
 
@@ -44,7 +53,7 @@ species in its own side.
    | Token class | Where to resolve |
    | --- | --- |
    | species / move / item / stat / status / weather / type plates (names, acronyms, shorthand) | `aliases.md` tables + `data/*.json` |
-   | investment (`max atk`, `252 Atk`, `188 HP`, `L50`), stat stages, `+N` dynamic-boost tokens, EV tokens | shapes & ownership: AGENT-GUIDE step 3 below; `max` expansions: `auto-fill-defaults.md` "EV / nature shorthand" |
+   | investment (`max atk`, `252 Atk`, `188 HP`, `L50`), stat stages, `+N` dynamic-boost tokens, EV tokens | shapes & ownership: step 3 below; `max` expansions: `auto-fill-defaults.md` "EV / nature shorthand" |
    | items / `@ Item` / `plate` / `<Type> plate` / `no item`, orbs | `aliases.md` + `auto-fill-defaults.md` |
    | arena words (weather / hazards / terrain) | `auto-fill-defaults.md` (arena section, once it lands; until then `input-converter.mjs` behavior) |
    You MAY and SHOULD consult `aliases.md` (and the dex data) for anything not
@@ -143,8 +152,8 @@ node scripts/echo.mjs --line "<the user's query, verbatim>" --spans '<spans>' --
   automatically (`--width N` to change; a value <= 0 never wraps). The renderer
   never splits a word, a glued binding, or a label across a row.
 - Layout contract, span schema, CLI: the `scripts/echo.mjs` header. Design
-  record + full layout rules: `TODO.md` ## 2. Regression guard:
-  `npm run verify:echo`.
+  record + full layout rules: `DESIGN-RECORDS.md` "Recognition echo".
+  Regression guard: `npm run verify:echo`.
 
 ## 3. Calculate + render — run the staged chain (one chain per distinct query)
 
@@ -172,10 +181,10 @@ block then report the error message — never substitute your own numbers.
 
 - The OFFLINE converter route (`input-converter.mjs` / `damage.mjs`) reads the
   same free-order `vs`-split grammar (no `uses` anywhere). It does NOT produce
-  the recognition echo yet (accepted; TODO ## 8). Use the agent route above
-  whenever a query reaches a chat window.
-- Card layout is owned by `output.mjs` and pinned in `OUTPUT-FORMAT.md` — the
-  agent never restyles a card.
+  the recognition echo yet (accepted; TODO build-order step 7 — converter
+  echo). Use the agent route above whenever a query reaches a chat window.
+- Card layout is owned by `output.mjs` and pinned in `OUTPUT-FORMAT.md` — never
+  restyle a card.
 
 ## Worked example
 

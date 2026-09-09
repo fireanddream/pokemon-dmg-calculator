@@ -173,8 +173,8 @@ What is deliberately NOT here (and why): moves whose stat raise is conditional
 or multi-turn (Charge, Stockpile, Geomancy, Power Trick), random (Acupressure),
 or not a stat stage (Focus Energy raises the crit ratio). The intended
 simplifications for the rows that ARE here — Belly Drum's HP cost, Growth's sun
-doubling, Autotomize's weight cut — are documented in `ENGINE-GAPS.md`
-("Intentional simplifications").
+doubling, Autotomize's weight cut — are documented in `DESIGN-RECORDS.md`
+("Known coverage gaps" / "Intentional simplifications").
 
 ## Stat abbreviations
 
