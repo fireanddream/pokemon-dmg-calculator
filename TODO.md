@@ -4,6 +4,52 @@ Standing to-do list for sessions on the loose-English → variables (fuzzy
 parse) work and parser grammar cleanups. Read at session start; tick items off
 as they land.
 
+## Done (2026-09-09)
+
+- **Tokenizer overhaul build-order step 1 IMPLEMENTED — the ## 3 layer-1
+  unified sweep; step 2 (seam-B guard) CLOSED by it.** `scripts/
+  input-converter.mjs` only (+306/−317): `parseCombatant`'s regex passes
+  (no-item / nature / ability / item / status / weather / stealth-rock /
+  spikes / terrain `stripMatches` passes + the investment scan) are replaced
+  by ONE per-position longest-fit claim walk:
+  - **Claim sources, longest-first per atom position:** (1) ≤3-word
+    literal/class phrases from a module-scope `CLAIM_MAP` (natures /
+    abilities with the primal weather phrases excluded / item full names +
+    `<type> plate` aliases + acros with side-sensitive LO / status / weather /
+    terrain / stealth rock / `no item`-spellings); (2) an exact damaging or
+    boost move phrase (opts.claimMoves = the parseQuery attacker; seam G keeps
+    Non-Damaging non-boost moves out of the slot); (3) shape phrases (level,
+    `max <stat>`, EV/stage/acc-eva, stat-less ±N dynamic, spikes layers incl.
+    x-notation + number-led forms, 1–3 gate). Phrases match only over
+    originally-adjacent words (comma/hard-boundary sentinels). The seam-B
+    guard falls out of the length ordering — a single word claims only when no
+    longer claimable phrase starts at it.
+  - **Move claim folded in.** The `claimAttackerMoves` pre-pass is DELETED
+    (and `stripMatches` with it). Attacker damaging/boost claims are validated
+    in-parse before species resolution (move errors keep their precedence);
+    the result rides `spec._claim`, which `parseQuery` lifts to move/moves/
+    signals.
+  - **Consume-and-MARK.** Claimed spans are marked, never deleted; a per-side
+    side log (claim → atom indexes) is kept on `spec._sideLog` — the T6 / ## 8
+    echo prerequisite.
+  - **Dedupe-vs-conflict per slot.** Identical same-slot claims collapse
+    silently; different values HARD-ERROR naming the slot and candidates
+    (`conflicting atk stage: 2 vs 1`), replacing the old silent first-wins.
+    R4 stray-stat/number errors and existing error messages unchanged.
+  - **Step 2 closed-by-step-1:** the seam-B guard smoke list (brave/calm vs
+    Brave Bird/Calm Mind, sand vs Sand Stream, rock vs Rock Slide, bare
+    defender rock → Stealth Rock) passes; the depth-3 guard trie was NOT built
+    — the longest-fit walk is behaviorally equivalent, a trie is
+    performance-only.
+  - **Verified:** 42-case HEAD diff (30 corpus + 12 smoke: cards AND
+    `--resolved` calc-input JSON byte-identical), verify:damage 63/63,
+    verify:acc 44/44, verify:echo 6/6, corpus chaincheck "all identical".
+    Session notes:
+    `session-tools-archive/SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`.
+  - **Next:** build-order step 3 (species-as-span residue resolution), then
+    steps 4–9 (mega exact shape, arena grammar ## 4, seam-C startup warning,
+    converter echo ## 8, route.mjs ## 10, forme-word collisions).
+
 ## Done (2026-09-08)
 
 - **Free-order frame slice + `max`-flags fix IMPLEMENTED; full tokenizer sweep
@@ -1017,6 +1063,11 @@ manufacturing `use(s)`, the corpus is rewritten to no-`uses` lines, and the
    `stripMatches` deletion. The boost-signal + move claim now done by
    `claimAttackerMoves` folds INTO this sweep (seam-G gating stays). Comma is a
    global hard separator. Gate: corpus cards unchanged + suites green.
+   > **IMPLEMENTED 2026-09-09** (see Done 2026-09-09): the one per-position
+   > longest-fit walk landed — `CLAIM_MAP` literal/class phrases + exact
+   > damaging/boost move phrases + shape phrases claim longest-first;
+   > consume-and-MARK with the side log on `spec._sideLog`; `claimAttackerMoves`
+   > and `stripMatches` deleted; attacker claims ride `spec._claim`.
 
 2. **Seam-B guard trie.** A depth-3 first-word trie over every claimable
    phrase; a single-word class claim (nature/status/weather/hazard/item-acro)
@@ -1024,6 +1075,10 @@ manufacturing `use(s)`, the corpus is rewritten to no-`uses` lines, and the
    nature when `Calm Mind` is present, `sand` not arena when `Sand Stream` is,
    `rock` not Stealth Rock when `Rock Slide` is. No lookbehind. Gate: the guard
    smoke list from ## 3.
+   > **CLOSED BY STEP 1 (2026-09-09):** the guard is the sweep's length
+   > ordering (a single word claims only when no longer claimable phrase starts
+   > at it); the smoke list passes. The depth-3 trie was NOT built — it is a
+   > performance-only structure, skip unless a profile demands it.
 
 3. **Species-as-span residue resolution (layer 2).** Species come off the
    marked residue as a tolerant best contiguous 1–3-word run (dex name +

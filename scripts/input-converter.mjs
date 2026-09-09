@@ -259,20 +259,7 @@ const USAGE = `usage:
 
   specs: "Species [@ Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
 
-function stripMatches(str, pattern, flags = "gi") {
-  const re = new RegExp(pattern, flags);
-  const hits = [];
-  let out = "";
-  let last = 0;
-  let m;
-  while ((m = re.exec(str))) {
-    hits.push(m);
-    out += str.slice(last, m.index);
-    last = m.index + m[0].length;
-  }
-  out += str.slice(last);
-  return { text: out, hits };
-}
+
 
 // Human list of the tokens parseCombatant recognized so far, so a hard error
 // shows the user what was understood before the confusing bit.
@@ -320,295 +307,331 @@ function strayTokenError(raw, side, spec, name, stats, digits) {
   return lines.filter(Boolean).join("\n");
 }
 
-/** Turn "Garchomp @ Life Orb Jolly 252 Atk" into a resolve()-style spec. */
-function parseCombatant(raw, side = "attacker") {
+
+// ===========================================================================
+// ## 3 layer-1 UNIFIED SWEEP — claim lexicons (replaces parseCombatant's
+// regex passes). Every claimable LITERAL phrase (class tokens + shape words)
+// is registered below; species names are deliberately absent (seam A/B:
+// species resolve from the unclaimed residue, so no class word inside a
+// multi-word species name is ever consumed). Claim keys are the phrase's
+// words lowercased and space-joined — a phrase matches only over ORIGINALLY
+// ADJACENT words (comma / `.;/\|` hard-boundary sentinels break adjacency).
+// The per-position walk lives in parseCombatant below.
+
+// Stat-stage / EV / acc-eva vocab. SHORT forms only: the two special stats
+// keep spa/spd one-word aliases, no English full-name words (seam F).
+const STAGE_ALIAS = {
+  atk: "atk", attack: "atk", def: "def", defense: "def",
+  spa: "spa", spatk: "spa", spc: "spa",
+  spd: "spd", spdef: "spd", sdef: "spd", spe: "spe", speed: "spe",
+};
+const EV_ALIAS = { hp: "hp", ...STAGE_ALIAS };
+const ACC_EVA_ALIAS = { acc: "acc", accuracy: "acc", eva: "eva", evasion: "eva" };
+// "max atk/spa/def/spd/spe/hp" shorthands. Claim order is recorded so the
+// first-typed max wins the auto-nature war (fill.mjs applyMaxFlags).
+const MAX_ALIAS = {
+  atk: "_maxAtk", attack: "_maxAtk", phys: "_maxAtk",
+  spa: "_maxSpa", spatk: "_maxSpa", spc: "_maxSpa",
+  def: "_maxDef", defense: "_maxDef",
+  spd: "_maxSpd", spdef: "_maxSpd", sdef: "_maxSpd",
+  spe: "_maxSpe", speed: "_maxSpe",
+  hp: "_maxHp",
+};
+
+const STATUS_MAP = [
+  ["badly poisoned", "tox"], ["bad poison", "tox"], ["toxic", "tox"],
+  ["paralyzed", "par"], ["paralysis", "par"], ["poisoned", "psn"],
+  ["asleep", "slp"], ["sleeping", "slp"], ["frozen", "frz"],
+  ["burned", "brn"], ["burnt", "brn"], ["poison", "psn"],
+  ["burn", "brn"], ["sleep", "slp"], ["freeze", "frz"],
+  ["brn", "brn"], ["par", "par"], ["psn", "psn"], ["tox", "tox"],
+  ["slp", "slp"], ["frz", "frz"],
+];
+const WEATHER_MAP = [
+  ["permanent sandstorm", "sand"], ["harsh sunlight", "sun"], ["permanent rain", "rain"],
+  ["permanent sun", "sun"], ["permanent hail", "hail"], ["sand storm", "sand"],
+  ["sandstorm", "sand"], ["hail storm", "hail"], ["hailstorm", "hail"],
+  ["rain dance", "rain"], ["sunny day", "sun"],
+  ["desolate land", "desolate"], ["harsh sunshine", "desolate"], ["extremely harsh sunlight", "desolate"],
+  ["primordial sea", "primordial"], ["heavy rain", "primordial"],
+  ["delta stream", "delta"], ["strong winds", "delta"],
+  ["sunny", "sun"], ["sand", "sand"], ["rain", "rain"], ["hail", "hail"], ["sun", "sun"],
+];
+const TERRAIN_MAP = [
+  ["electric terrain", "electric"], ["grassy terrain", "grassy"],
+  ["misty terrain", "misty"], ["psychic terrain", "psychic"],
+];
+const STEALTH_ROCK_PHRASES = ["stealth rock", "stealthrock", "sr", "stealth rocks", "rock"];
+const NO_ITEM_PHRASES = ["no item", "noitem", "itemless"];
+
+// The primal weather phrases are arena words in queries, never the ability.
+const WEATHER_ABILITIES = new Set(["desolate land", "primordial sea", "delta stream"]);
+
+// Item acronyms + the bare-`plate` keyword. LO is side-sensitive: Life Orb on
+// the attacker, Leftovers on the defender. `<type> plate` aliases and full
+// item names register separately from ITEM_ALIAS below.
+const ITEM_ACRO = [
+  ["banded", "Choice Band"], ["specs", "Choice Specs"], ["scarf", "Choice Scarf"],
+  ["band", "Choice Band"], ["cb", "Choice Band"], ["spec", "Choice Specs"],
+  ["belt", "Expert Belt"], ["sash", "Focus Sash"], ["lo", null], ["plate", null],
+];
+
+// kind: nature / ability / item / lo / plate / status / weather / terrain /
+// sr / noitem. `value` is the canonical claim: natures store the lowercase
+// word, ability/item the canonical dex name, status/weather/terrain the code.
+const CLAIM_MAP = new Map();
+function registerClaim(key, kind, value) {
+  const arr = CLAIM_MAP.get(key) ?? [];
+  arr.push(value === undefined ? { kind } : { kind, value });
+  CLAIM_MAP.set(key, arr);
+}
+for (const name of natureByName.keys()) registerClaim(name, "nature", name);
+ABILITY_NAMES.forEach((lower, i) => {
+  if (!WEATHER_ABILITIES.has(lower)) registerClaim(lower, "ability", ABILITY_CANON[i]);
+});
+for (const [key, item] of ITEM_ALIAS) registerClaim(key, "item", item);
+for (const [word, item] of ITEM_ACRO) {
+  if (item === null) registerClaim(word, word === "lo" ? "lo" : "plate");
+  else registerClaim(word, "item", item);
+}
+for (const [word, code] of STATUS_MAP) registerClaim(word, "status", code);
+for (const [phrase, code] of WEATHER_MAP) registerClaim(phrase, "weather", code);
+for (const [phrase, code] of TERRAIN_MAP) registerClaim(phrase, "terrain", code);
+for (const phrase of STEALTH_ROCK_PHRASES) registerClaim(phrase, "sr");
+for (const phrase of NO_ITEM_PHRASES) registerClaim(phrase, "noitem");
+
+/** Turn a combatant's word chunk — a full free-order SIDE ("max atk LO
+ *  Dragon Claw Garchomp") or a bare "Species [@ Item] [Nature] [N Stat EVs]
+ *  [Ability] [L50]" chunk — into a resolve()-style spec, via the ## 3
+ *  layer-1 unified sweep.
+ *
+ *  One per-position longest-fit walk replaces the old regex passes. Walk the
+ *  atoms left→right; at each unconsumed position claim the LONGEST known
+ *  claimable phrase that starts there — a ≤3-word literal/class phrase
+ *  (CLAIM_MAP: natures / abilities / item names + acronyms / status /
+ *  weather / terrain / stealth rock / no-item spellings) or an exact
+ *  damaging / boost move phrase (opts.claimMoves, the parseQuery attacker;
+ *  seam G keeps Non-Damaging non-boost moves out of the slot) — else a SHAPE
+ *  phrase (glued or split level, `max <stat>`, EV / stage / acc-eva /
+ *  stat-less ±N dynamic boost, spikes layers incl. x-notation and number-led
+ *  forms). A single word claims only when no longer claimable phrase starts
+ *  at that position — the seam-B guard falls straight out of the length
+ *  ordering. Claimed spans are MARKED (a side log, never deleted) so leftover
+ *  words keep their layout; unclaimed words are the residue that species
+ *  resolution reads. Same-slot claims collapse when identical and hard-error
+ *  when different (dedupe-vs-conflict). Attacker move claims are validated
+ *  (1 or 2 distinct) and ride back on spec._claim for parseQuery to lift. */
+function parseCombatant(raw, side = "attacker", opts = {}) {
   if (typeof raw !== "string" || !raw.trim()) throw new Error("empty combatant spec");
   raw = hyphenToSpace(raw);
-  const padded = () =>
-    ` ${raw.toLowerCase().replace(/[@'"]/g, " ").replace(PUNCT_BOUNDARY, PUNCT_SENT)} `;
-  let s = padded();
-
+  const s = ` ${raw.toLowerCase().replace(/[@'"]/g, " ").replace(PUNCT_BOUNDARY, PUNCT_SENT)} `;
   const spec = {};
+  const claimMovesHere = !!opts.claimMoves;
 
-  // --- Investment tokens: max shorthand, level, stat stages, EVs, dynamic
-  // boost. Scanned STRICTLY LEFT TO RIGHT over word atoms. A token's shape
-  // decides what phrase it can start, and only the IMMEDIATELY following atom
-  // (whitespace between only — a punctuation sentinel breaks adjacency)
-  // decides how that phrase completes:
-  //
-  //   EV       "252 atk" / "atk 252" / "188 HP" / "HP 188"  (0-252, any stat)
-  //   stage    a +/- number bound to a battle stat, either order: "+2 atk",
-  //            "atk +2"  (HP is NOT stageable) — and "+1 acc"/"+1 eva"
-  //   dynamic  a stat-less "+N"/"-N" anywhere (no stageable stat adjacent):
-  //            a boost resolved onto the move's stat by fill.mjs. A "+N hp"
-  //            only survives when hp is doing EV duty ("+2 hp 252"); a lone
-  //            hp next to +N is an unbound stat and fails loud below.
-  // Atoms that form no investment phrase (species, nature, "sand", ...) are
-  // left in place for the word passes below.
-  //
-  // Stat aliases are SHORT forms only: no English full-name words for the
-  // two special stats ("special", "special attack"/"special defense") and no
-  // "hit point(s)" for HP — nobody types them and they fragment into fake
-  // partial matches. atk/def/spe keep their one-word names ("attack",
-  // "defense", "speed"); spa/spd keep only spa/spatk/spc and spd/spdef/sdef.
-  const STAGE_ALIAS = {
-    atk: "atk", attack: "atk", def: "def", defense: "def",
-    spa: "spa", spatk: "spa", spc: "spa",
-    spd: "spd", spdef: "spd", sdef: "spd", spe: "spe", speed: "spe",
+  const labelOf = (slot) => ({
+    plus: "dynamic boost", nature: "nature", ability: "ability", item: "item",
+    status: "status", weather: "weather", terrain: "terrain",
+    spikes: "spikes layers", noItem: "no item", stealthRock: "stealth rock",
+    plate: "plate", level: "level", acc: "acc stage", eva: "eva stage",
+  }[slot] ?? (slot.startsWith("boost:")
+    ? `${slot.slice(6)} stage`
+    : slot.startsWith("ev:")
+      ? `${slot.slice(3).toUpperCase()} EV`
+      : slot));
+  const seen = new Map();
+  const claimSlot = (slot, value) => {
+    const list = seen.get(slot);
+    if (list) {
+      if (list.includes(value)) return false;
+      throw new Error(`conflicting ${labelOf(slot)}: ${[...list, value].join(" vs ")}`);
+    }
+    seen.set(slot, [value]);
+    return true;
   };
-  const EV_ALIAS = { hp: "hp", ...STAGE_ALIAS };
-  const ACC_EVA_ALIAS = { acc: "acc", accuracy: "acc", eva: "eva", evasion: "eva" };
-  // "max atk" / "max spa" / "max def" / "max spd" / "max spe" / "max hp"
-  // (2026-09-08: spe/speed and hp added. max spe's auto-nature is Timid/Jolly by
-  // move in fill.mjs; max hp sets no auto-nature. "spec"/"band"/... stay
-  // item-acro only — seam C: class lexicons must stay 1-word-disjoint.)
-  const MAX_ALIAS = {
-    atk: "_maxAtk", attack: "_maxAtk", phys: "_maxAtk",
-    spa: "_maxSpa", spatk: "_maxSpa", spc: "_maxSpa",
-    def: "_maxDef", defense: "_maxDef",
-    spd: "_maxSpd", spdef: "_maxSpd", sdef: "_maxSpd",
-    spe: "_maxSpe", speed: "_maxSpe",
-    hp: "_maxHp",
-  };
+  const sideLog = [];
+  const log = (slot, from, len) => sideLog.push({ slot, from, len });
+
+  const atoms = [...s.matchAll(/[^\s\u0001]+/g)].map((m) => ({ t: m[0], a: m.index, b: m.index + m[0].length }));
+  const n = atoms.length;
+  const used = new Uint8Array(n);
+  const eat = (i, count = 1) => { for (let k = i; k < i + count; k++) used[k] = 1; };
+  const gapToNext = (i) => (atoms[i + 1] ? s.slice(atoms[i].b, atoms[i + 1].a) : null);
+  const adjacent = (i) => atoms[i + 1] != null && gapToNext(i) != null && !/\u0001/.test(gapToNext(i));
+  const contiguous = (i, len) => { for (let k = i; k < i + len - 1; k++) if (!adjacent(k)) return false; return true; };
+  const keyAt = (i, len) => atoms.slice(i, i + len).map((x) => x.t).join(" ");
+
+  const clamp6 = (x) => Math.max(-6, Math.min(6, x));
   const evs = {};
   const specBoosts = () => (spec.boosts = spec.boosts ?? {});
   const addStage = (word, sign, mag) => {
-    const v = Math.max(-6, Math.min(6, sign === "-" ? -Number(mag) : Number(mag)));
-    if (v !== 0) specBoosts()[STAGE_ALIAS[word]] = v;
+    const v = clamp6(sign === "-" ? -Number(mag) : Number(mag));
+    if (!v) return;
+    const st = STAGE_ALIAS[word];
+    if (claimSlot("boost:" + st, v)) specBoosts()[st] = v;
   };
   const addAccEva = (word, sign, mag) => {
-    const v = Math.max(-6, Math.min(6, sign === "-" ? -Number(mag) : Number(mag)));
-    if (v === 0) return;
-    if (ACC_EVA_ALIAS[word] === "acc") spec._accStage = v;
-    else spec._evaStage = v;
+    const v = clamp6(sign === "-" ? -Number(mag) : Number(mag));
+    if (!v) return;
+    const ch = ACC_EVA_ALIAS[word];
+    const slot = ch === "acc" ? "acc" : "eva";
+    if (claimSlot(slot, v)) { if (ch === "acc") spec._accStage = v; else spec._evaStage = v; }
   };
   const takeEv = (word, amount) => {
     const v = Number(amount);
     if (v > 252) throw new Error(`"${word} ${v}" is not an EV: gen 6 caps EVs at 252`);
-    evs[EV_ALIAS[word]] = v;
+    const st = EV_ALIAS[word];
+    if (claimSlot("ev:" + st, v)) evs[st] = v;
+  };
+  const setLevel = (num) => {
+    const v = Math.min(100, Math.max(1, num));
+    if (claimSlot("level", v)) spec.level = v;
   };
   const setPlus = (sign, mag) => {
-    spec._plusBoost = Math.max(-6, Math.min(6, sign === "-" ? -Number(mag) : Number(mag)));
+    const v = clamp6(sign === "-" ? -Number(mag) : Number(mag));
+    if (claimSlot("plus", v)) spec._plusBoost = v;
   };
+  const claimSpikes = (layers) => { if (claimSlot("spikes", layers)) spec.spikes = layers; };
 
-  const atoms = [...s.matchAll(/[^\s\u0001]+/g)].map((m) => ({ t: m[0], a: m.index, b: m.index + m[0].length }));
-  const consumed = [];
-  const eat = (i, count = 1) => { for (let k = i; k < i + count; k++) consumed.push([atoms[k].a, atoms[k].b]); };
-  const gapToNext = (i) => (atoms[i + 1] ? s.slice(atoms[i].b, atoms[i + 1].a) : null);
-  const adjacent = (i) => atoms[i + 1] != null && gapToNext(i) != null && !/\u0001/.test(gapToNext(i));
+  const moveNames = [];
+  const signalNames = [];
+
   const isSigned = (t) => /^[+-]\d{1,2}$/.test(t);
   const isNumber = (t) => /^\d{1,3}$/.test(t);
+  const COUNT_TOK = /^[123]$/;
+  const COUNT_X = /^(?:[123][x×]|[x×][123])$/;
 
-  for (let i = 0; i < atoms.length; i++) {
-    const tok = atoms[i].t;
-
-    // level, glued ("l50" / "lv50") or split ("level 50" / "lv 50")
-    const lvlGlued = /^l(?:v|evel)?(\d{1,3})$/.exec(tok);
-    if (lvlGlued) { spec.level = Math.min(100, Math.max(1, Number(lvlGlued[1]))); eat(i); continue; }
-    if ((tok === "level" || tok === "lv" || tok === "l") && adjacent(i) && isNumber(atoms[i + 1].t)) {
-      spec.level = Math.min(100, Math.max(1, Number(atoms[i + 1].t))); eat(i, 2); i++; continue;
+  function applyClassEntry(entry) {
+    switch (entry.kind) {
+      case "nature": if (claimSlot("nature", entry.value)) spec.nature = entry.value; break;
+      case "ability": if (claimSlot("ability", entry.value)) spec.ability = entry.value; break;
+      case "item": if (claimSlot("item", entry.value)) spec.item = entry.value; break;
+      case "lo": {
+        const item = side === "defender" ? "Leftovers" : "Life Orb";
+        if (claimSlot("item", item)) spec.item = item;
+        break;
+      }
+      case "plate": spec.plate = true; break;
+      case "status": if (claimSlot("status", entry.value)) spec.status = entry.value; break;
+      case "weather": if (claimSlot("weather", entry.value)) spec.weather = entry.value; break;
+      case "terrain": if (claimSlot("terrain", entry.value)) spec.terrain = entry.value; break;
+      case "sr": spec.stealthRock = true; break;
+      case "noitem": spec.noItem = true; break;
     }
+  }
 
-    // "max atk" / "max spa" / "max def" / "max spd" / "max spe" / "max hp".
-    // Claim order is RECORDED (first-typed max wins the auto-nature war in
-    // fill.mjs applyMaxFlags when several maxes coexist).
+  function literalClaimAt(i) {
+    const maxL = Math.min(3, n - i);
+    for (let len = maxL; len >= 1; len--) {
+      if (len > 1 && !contiguous(i, len)) continue;
+      const key = keyAt(i, len);
+      let name = null;
+      if (claimMovesHere) name = resolveMoveName(key);
+      if (name) {
+        const move = moveByName.get(norm(name));
+        if (move && move.category !== "Non-Damaging") {
+          moveNames.push(name); log("move", i, len); return len;
+        }
+        if (move && BOOST_MOVES.has(name)) {
+          signalNames.push(name); log("boost", i, len); return len;
+        }
+      }
+      const entries = CLAIM_MAP.get(key);
+      if (entries) {
+        for (const entry of entries) applyClassEntry(entry);
+        return len;
+      }
+    }
+    return 0;
+  }
+
+  function spikeClaimAt(i) {
+    const t0 = atoms[i].t;
+    const spikeWord = (t) => (t === "spike" ? 1 : t === "spikes" ? 3 : 0);
+    const digitOf = (t) => (COUNT_TOK.test(t) || COUNT_X.test(t) ? Number(t.match(/[123]/)[0]) : 0);
+    const sd = spikeWord(t0);
+    const nxt = atoms[i + 1];
+    if (sd) {
+      if (adjacent(i) && nxt && digitOf(nxt.t)) { claimSpikes(digitOf(nxt.t)); return { len: 2 }; }
+      claimSpikes(sd); return { len: 1 };
+    }
+    if (adjacent(i) && nxt && spikeWord(nxt.t) && digitOf(t0)) { claimSpikes(digitOf(t0)); return { len: 2 }; }
+    return null;
+  }
+
+  function shapeClaimAt(i) {
+    const tok = atoms[i].t;
+    const glued = /^l(?:v|evel)?(\d{1,3})$/.exec(tok);
+    if (glued) { setLevel(Number(glued[1])); log("level", i, 1); return 1; }
+    if ((tok === "level" || tok === "lv" || tok === "l") && adjacent(i) && isNumber(atoms[i + 1].t)) {
+      setLevel(Number(atoms[i + 1].t)); log("level", i, 2); return 2;
+    }
     if (tok === "max" && adjacent(i) && MAX_ALIAS[atoms[i + 1].t]) {
       const key = MAX_ALIAS[atoms[i + 1].t];
       if (!spec[key]) (spec._maxOrder = spec._maxOrder ?? []).push(key);
-      spec[key] = true; eat(i, 2); i++; continue;
+      spec[key] = true;
+      log("max", i, 2);
+      return 2;
     }
-
-    // signed number leader: "+N <stageable stat>" stage ("+2 atk", "+1 acc"),
-    // else a STAT-LESS dynamic boost ("+N" anywhere with no stageable stat to
-    // combine with). HP is not stageable, so "+N hp" never stages — hp only
-    // survives as an EV ("+2 hp 252"); a lone hp beside +N is an unbound stat
-    // and fails loud in the residue check. The comma-boundary special case is
-    // gone: the global comma rule already made any stat-less +N dynamic.
     if (isSigned(tok)) {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && STAGE_ALIAS[nxt.t]) { addStage(nxt.t, tok[0], tok.slice(1)); eat(i, 2); i++; continue; }
-      if (adjacent(i) && nxt && ACC_EVA_ALIAS[nxt.t]) { addAccEva(nxt.t, tok[0], tok.slice(1)); eat(i, 2); i++; continue; }
-      setPlus(tok[0], tok.slice(1)); eat(i); continue;
+      if (adjacent(i) && nxt && STAGE_ALIAS[nxt.t]) { addStage(nxt.t, tok[0], tok.slice(1)); log("boost", i, 2); return 2; }
+      if (adjacent(i) && nxt && ACC_EVA_ALIAS[nxt.t]) { addAccEva(nxt.t, tok[0], tok.slice(1)); log("acc", i, 2); return 2; }
+      setPlus(tok[0], tok.slice(1)); log("boost", i, 1); return 1;
     }
-
-    // stat leader: "<stat> +N" stage or "<stat> N" EV (stat-first canonical)
     if (STAGE_ALIAS[tok]) {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && isSigned(nxt.t)) { addStage(tok, nxt.t[0], nxt.t.slice(1)); eat(i, 2); i++; continue; }
-      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv(tok, nxt.t); eat(i, 2); i++; continue; }
-      continue; // bare stat word: not investment, leave it
+      if (adjacent(i) && nxt && isSigned(nxt.t)) { addStage(tok, nxt.t[0], nxt.t.slice(1)); log("boost", i, 2); return 2; }
+      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv(tok, nxt.t); log("ev", i, 2); return 2; }
+      return 0; // bare stat word: not investment, leave it for species residue
     }
     if (tok === "hp") {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv("hp", nxt.t); eat(i, 2); i++; continue; }
-      continue;
+      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv("hp", nxt.t); log("ev", i, 2); return 2; }
+      return 0;
     }
     if (ACC_EVA_ALIAS[tok]) {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && isSigned(nxt.t)) { addAccEva(tok, nxt.t[0], nxt.t.slice(1)); eat(i, 2); i++; continue; }
-      continue;
+      if (adjacent(i) && nxt && isSigned(nxt.t)) { addAccEva(tok, nxt.t[0], nxt.t.slice(1)); log("acc", i, 2); return 2; }
+      return 0;
     }
-
-    // unsigned number leader: "N <stat>" EV (digit-first). Numbers that lead
-    // nowhere (e.g. a "2" before "spikes") stay for the hazard/word passes.
-    if (isNumber(tok)) {
+    if (isNumber(tok) || COUNT_X.test(tok)) {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && EV_ALIAS[nxt.t]) { takeEv(nxt.t, tok); eat(i, 2); i++; continue; }
-      continue;
+      if (isNumber(tok) && adjacent(i) && nxt && EV_ALIAS[nxt.t]) { takeEv(nxt.t, tok); log("ev", i, 2); return 2; }
+      const count = spikeClaimAt(i);
+      if (count) { log("spikes", i, count.len); return count.len; }
+      return 0;
     }
+    if (tok === "spike" || tok === "spikes") {
+      const count = spikeClaimAt(i);
+      if (count) { log("spikes", i, count.len); return count.len; }
+    }
+    return 0;
   }
-  if (consumed.length) {
-    const kept = [];
-    let last = 0;
-    for (const [a, b] of consumed.sort((x, y) => x[0] - y[0])) {
-      kept.push(s.slice(last, a));
-      last = b;
-    }
-    s = kept.join("") + s.slice(last);
+
+  for (let i = 0; i < n; i++) {
+    if (used[i]) continue;
+    const lit = literalClaimAt(i);
+    if (lit) { eat(i, lit); i += lit - 1; continue; }
+    const shape = shapeClaimAt(i);
+    if (shape) { eat(i, shape); i += shape - 1; continue; }
   }
   if (Object.keys(evs).length) spec.evs = evs;
 
-  // "no item" / "itemless": genuinely no held item (else an inert item is assumed)
-  const noneItem = stripMatches(s, String.raw`no\s*item|itemless`);
-  s = noneItem.text;
-  if (noneItem.hits.length) spec.noItem = true;
-
-  // nature: exact known nature word
-  const naturePass = stripMatches(s, String.raw`\b(${NATURE_NAMES.join("|")})\b`);
-  s = naturePass.text;
-  if (naturePass.hits.length) spec.nature = naturePass.hits[0][1];
-
-  // ability: known ability name (but Desolate Land / Primordial Sea / Delta
-  // Stream are primal weather phrases in queries, not the ability here)
-  const WEATHER_ABILITIES = new Set(["desolate land", "primordial sea", "delta stream"]);
-  const abilityLower = [...ABILITY_NAMES].filter((n) => !WEATHER_ABILITIES.has(n)).sort((a, b) => b.length - a.length).join("|");
-  const abilPass = stripMatches(s, String.raw`\b(${abilityLower})\b`);
-  s = abilPass.text;
-  if (abilPass.hits.length) spec.ability = ABILITY_CANON[ABILITY_NAMES.indexOf(abilPass.hits[0][0])];
-
-  // item: known item name or a `<type> plate` phrase alias (both a plate's own
-  // name and its type-first spelling resolve to the same item here)
-  const itemPass = stripMatches(s, String.raw`\b(${ITEM_PHRASES.join("|")})\b`);
-  s = itemPass.text;
-  if (itemPass.hits.length) spec.item = ITEM_ALIAS.get(itemPass.hits[0][0]);
-
-  // item acronyms. LO is context-sensitive: Life Orb on the attacker, Leftovers
-  // on the defender. A BARE "plate" (no type word ahead of it) is resolved
-  // later from the move's type — a "<type> plate" phrase was already consumed
-  // as an item above.
-  const ACRO = [
-    ["choice band", { item: "Choice Band" }], ["choice specs", { item: "Choice Specs" }],
-    ["choice scarf", { item: "Choice Scarf" }], ["banded", { item: "Choice Band" }],
-    ["specs", { item: "Choice Specs" }], ["scarf", { item: "Choice Scarf" }],
-    ["band", { item: "Choice Band" }], ["cb", { item: "Choice Band" }],
-    ["spec", { item: "Choice Specs" }], ["belt", { item: "Expert Belt" }],
-    ["sash", { item: "Focus Sash" }],
-    ["lo", { item: side === "defender" ? "Leftovers" : "Life Orb" }],
-    ["plate", { plate: true }],
-  ];
-  const acroPass = stripMatches(s, String.raw`\b(${ACRO.map(([w]) => w).sort((a, b) => b.length - a.length).join("|")})\b`);
-  s = acroPass.text;
-  if (acroPass.hits.length) {
-    const phrase = acroPass.hits[0][0].toLowerCase();
-    const defn = ACRO.find(([w]) => w === phrase)?.[1];
-    if (defn?.item) spec.item = defn.item;
-    if (defn?.plate) spec.plate = true;
+  // Attacker move claims fold in here: validate (1 or 2 distinct) before
+  // species resolution so the move errors keep their old precedence.
+  if (claimMovesHere) {
+    spec._claim = finishMoveClaim(moveNames, signalNames, raw);
   }
 
-  // status tokens (longest first so "badly poisoned" beats "poison")
-  const STATUS_MAP = [
-    ["badly poisoned", "tox"], ["bad poison", "tox"], ["toxic", "tox"],
-    ["paralyzed", "par"], ["paralysis", "par"], ["poisoned", "psn"],
-    ["asleep", "slp"], ["sleeping", "slp"], ["frozen", "frz"],
-    ["burned", "brn"], ["burnt", "brn"], ["poison", "psn"],
-    ["burn", "brn"], ["sleep", "slp"], ["freeze", "frz"],
-    ["brn", "brn"], ["par", "par"], ["psn", "psn"], ["tox", "tox"],
-    ["slp", "slp"], ["frz", "frz"],
-  ];
-  const statusTokens = STATUS_MAP.map(([w]) => w).sort((a, b) => b.length - a.length).join("|");
-  const statusPass = stripMatches(s, String.raw`\b(${statusTokens})\b`);
-  s = statusPass.text;
-  if (statusPass.hits.length) {
-    const code = statusPass.hits[0][0].toLowerCase();
-    spec.status = STATUS_MAP.find(([w]) => w === code)?.[1];
-  }
-
-  // battle weather tokens (endless/"permanent" sandstorm = sand that never ends)
-  const WEATHER_MAP = [
-    ["permanent sandstorm", "sand"], ["harsh sunlight", "sun"], ["permanent rain", "rain"],
-    ["permanent sun", "sun"], ["permanent hail", "hail"], ["sand storm", "sand"],
-    ["sandstorm", "sand"], ["hail storm", "hail"], ["hailstorm", "hail"],
-    ["rain dance", "rain"], ["sunny day", "sun"],
-    ["desolate land", "desolate"], ["harsh sunshine", "desolate"], ["extremely harsh sunlight", "desolate"],
-    ["primordial sea", "primordial"], ["heavy rain", "primordial"],
-    ["delta stream", "delta"], ["strong winds", "delta"],
-    ["sunny", "sun"], ["sand", "sand"], ["rain", "rain"], ["hail", "hail"], ["sun", "sun"],
-  ];
-  const weatherTokens = WEATHER_MAP.map(([w]) => w).sort((a, b) => b.length - a.length).join("|");
-  const weatherPass = stripMatches(s, String.raw`\b(${weatherTokens})\b`);
-  s = weatherPass.text;
-  if (weatherPass.hits.length) {
-    const phrase = weatherPass.hits[0][0].toLowerCase();
-    spec.weather = WEATHER_MAP.find(([w]) => w === phrase)?.[1];
-  }
-  // explicit "no weather" just clears the weather keywords (none is already the default)
-  const clearPass = stripMatches(s, String.raw`no\s*weather|clear\s*weather|clear\s*skies`);
-  s = clearPass.text;
-
-  // entry hazards: Stealth Rock ("rock") and Spikes layers 1-3. The count is
-  // SPACE-separated in either order — "2 spikes" / "spikes 2" / "spike 1" — or
-  // in x-notation — "spikes x2" / "x2 spikes" / "2x spikes" / "×2 spikes" — and
-  // the word's own number never matters (a count 1-3 wins). A BARE "spike" is
-  // 1 layer, "spikes" is 3. Glued digit forms ("1spike", "spikes2") and the
-  // "N layers of …" spelling are NOT recognized (noise). Counts are 1-3 only:
-  // a >3 number next to spikes stays unbound and hits the bare-number error.
-  // The punctuation sentinel breaks every phrase (comma = hard separator).
-  // Same value from several scans collapses (dedupe); different values error.
-  const srPass = stripMatches(s, String.raw`\b(?:stealth\s*rock|stealthrock|sr|stealth\s*rocks|rock)\b`);
-  s = srPass.text;
-  if (srPass.hits.length) spec.stealthRock = true;
-  const SPIKE_PHRASES = [
-    String.raw`spikes?\s+[123]\s*[x×]`, // "spikes 2x"
-    String.raw`spikes?\s+[x×]\s*[123]`, // "spikes x2"
-    String.raw`spikes?\s+[123]`,        // "spikes 2"
-    String.raw`[123]\s*[x×]\s+spikes?`, // "2x spikes"
-    String.raw`[x×]\s*[123]\s+spikes?`, // "x2 spikes"
-    String.raw`[123]\s+spikes?`,        // "2 spikes"
-  ];
-  const numberedSpike = stripMatches(s, String.raw`\b(?:${SPIKE_PHRASES.join("|")})\b`);
-  s = numberedSpike.text;
-  const claims = numberedSpike.hits.map((m) => Number(m[0].match(/\d+/)[0]));
-  const bareSpike = stripMatches(s, String.raw`\bspikes?\b`);
-  s = bareSpike.text;
-  for (const m of bareSpike.hits) claims.push(m[0].toLowerCase().endsWith("s") ? 3 : 1);
-  if (claims.length) {
-    const first = claims[0];
-    if (claims.some((c) => c !== first)) {
-      throw new Error(`conflicting spikes layers: ${[...new Set(claims)].join(" vs ")}`);
-    }
-    spec.spikes = first;
-  }
-
-  // terrain tokens
-  const TERRAIN_MAP = [
-    ["electric terrain", "electric"], ["grassy terrain", "grassy"],
-    ["misty terrain", "misty"], ["psychic terrain", "psychic"],
-  ];
-  const terrainPass = stripMatches(s, String.raw`\b(${TERRAIN_MAP.map(([w]) => w).sort((a, b) => b.length - a.length).join("|")})\b`);
-  s = terrainPass.text;
-  if (terrainPass.hits.length) spec.terrain = TERRAIN_MAP.find(([w]) => w === terrainPass.hits[0][0].toLowerCase())?.[1];
-
-  // leftover words = species. dex names are "Venusaur-Mega" while players say
-  // "Mega Venusaur", so also try reordered/permuted word orders.
-  // The punctuation sentinel's boundary job is done — turn it back into spaces
-  // so a phrase like "mr. mime" tokenizes to clean words for the name lookup.
-  s = s.replace(/\u0001/g, " ");
-  const rest = s.replace(/\s+/g, " ").trim();
-  const words = rest.split(" ").filter(Boolean);
+  // leftover (unclaimed) words = species; dex names are "Venusaur-Mega" while
+  // players say "Mega Venusaur", so reorderings are tried too. The side log
+  // (T6) keeps the claim→atom spans the ## 8 echo needs.
+  spec._sideLog = sideLog;
+  const words = atoms.filter((_, k) => !used[k]).map((x) => x.t);
+  const rest = words.join(" ");
   const found = [];
   const tryOrder = (arr) => {
-    const n = norm(arr.join(" "));
-    const hit = monByName.get(n);
+    const hit = monByName.get(norm(arr.join(" ")));
     if (hit) found.push({ name: hit.name, words: arr });
   };
   const permutations = (arr) => {
@@ -634,31 +657,28 @@ function parseCombatant(raw, side = "attacker") {
     if (alias && monByName.has(norm(alias))) found.push({ name: monByName.get(norm(alias)).name, words });
   }
   if (found.length) {
-    const seen = new Set();
+    const seenSp = new Set();
     const unique = found.filter((f) => {
       const k = norm(f.name);
-      if (seen.has(k)) return false;
-      seen.add(k);
+      if (seenSp.has(k)) return false;
+      seenSp.add(k);
       return true;
     });
-    // prefer the entry that consumed the most tokens (permutations use all, so
-    // rank by dex-name length to disambiguate e.g. Charizard-Mega vs -X)
     unique.sort((a, b) => b.name.length - a.name.length);
     name = unique[0].name;
-    const used = new Set(unique[0].words.map((w) => w.toLowerCase()));
-    ignored = words.filter((w) => !used.has(w.toLowerCase()));
+    const usedSp = new Set(unique[0].words.map((w) => w.toLowerCase()));
+    ignored = words.filter((w) => !usedSp.has(w.toLowerCase()));
     if (unique.length > 1) {
-      const others = [...seen].filter((n) => n !== norm(name));
-      name += ` (${others.map((n) => monByName.get(n).name).join(", ")} also matches)`;
+      const others = [...seenSp].filter((k) => k !== norm(name));
+      name += ` (${others.map((k) => monByName.get(k).name).join(", ")} also matches)`;
     }
   } else {
-    // fallback: junk tokens at either end (unlisted item / megastone)
     const tryResolve = (n) => {
-    const hit = monByName.get(norm(n));
-    if (hit) return hit.name;
-    const alias = SPECIES_ALIASES.get(norm(n));
-    return alias && monByName.has(norm(alias)) ? monByName.get(norm(alias)).name : null;
-  };
+      const hit = monByName.get(norm(n));
+      if (hit) return hit.name;
+      const alias = SPECIES_ALIASES.get(norm(n));
+      return alias && monByName.has(norm(alias)) ? monByName.get(norm(alias)).name : null;
+    };
     for (let i = words.length - 1; i >= 1 && !name; i--) {
       name = tryResolve(words.slice(0, i).join(" "));
       if (name) ignored = words.slice(i);
@@ -685,7 +705,7 @@ function parseCombatant(raw, side = "attacker") {
   }
   spec.name = name;
   // T2 junk ruling (2026-09-08): R4 hard errors stand for a digit/stat token no
-  // pass claimed (fail loud, show what WAS understood). PLAIN junk words (the
+  // claim bound (fail loud, show what WAS understood). PLAIN junk words (the
   // rest of `ignored`) are SILENTLY DROPPED — no _ignored, no "ignored:" card
   // flag, no echo label or `???`.
   const STAT_WORD = new Set([...Object.keys(EV_ALIAS), ...Object.keys(ACC_EVA_ALIAS)]);
@@ -696,6 +716,7 @@ function parseCombatant(raw, side = "attacker") {
   }
   return spec;
 }
+
 
 /** Pull side-level weather/terrain/hazards up to the matchup level. */
 function mergeArena(matchup) {
@@ -801,48 +822,15 @@ function claimMoves(text) {
   return finishMoveClaim(claimed, signals, text);
 }
 
-/** Claim the damaging move(s) out of a free-order ATTACKER SIDE and blank their
- *  words (plus boost-signal words) out of the side text, so the residue handed
- *  to parseCombatant holds only species + modifier + class-token words — an
- *  exact move never pollutes species resolution, and a misspelled move is junk.
- *  Dropped Non-Damaging class moves are LEFT in the residue (parseCombatant
- *  claims them as their status/hazard/weather/... class). Returns the blanked
- *  residue plus the claim result ({ single } / { chain } / signals). */
-function claimAttackerMoves(text) {
-  const lo = String(text).toLowerCase();
-  // Aligned tokenization that mirrors claimMoves' word list EXACTLY (a
-  // punctuation run -> one \u0001 token) but keeps every real token's span in
-  // `lo` — so claimed move words can be blanked out of the ORIGINAL side text.
-  // Only claimed move phrases are removed; signs / digits / punctuation the
-  // combatant parser still needs ("+2 atk", "-1 acc", "@ Life Orb", commas)
-  // survive untouched.
-  const matcher = /[,.;/\\|]+|[a-z0-9]+/g;
-  const toks = [];
-  for (const m of lo.matchAll(matcher)) {
-    const ch = m[0];
-    if (/[,.;/\\|]/.test(ch)) toks.push({ t: "\u0001", a: m.index, b: m.index + ch.length });
-    else toks.push({ t: ch, a: m.index, b: m.index + ch.length });
-  }
-  const words = toks.map((x) => x.t);
-  const { claimed, signals, usedIdx } = scanMoveWords(words);
-  const result = finishMoveClaim(claimed, signals, text);
-  if (!usedIdx.length) return { residue: text, ...result };
-  const chars = [...lo];
-  for (const idx of usedIdx) {
-    const { a, b } = toks[idx];
-    for (let k = a; k < b; k++) chars[k] = " ";
-  }
-  return { residue: chars.join(""), ...result };
-}
-
 /** Parse a free-order damage line. `vs` is the MANDATORY splitter — a query
  *  without one is a hard error; text left of `vs` is the attacker side, right
  *  is the defender. There is NO `uses` syntax: `use`/`uses` are inert and
- *  silently dropped like any junk word. Tokens within a side are free-order —
- *  the move is claimed by exact phrase wherever it appears on the ATTACKER side
- *  and its words are removed before the side's combatant parse; the defender
- *  NEVER runs a move claim (a stray move-ish word there is silent junk).
- *  "turn by turn" asks for the per-turn table. */
+ *  silently dropped like any junk word. Tokens within a side are free-order;
+ *  the side sweep (parseCombatant) claims the damaging move / boost signal by
+ *  exact phrase wherever it appears on the ATTACKER side (opts.claimMoves) and
+ *  returns the claim on spec._claim for lifting here. The defender NEVER runs a
+ *  move claim (a stray move-ish word there is silent junk). "turn by turn"
+ *  asks for the per-turn table. */
 function parseQuery(line) {
   const normed = hyphenToSpace(line);
   const flag = /\bturn\s*by\s*turn\b/i.test(normed);
@@ -852,15 +840,16 @@ function parseQuery(line) {
     throw new Error('a query needs exactly one "vs" splitting the attacker from the defender, e.g. "Garchomp @ Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP"');
   }
   const [attackerSide, defenderSide] = parts;
-  const claim = claimAttackerMoves(attackerSide);
-  const out = mergeArena({
-    attacker: parseCombatant(claim.residue, "attacker"),
-    defender: parseCombatant(defenderSide, "defender"),
-    showTurns: flag,
-  });
-  if (claim.single) out.move = claim.single;
-  else out.moves = claim.chain;
-  if (claim.signals) out.signals = claim.signals;
+  const attacker = parseCombatant(attackerSide, "attacker", { claimMoves: true });
+  const defender = parseCombatant(defenderSide, "defender");
+  const out = mergeArena({ attacker, defender, showTurns: flag });
+  const claim = attacker._claim;
+  delete attacker._claim;
+  if (claim) {
+    if (claim.single) out.move = claim.single;
+    else out.moves = claim.chain;
+    if (claim.signals) out.signals = claim.signals;
+  }
   out._query = line.trim();
   return out;
 }
