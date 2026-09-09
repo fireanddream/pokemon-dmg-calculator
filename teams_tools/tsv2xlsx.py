@@ -117,7 +117,7 @@ wb.remove(wb.active)
 
 lookup = lookup_rows(dst, "speed.tsv")
 if lookup is not None:
-    ws = wb.create_sheet("Speed")
+    ws = wb.create_sheet("Speed Benchmark")
     ws.append(lookup[0])
     for r in pad_rows(lookup[0], lookup[1]):
         row = [int(v) if str(v).isdigit() else v for v in r]
@@ -125,7 +125,7 @@ if lookup is not None:
     for cell in ws[1]:
         cell.font = Font(bold=True)
     ws.freeze_panes = "A2"
-    for i, w in enumerate([16, 16, 16, 16], start=1):
+    for i, w in enumerate([26, 9, 9, 9, 18], start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
 lookup = lookup_rows(dst, "strategy.tsv")
