@@ -34,11 +34,19 @@
 // --width sets the wrap width in columns (default 100; rows that fit stay on
 // one line).
 import { pathToFileURL } from "node:url";
+import { tokenizeLine } from "./tokenize.mjs";
 
-/** Split the raw line into whitespace atoms (spelling preserved). */
+/** Display atoms for the echo top line, from the ONE shared tokenizer: the
+ *  normalize-once words the scanner saw (hyphen rule + punctuation/@ handling
+ *  applied, case preserved). Spans index this same atom space. */
 function atomize(line) {
-  const text = line.trim();
-  return text ? text.split(/\s+/) : [];
+  return tokenizeLine(line).atoms.map((a) => a.raw);
+}
+
+/** Convert converter `_sideLog` entries (`{label, from, len}` with GLOBAL atom
+ *  indices) into echo spans (`{atoms:[first,last], label}`). */
+export function spansFromLogs(logs) {
+  return logs.map((l) => ({ atoms: [l.from, l.from + l.len - 1], label: l.label }));
 }
 
 // Break two same-length aligned lines (words line + ruler line) into row

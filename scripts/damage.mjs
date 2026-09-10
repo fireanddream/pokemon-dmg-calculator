@@ -1,12 +1,16 @@
-// damage.mjs — card-printing CLI (compat entry point).
+// damage.mjs — one-shot query CLI (the two-block answer).
 //
-// The FRONT is now two stages: input-converter.mjs extracts the user's words
-// into the spec JSON (no defaults), then fill.mjs applies auto-fill-defaults.md
-// and resolves every name to its record. This file only GLUES the staged
-// pipeline together for interactive / one-shot use:
-// front (input-converter -> fill) -> calc (calc.mjs) -> render (output.mjs).
+// The FRONT is two stages: input-converter.mjs extracts the user's words into
+// the spec JSON (no defaults), then fill.mjs applies auto-fill-defaults.md and
+// resolves every name to its record. This file GLUES the whole staged pipeline
+// together for interactive / one-shot use and prints the answer as TWO blocks:
+// Block 1 the recognition echo (echo.mjs, built from the converter's
+// `_sideLog` spans) and Block 2 the card (output.mjs) or, on a hard error, the
+// error message under the "scanned so far" ruler.
 //
-//   node scripts/damage.mjs "<attacker side ...> vs <defender side ...>"   card
+//   node scripts/damage.mjs "<attacker side ...> vs <defender side ...>"   echo+card
+//   node scripts/damage.mjs "<query>" --no-echo            card only
+//   node scripts/damage.mjs "<query>" --chat               echo+card, fenced
 //   node scripts/damage.mjs "<query>" --resolved           emits the calc-input
 //       JSON (identical to the converter->fill chain output) for the chain:
 //       damage --resolved | calc - | output -   (or input-converter | fill | calc | output)
@@ -20,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import { buildTypeChart } from "../dist/index.js";
 import { calcSingle, calcCombo } from "./calc.mjs";
 import { render } from "./output.mjs";
+import { renderEcho, spansFromLogs } from "./echo.mjs";
 import { parseQuery } from "./input-converter.mjs";
 import { resolveMatchup } from "./fill.mjs";
 
@@ -46,6 +51,42 @@ function runMatchup(matchup) {
   return runResolved(resolveMatchup(matchup));
 }
 
+/** Recognition echo (Block 1) from converter logs, or "" when there is nothing
+ *  to lay out. Never throws — a bad echo must not hide the card/error. */
+function echoBlock(line, logs) {
+  if (!logs.length) return "";
+  try {
+    return renderEcho(line, spansFromLogs(logs)) + "\n";
+  } catch {
+    return "";
+  }
+}
+
+/** One-shot query: parse -> echo -> fill -> calc -> output, in one process. On
+ *  a hard error the echo shows the claims made before the throw ("scanned so
+ *  far") and Block 2 is the engine's error message. */
+export function runQuery(line, { chat = false, echo: wantEcho = true } = {}) {
+  let logs = [];
+  let body;
+  try {
+    const spec = parseQuery(line);
+    logs = [...(spec.attacker?._sideLog ?? []), ...(spec.defender?._sideLog ?? [])];
+    if (spec.attacker) delete spec.attacker._sideLog;
+    if (spec.defender) delete spec.defender._sideLog;
+    body = runResolved(resolveMatchup(spec));
+  } catch (err) {
+    logs = err.sideLogs ?? [];
+    body = `${err.message}\n`;
+  }
+  const echo = wantEcho ? echoBlock(line, logs) : "";
+  if (chat) {
+    const e = echo.replace(/\n+$/, "");
+    const b = body.replace(/\n+$/, "");
+    return `${e ? `\`\`\`\n${e}\n\`\`\`\n` : ""}\`\`\`\n${b}\n\`\`\`\n`;
+  }
+  return echo + body;
+}
+
 function emitResolvedJson(matchup) {
   return JSON.stringify(resolveMatchup(matchup), null, 2) + "\n";
 }
@@ -57,7 +98,9 @@ const USAGE = `usage:
   node scripts/damage.mjs "<atk>" "<move>" "<def>"
   (no args)           interactive prompt
   add --resolved to any query to emit the resolved calc-input JSON instead of
-  the card (feed it to: node scripts/calc.mjs | node scripts/output.mjs)
+  the echo+card (feed it to: node scripts/calc.mjs | node scripts/output.mjs)
+  add --no-echo    to print only the card (no recognition echo)
+  add --chat       to wrap the echo and the card in fenced code blocks
 
   specs: "Species [@ Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
 
@@ -68,11 +111,7 @@ function repl() {
   const prompt = () => rl.question("calc> ", (line) => {
     line = line.trim();
     if (line === "" || /^(q|quit|exit)$/i.test(line)) return rl.close();
-    try {
-      process.stdout.write(runResolved(resolveQuery(line)));
-    } catch (err) {
-      console.log(`\n  error: ${err.message}`);
-    }
+    process.stdout.write(runQuery(line));
     prompt();
   });
   prompt();
@@ -80,7 +119,10 @@ function repl() {
 
 let args = process.argv.slice(2);
 const wantResolved = args.includes("--resolved");
-args = args.filter((a) => a !== "--resolved");
+const wantChat = args.includes("--chat") || args.includes("-c");
+const noEcho = args.includes("--no-echo");
+args = args.filter((a) => a !== "--resolved" && a !== "--chat" && a !== "-c" && a !== "--no-echo");
+const runOpts = { chat: wantChat, echo: !noEcho };
 
 if (args.length === 0) {
   if (wantResolved) {
@@ -92,14 +134,17 @@ if (args.length === 0) {
   const matchup = JSON.parse(await readFile(path.resolve(args[0]), "utf8"));
   process.stdout.write(wantResolved ? emitResolvedJson(matchup) : runMatchup(matchup));
 } else if (args.length === 1) {
-  const input = resolveQuery(args[0]);
-  process.stdout.write(wantResolved ? JSON.stringify(input, null, 2) + "\n" : runResolved(input));
+  // --resolved stays a pure data path (no echo); plain queries get Block 1 + 2.
+  process.stdout.write(wantResolved
+    ? JSON.stringify(resolveQuery(args[0]), null, 2) + "\n"
+    : runQuery(args[0], runOpts));
 } else if (args.length >= 3) {
   // Explicit <atk> <move> <def> compat form; NEVER manufactures a "uses" word
   // (2026-09-08 ruling) — the canonical line is the free-order vs form.
   const line = `${args[0]} ${args.slice(1, args.length - 1).join(" ")} vs ${args[args.length - 1]}`;
-  const input = resolveQuery(line);
-  process.stdout.write(wantResolved ? JSON.stringify(input, null, 2) + "\n" : runResolved(input));
+  process.stdout.write(wantResolved
+    ? JSON.stringify(resolveQuery(line), null, 2) + "\n"
+    : runQuery(line, runOpts));
 } else {
   console.error(USAGE);
   process.exit(1);

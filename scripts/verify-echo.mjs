@@ -7,19 +7,35 @@ import { renderEcho } from "./echo.mjs";
 
 const CASES = [
   {
-    name: "demo (item + widen + multi-word ev)",
+    name: "demo (item + widen + multi-word ev; shared tokenizer drops @)",
     line: "Garchomp @ Life Orb Jolly 252 Atk Blitz vs Heatran",
     spans: [
       { atoms: [0, 0], label: "species" },
-      { atoms: [2, 3], label: "item" },
-      { atoms: [4, 4], label: "nature" },
-      { atoms: [5, 6], label: "ev:atk" },
-      { atoms: [7, 7], label: "move" },
-      { atoms: [9, 9], label: "species" },
+      { atoms: [1, 2], label: "item" },
+      { atoms: [3, 3], label: "nature" },
+      { atoms: [4, 5], label: "ev:atk" },
+      { atoms: [6, 6], label: "move" },
+      { atoms: [8, 8], label: "species" },
     ],
     expected: [
-      "Garchomp @ Life Orb Jolly  252 Atk Blitz vs Heatran",
-      "species    item     nature ev:atk  move     species",
+      "Garchomp Life Orb Jolly  252 Atk Blitz vs Heatran",
+      "species  item     nature ev:atk  move     species",
+    ],
+  },
+  {
+    name: "hyphen rule shows spaced words (word-exact display)",
+    line: "Garchomp Life-Orb Jolly 252 Atk Blitz vs Heatran",
+    spans: [
+      { atoms: [0, 0], label: "species" },
+      { atoms: [1, 2], label: "item" },
+      { atoms: [3, 3], label: "nature" },
+      { atoms: [4, 5], label: "ev:atk" },
+      { atoms: [6, 6], label: "move" },
+      { atoms: [8, 8], label: "species" },
+    ],
+    expected: [
+      "Garchomp Life Orb Jolly  252 Atk Blitz vs Heatran",
+      "species  item     nature ev:atk  move     species",
     ],
   },
   {

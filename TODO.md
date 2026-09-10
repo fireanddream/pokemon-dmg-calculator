@@ -6,7 +6,8 @@ engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
 carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
-**State 2026-09-10:** steps 1–6 are DONE. Step 5's weather model was revised
+**State 2026-09-10:** steps 1–7 are DONE (step 7 = converter-side echo / shared
+tokenizer, second pass same day). Step 5's weather model was revised
 2026-09-10 (second pass): weather is now ONE plain explicit slot (two
 different explicit weathers error); weather-setting ABILITY names are
 ordinary ability claims that `fill.mjs` resolves (primal beats regular
@@ -22,14 +23,15 @@ removed. Error messages consolidated 2026-09-10 to `missing <var>` +
 
 ## Build order — what remains of the tokenizer overhaul
 
-Steps 1–4 are done; the design contract for each open step lives in the
-`DESIGN-RECORDS.md` section cited. Each step lands with `verify:damage` 63/63,
-`verify:acc` 44/44, `verify:echo` 6/6 green and the corpus chaincheck "all
-identical". Record of done steps: step 1 →
-`SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`, step 3 →
+Steps 1–7 are done (steps 8–9 remain); the design contract for each open step
+lives in the `DESIGN-RECORDS.md` section cited. Each step lands with
+`verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 7/7 green, no TS build
+errors, and the corpus chaincheck "all identical". Record of done steps: step 1
+→ `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`, step 3 →
 `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`, step 4 →
 `SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md`, steps 5 (partial) + 6 →
-`SESSION-NOTES-20260910-BARE-ARENA-AND-SEAM-C.md`.
+`SESSION-NOTES-20260910-BARE-ARENA-AND-SEAM-C.md`, step 7 →
+`SESSION-NOTES-20260910-CONVERTER-ECHO.md`.
 
 1. ✅ **Layer-1 unified sweep** (was "build step 1") — DONE 2026-09-09.
 2. ✅ **Seam-B guard** — DONE 2026-09-09 (closed by step 1; no trie built).
@@ -55,20 +57,21 @@ identical". Record of done steps: step 1 →
    (the startup check in `input-converter.mjs` doubles as the smoke — it runs
    on every converter/fill/damage start since fill imports the lexicon).
    No behavior change when clean.
-7. **Converter-side echo** (was `## 8`). Wire the offline converter route into
-   `scripts/echo.mjs` using the step-1 side log's claim→atom spans
-   (`spec._sideLog`). Per the T2 ruling, plain junk words render as
-   unannotated atoms (NO `???` label); R4 strays and Tier-1 errors keep their
-   messages. `no item` should carry an `item`-class binding. Drop the agent's
-   hand-built echo path once this owns spans. Contract: `DESIGN-RECORDS.md` §4.
-   **Add error echo ("scanned so far"): on a hard error still render labels for
-   claims made before the throw, remainder bare — design pinned in
-   `DESIGN-RECORDS.md` §4, may require reworking span plumbing.**
-8. **One-shot route** (was `## 10`). `route.mjs "<line>" --chat` = converter →
-   fill → calc → output in one node process (data loaded once), so a one-liner
-   query is one tool call. Then retire the agent-route prose in AGENTS.md
-   rule 2/3 and the `pokemon-damage-calc` skill step 1 (agents stop authoring
-   spec JSON/spans; AGENTS.md rule 2's echo becomes the converter's echo).
+7. ✅ **Converter-side echo** (was `## 8`) — DONE 2026-09-10. `scripts/tokenize.mjs`
+   is the ONE shared line tokenizer (normalize-once: hyphen rule, `@`/punct
+   handling, case-preserving display atoms with global `gi`); `parseCombatant`
+   logs EVERY claim as `{label, from, len}` (echo labels: `ev:<stat>`, `arena`,
+   `item`, `boost`, ...) with GLOBAL atom indices; a throw carries the live
+   partial log via `opts.capture` → `err.sideLogs`; `echo.mjs` gains
+   `spansFromLogs`. Presentation is the single-process `damage.mjs` `runQuery`
+   (echo + card, or echo + error "scanned so far"; `--no-echo`, `--chat`);
+   converter stays data-only. Contract: `DESIGN-RECORDS.md` §4. Agent-route
+   prose/echo retirement moved to step 8.
+8. **One-shot route** (was `## 10`). `route.mjs "<line>" --chat` becomes a thin
+   alias of `damage.mjs`'s `runQuery` (converter → echo → fill → calc → output
+   in one node process). Then retire the agent-route prose in AGENTS.md rule
+   2/3 and the `pokemon-damage-calc` skill step 1 (agents stop authoring spec
+   JSON/spans; AGENTS.md rule 2's echo becomes `runQuery`'s echo).
    Direction: `DESIGN-RECORDS.md` §11.
 9. **Forme-word collision set** (post-tokenizer review). Once the sweep works,
    revisit `pikachu rock star`, `arceus rock`, `arceus poison`, `arceus
@@ -81,10 +84,10 @@ identical". Record of done steps: step 1 →
 - **Error-message consolidation** — DONE 2026-09-10 (`DESIGN-RECORDS.md` §8):
   taxonomy collapsed to `missing <var>` + `conflict on <slot>` + `unbound EV`;
   `too many moves` / EV-cap (252 & 510) / `no Mega forme` kept bespoke. The
-  echo-on-error half folded into step 7.
+  echo-on-error half shipped in step 7 (`err.sideLogs` → "scanned so far").
 - **`no item` attacker-side semantics** (`DESIGN-RECORDS.md` §9): confirm
   nothing should gate on attacker itemlessness (auto-ability picks are
-  item-blind today). Echo binding of `no item` folds into step 7.
+  item-blind today). `no item` now echoes as `item` (step 7).
 - **Alias-list hyphen cleanup** (idea note 3 tail): prune the hyphen/spaced
   duplicate forms the hyphen rule makes redundant. No hyphenated alias KEYS
   exist today; low priority.
@@ -116,6 +119,7 @@ identical". Record of done steps: step 1 →
 
 | When | What | Record |
 | --- | --- | --- |
+| 2026-09-10 | Converter-side echo (step 7): shared tokenizer, `_sideLog` labels, "scanned so far" `err.sideLogs`, `damage.mjs` `runQuery` | `SESSION-NOTES-20260910-CONVERTER-ECHO.md` |
 | 2026-09-09 | Mega exact-shape upgrade: prefix/suffix `mega`, no-forme hard error, `Mega X` move + `Mega Launcher` guards | `SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md` |
 | 2026-09-09 | Species claim IN the sweep; residue resolver deleted (step 3) | `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md` |
 | 2026-09-09 | Tokenizer step-1 unified sweep + step 2 closed | `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md` |

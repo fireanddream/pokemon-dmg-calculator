@@ -116,22 +116,48 @@ arena grammar (§5, bare-only), seam-C startup warning (option A — no key, any
 word count, in two class lexicons), converter-side echo (§4 tail),
 one-shot `route.mjs` (§11), forme-word collision set (§3).
 
-## 4. Recognition echo — the two-block answer (agent half live; converter + overhaul = TODO step 7)
+## 4. Recognition echo — the two-block answer (converter-side LIVE 2026-09-10; agent prose = TODO step 8)
 
-**Every answer is TWO blocks, in order** (target shape; the agent route
-approximates it today, the converter/route route is TODO step 7):
+**Every answer is TWO blocks, in order** (shipped for the offline converter /
+`damage.mjs` route; the agent's hand-authored spec+echo prose retires at step 8):
 
-1. **Block 1 — recognition echo.** The user's **exact input line** (byte for
-   byte, exactly as typed — the renderer must NOT re-space it) with a class
-   ruler underneath: one short label per token bound **so far**. On success
-   the ruler covers every bound token; **on a hard error it covers only the
-   claims made before the throw**, the un-scanned tail left bare — so the
-   player sees exactly where the scan stopped.
+1. **Block 1 — recognition echo.** The user's input line with the normalize-once
+   words (case preserved; see the shared tokenizer below) and a class ruler
+   underneath: one short label per token bound **so far**. The top line is
+   **word-exact, spacing free** — words never change or reorder, but inter-token
+   spacing widens so crowded labels don't collide (the renderer re-lays the
+   gaps, it does NOT re-space words). On success the ruler covers every bound
+   token; **on a hard error it covers only the claims made before the throw**,
+   the un-scanned tail left bare — so the player sees exactly where the scan
+   stopped. The error then prints as the line directly under the ruler (line 3;
+   further messages, if any ever exist, continue on line 4).
 2. **Block 2 — the result.** Exactly one of:
    - the **output card** (`output.mjs`, pasted verbatim — card layout is owned
      there; see `OUTPUT-FORMAT.md`), or
    - the **error message** (the consolidated taxonomy, §8).
    Never both, never a hand-composed substitute.
+
+**Shared tokenizer (one source: `scripts/tokenize.mjs`).** The converter and the
+echo tokenize with the same function, so `_sideLog` indices and ruler columns
+can never drift. Normalize ONCE, then split into case-preserving display atoms:
+the master hyphen rule runs first (`rotom-wash` → `rotom wash`), `@` and quotes
+become spaces, the hard-boundary punctuation `,.;/\|` becomes a non-space
+sentinel (so no phrase matches across it). Display prints those atoms — so the
+input is *word-exact* but NOT byte-exact: `@`/punctuation glyphs vanish and
+hyphens show as spaces (option "normalize once, user sees how it was handled";
+user 2026-09-10). Each atom carries `{raw, t (lowercase), gi (global index),
+hardBefore}`. The converter tokenizes the WHOLE line and slices per side around
+the one `vs` atom, so `gi` is the global echo atom index.
+
+**Producer contract (`_sideLog`).** One entry per token actually bound:
+`{label, from, len}` where `label` is the final ECHO label (see below) and
+`from` is a GLOBAL atom index. The converter is data-only and NEVER prints;
+every side parse hands its live log to `opts.capture`, and a throw attaches the
+accumulated logs as `err.sideLogs` so `parseQuery` can render "scanned so far".
+Scan-stop semantics: an attacker-side error throws BEFORE the defender is
+scanned (defender bare); a defender-side error shows attacker-complete +
+defender-partial; a cross-side `mergeArena` error is only knowable after both
+sides scanned, so the WHOLE line is labeled, then the error.
 
 **Layout contract, span schema, CLI**: `scripts/echo.mjs` header (owns the live
 renderer). Binding rules:
@@ -140,41 +166,36 @@ renderer). Binding rules:
   right but the next labeled token is pushed so no two labels sit within one
   column. Multi-word bindings (`Life Orb`) glue with single spaces and anchor
   their label under the FIRST word.
-- Atoms with no span (`@`, `vs`, punctuation) get no label.
+- Atoms with no span (`vs`, junk words, un-scanned tail) get no label.
 - Label set: `species` / `nature` / `ev:<stat>` / `move` / `item` / `status`
   / `ability` / `boost` / `level` / `arena` / `mega`. `max <stat>` echoes as
   that stat's `ev:` label (`max atk` → `ev:atk`; there is NO `max` class),
-  one unit spanning the phrase, anchored under its first word. `???` is
-  retired for junk (T2, §8) and reserved only for honest cannot-place
-  feedback; an un-scanned error tail is BARE (no label), not `???`.
+  one unit spanning the phrase, anchored under its first word. Mapping:
+  item / plate / `no item` → `item`; weather + terrain + spikes + stealth rock
+  all → `arena`; acc/eva stages and stat-less `±N` dynamic and boost moves →
+  `boost`; `252 HP`/`max atk` → `ev:hp`/`ev:atk` (lowercase `hp`/`atk`/`def`/
+  `spa`/`spd`/`spe`). `???` is retired for junk (T2, §8) and reserved only for
+  honest cannot-place feedback; an un-scanned error tail is BARE, not `???`.
 - Wrapping: blocks wider than `--width` (default 100) wrap into row groups; a
   word, a glued binding, and a ruler label are never split across a row.
   `--width <= 0` never wraps.
-- Producer contract: one span per token actually bound, `[firstAtom,
-  lastAtom]` indexes into the whitespace-split line plus a label; spans are
-  contiguous, non-overlapping, never fabricated.
-- Route difference (accepted): the agent route echoes today; the offline
-  converter route (`input-converter.mjs` / `damage.mjs`) does not until the
-  converter-side echo (TODO step 7) wires it to the same renderer.
+- Span schema: `{atoms:[first,last], label}` with `[first,last]` GLOBAL atom
+  indices into the shared tokenizer; spans are contiguous, non-overlapping,
+  never fabricated. `spansFromLogs(logs)` maps `_sideLog` → spans.
 
-**Overhaul targets (DESIGN ONLY, NOT BUILT; TODO step 7).**
+**Error echo — "scanned so far" (SHIPPED).** The converter attaches its live
+`_sideLog` to `opts.capture`; `parseQuery` catches and sets `err.sideLogs`;
+`damage.mjs`'s `runQuery` renders Block 1 via the same `renderEcho` and then
+Block 2's error message. Scan-stop semantics (above) make the ruler show
+exactly how far the scan got.
 
-- **Exact input, not re-spaced.** The live `echo.mjs` widens inter-token
-  spacing so crowded labels fit, so its top line is NOT byte-verbatim. The
-  overhaul's Block 1 must keep the input byte-for-byte; label collisions must
-  be handled by wrapping/stacking the ruler (and, if unavoidable, the input
-  line) instead of rewriting the user's spacing. This may force a rework of
-  echo's span/`wrapAligned` plumbing — do not assume the current renderer
-  carries it.
-- **Error echo — "scanned so far".** Requires (a) each throw to carry the
-  PARTIAL `_sideLog` — attach at throw time, not only at the end of
-  `parseCombatant`; (b) a catch in the converter CLI / future `route.mjs` that
-  renders Block 1 via the same `renderEcho` and then Block 2's error message;
-  (c) the echo written to STDERR, since stdout is the JSON pipe to `fill.mjs`.
-- **Card wrap (Block 2).** The card is emitted by `output.mjs` at a fixed
-  layout; on a narrow display it can exceed the window. A wrap (like the
-  echo's `wrapAligned`) may need to be implemented — either in `output.mjs` or
-  a shared renderer — so Block 2 stays readable. Decide at the overhaul.
+**Emit path (SHIPPED).** The converter stays data-only (stdout = spec JSON for
+the `| fill | calc | output` pipe). Presentation lives in the single-process
+runner: `damage.mjs` `runQuery` prints echo+card/error on stdout, `--no-echo`
+for the card alone (used by the corpus chaincheck), `--chat` fences both blocks,
+and `--resolved` stays a pure JSON data path. A future `route.mjs` (step 8) is
+a thin alias. Card wrap (Block 2) is still open — the card prints at `output.mjs`
+fixed width.
 
 ## 5. Arena grammar — bare words only, NO signals (bare-only + weather model DONE 2026-09-10)
 

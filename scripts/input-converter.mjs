@@ -17,6 +17,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildTypeChart, RESIST_BERRIES } from "../dist/index.js";
+import { tokenizeLine, hyphenToSpace } from "./tokenize.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(here, "..", "data");
@@ -26,36 +27,19 @@ const movesData = JSON.parse(await readFile(path.join(DATA_DIR, "moves-xy.json")
 const naturesData = JSON.parse(await readFile(path.join(DATA_DIR, "natures-xy.json"), "utf8"));
 const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json"), "utf8"));
 
-// Punctuation chars `, . ; / \ |` act as hard TOKEN BOUNDARIES everywhere: a
-// "+2," must not reach over its comma and bind "ATK 252" as a stage, and
-// "HP, 252" is two separate tokens. During scanning they are kept as a
-// non-space sentinel so no phrase regex crosses one.
-const PUNCT_BOUNDARY = /[,.;/\\|]/g;
-const PUNCT_SENT = "\u0001";
-// norm() also folds those punctuation chars away, so a typed "Mr. Mime"
-// ("mr. mime"), "Mr Mime", or "mrmime" all fold to the same glued lookup key
-// (species claims match on it; "Mr Mime" typed across a real space still
-// folds, but a `.` between the words is a hard boundary and splits the claim).
-// The dex canon keys themselves are hyphenated ("Rotom-Wash", "Venusaur-Mega"),
-// so norm() keeps folding hyphens for LOOKUPS regardless of the master hyphen
-// rule below — that rule only normalizes the TYPED line, never the canon data.
+// Line tokenization (hyphen rule, punctuation boundaries, `@`/quote handling,
+// case-preserving display atoms) lives in the ONE shared `tokenize.mjs` so the
+// converter's `_sideLog` indices and the recognition echo's ruler columns are
+// the same atom space. `hyphenToSpace` is re-exported below for callers that
+// imported it from here historically.
+//
+// norm() folds punctuation and hyphens for GLUED LOOKUPS, so a typed
+// "Mr. Mime" ("mr. mime"), "Mr Mime", or "mrmime" all fold to the same lookup
+// key (species claims match on it; a `.` is a hard boundary and splits the
+// claim because tokenize marks it). The dex canon keys themselves are
+// hyphenated ("Rotom-Wash", "Venusaur-Mega"), so norm() keeps folding hyphens
+// for lookups regardless of the master hyphen rule.
 const norm = (s) => s.toLowerCase().replace(/[\s',.;/\\|-]/g, "");
-
-// --- Master hyphen rule (idea-note-3): every hyphen in the INPUT is a word
-// separator — it becomes a space — with ONE exception: a minus sign glued to a
-// boost/stage number ("-2 atk", "atk -2") is a signed stage token and stays a
-// minus. No other hyphen survives the rule, so hyphenated formes, spellings,
-// and glues all reduce to plain spaced words before any pass sees them:
-//   "mega-aggron" / "aggron-mega" -> "mega aggron" / "aggron mega" (mega signal)
-//   "2-spikes" -> "2 spikes" (spikes layers)      "no-item" -> "no item"
-//   "life-orb" -> "life orb" (item)               "Porygon-2" -> "Porygon 2"
-// Runs BEFORE tokenization so no later pass special-cases a hyphenated form.
-const hyphenToSpace = (s) =>
-  s.replace(/-/g, (h, i) => {
-    const before = i > 0 ? s[i - 1] : "";
-    const after = s[i + 1] ?? "";
-    return !/[A-Za-z0-9]/.test(before) && /[0-9]/.test(after) ? h : " ";
-  });
 const chart = buildTypeChart(typesData.types);
 const natureByName = new Map(naturesData.natures.map((n) => [n.name.toLowerCase(), n]));
 const moveByName = new Map(movesData.moves.map((m) => [norm(m.name), m]));
@@ -402,8 +386,11 @@ if (dualClass.length) {
  *  (1 or 2 distinct) and ride back on spec._claim for parseQuery to lift. */
 function parseCombatant(raw, side = "attacker", opts = {}) {
   if (typeof raw !== "string" || !raw.trim()) throw new Error(`missing side: empty ${side}`);
-  raw = hyphenToSpace(raw);
-  const s = ` ${raw.toLowerCase().replace(/[@'"]/g, " ").replace(PUNCT_BOUNDARY, PUNCT_SENT)} `;
+  // Tokenized by the shared tokenizer. parseQuery hands the whole-line atoms
+  // (sliced per side) so `gi` is the GLOBAL echo atom index; a bare string is
+  // tokenized locally for the explicit-args path. `opts.capture` receives the
+  // live side log so parseQuery can render "scanned so far" even if we throw.
+  const atoms = opts.atoms ?? tokenizeLine(raw).atoms;
   const spec = {};
   const claimMovesHere = !!opts.claimMoves;
 
@@ -428,14 +415,16 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     return true;
   };
   const sideLog = [];
-  const log = (slot, from, len) => sideLog.push({ slot, from, len });
+  if (opts.capture) opts.capture.log = sideLog;
+  // `label` is the final ECHO label (ev:<stat>, arena, item, ...); `from` is
+  // the GLOBAL atom index (atoms[from].gi) so spansFromLogs maps straight into
+  // the echo ruler's atom space.
+  const log = (label, from, len) => sideLog.push({ label, from: atoms[from].gi, len });
 
-  const atoms = [...s.matchAll(/[^\s\u0001]+/g)].map((m) => ({ t: m[0], a: m.index, b: m.index + m[0].length }));
   const n = atoms.length;
   const used = new Uint8Array(n);
   const eat = (i, count = 1) => { for (let k = i; k < i + count; k++) used[k] = 1; };
-  const gapToNext = (i) => (atoms[i + 1] ? s.slice(atoms[i].b, atoms[i + 1].a) : null);
-  const adjacent = (i) => atoms[i + 1] != null && gapToNext(i) != null && !/\u0001/.test(gapToNext(i));
+  const adjacent = (i) => atoms[i + 1] != null && !atoms[i + 1].hardBefore;
   const contiguous = (i, len) => { for (let k = i; k < i + len - 1; k++) if (!adjacent(k)) return false; return true; };
   const keyAt = (i, len) => atoms.slice(i, i + len).map((x) => x.t).join(" ");
   // Species look up by the GLUED norm of the run (same key space monByName
@@ -518,22 +507,25 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   const COUNT_TOK = /^[123]$/;
   const COUNT_X = /^(?:[123][x×]|[x×][123])$/;
 
-  function applyClassEntry(entry) {
+  // Every successful class claim logs its ECHO label at the claimed atom run.
+  // A conflicting claim throws inside claimSlot BEFORE its log, so the
+  // offending token stays unlabeled in the "scanned so far" echo.
+  function applyClassEntry(entry, i, len) {
     switch (entry.kind) {
-      case "nature": if (claimSlot("nature", entry.value)) spec.nature = entry.value; break;
-      case "ability": if (claimSlot("ability", entry.value)) spec.ability = entry.value; break;
-      case "item": if (claimSlot("item", entry.value)) spec.item = entry.value; break;
+      case "nature": if (claimSlot("nature", entry.value)) { spec.nature = entry.value; log("nature", i, len); } break;
+      case "ability": if (claimSlot("ability", entry.value)) { spec.ability = entry.value; log("ability", i, len); } break;
+      case "item": if (claimSlot("item", entry.value)) { spec.item = entry.value; log("item", i, len); } break;
       case "lo": {
         const item = side === "defender" ? "Leftovers" : "Life Orb";
-        if (claimSlot("item", item)) spec.item = item;
+        if (claimSlot("item", item)) { spec.item = item; log("item", i, len); }
         break;
       }
-      case "plate": spec.plate = true; break;
-      case "status": if (claimSlot("status", entry.value)) spec.status = entry.value; break;
-      case "weather": if (claimSlot("weather", entry.value)) spec.weather = entry.value; break;
-      case "terrain": if (claimSlot("terrain", entry.value)) spec.terrain = entry.value; break;
-      case "sr": spec.stealthRock = true; break;
-      case "noitem": spec.noItem = true; break;
+      case "plate": spec.plate = true; log("item", i, len); break;
+      case "status": if (claimSlot("status", entry.value)) { spec.status = entry.value; log("status", i, len); } break;
+      case "weather": if (claimSlot("weather", entry.value)) { spec.weather = entry.value; log("arena", i, len); } break;
+      case "terrain": if (claimSlot("terrain", entry.value)) { spec.terrain = entry.value; log("arena", i, len); } break;
+      case "sr": spec.stealthRock = true; log("arena", i, len); break;
+      case "noitem": spec.noItem = true; log("item", i, len); break;
     }
   }
 
@@ -605,7 +597,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
       }
       const entries = CLAIM_MAP.get(key);
       if (entries) {
-        for (const entry of entries) applyClassEntry(entry);
+        for (const entry of entries) applyClassEntry(entry, i, len);
         return len;
       }
     }
@@ -637,41 +629,41 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
       const key = MAX_ALIAS[atoms[i + 1].t];
       if (!spec[key]) (spec._maxOrder = spec._maxOrder ?? []).push(key);
       spec[key] = true;
-      log("max", i, 2);
+      log(`ev:${key.slice(4).toLowerCase()}`, i, 2);
       return 2;
     }
     if (isSigned(tok)) {
       const nxt = atoms[i + 1];
       if (adjacent(i) && nxt && STAGE_ALIAS[nxt.t]) { addStage(nxt.t, tok[0], tok.slice(1)); log("boost", i, 2); return 2; }
-      if (adjacent(i) && nxt && ACC_EVA_ALIAS[nxt.t]) { addAccEva(nxt.t, tok[0], tok.slice(1)); log("acc", i, 2); return 2; }
+      if (adjacent(i) && nxt && ACC_EVA_ALIAS[nxt.t]) { addAccEva(nxt.t, tok[0], tok.slice(1)); log("boost", i, 2); return 2; }
       setPlus(tok[0], tok.slice(1)); log("boost", i, 1); return 1;
     }
     if (STAGE_ALIAS[tok]) {
       const nxt = atoms[i + 1];
       if (adjacent(i) && nxt && isSigned(nxt.t)) { addStage(tok, nxt.t[0], nxt.t.slice(1)); log("boost", i, 2); return 2; }
-      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv(tok, nxt.t); log("ev", i, 2); return 2; }
+      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv(tok, nxt.t); log(`ev:${EV_ALIAS[tok]}`, i, 2); return 2; }
       return 0; // bare stat word: not investment, leave it for species residue
     }
     if (tok === "hp") {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv("hp", nxt.t); log("ev", i, 2); return 2; }
+      if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv("hp", nxt.t); log("ev:hp", i, 2); return 2; }
       return 0;
     }
     if (ACC_EVA_ALIAS[tok]) {
       const nxt = atoms[i + 1];
-      if (adjacent(i) && nxt && isSigned(nxt.t)) { addAccEva(tok, nxt.t[0], nxt.t.slice(1)); log("acc", i, 2); return 2; }
+      if (adjacent(i) && nxt && isSigned(nxt.t)) { addAccEva(tok, nxt.t[0], nxt.t.slice(1)); log("boost", i, 2); return 2; }
       return 0;
     }
     if (isNumber(tok) || COUNT_X.test(tok)) {
       const nxt = atoms[i + 1];
-      if (isNumber(tok) && adjacent(i) && nxt && EV_ALIAS[nxt.t]) { takeEv(nxt.t, tok); log("ev", i, 2); return 2; }
+      if (isNumber(tok) && adjacent(i) && nxt && EV_ALIAS[nxt.t]) { takeEv(nxt.t, tok); log(`ev:${EV_ALIAS[nxt.t]}`, i, 2); return 2; }
       const count = spikeClaimAt(i);
-      if (count) { log("spikes", i, count.len); return count.len; }
+      if (count) { log("arena", i, count.len); return count.len; }
       return 0;
     }
     if (tok === "spike" || tok === "spikes") {
       const count = spikeClaimAt(i);
-      if (count) { log("spikes", i, count.len); return count.len; }
+      if (count) { log("arena", i, count.len); return count.len; }
     }
     return 0;
   }
@@ -856,26 +848,42 @@ function claimMoves(text) {
  *  move claim (a stray move-ish word there is silent junk). "turn by turn"
  *  asks for the per-turn table. */
 function parseQuery(line) {
-  const normed = hyphenToSpace(line);
-  const flag = /\bturn\s*by\s*turn\b/i.test(normed);
-  const clean = normed.replace(/\bturn\s*by\s*turn\b/gi, " ").replace(/\s+/g, " ").trim();
-  const parts = clean.split(/\bvs\b/i).map((p) => p.trim()).filter(Boolean);
-  if (parts.length !== 2) {
+  // Tokenize the WHOLE line once; the two sides are atom ranges around the one
+  // `vs` atom, so every claim's `_sideLog.from` is a global echo atom index.
+  const { normed, atoms } = tokenizeLine(line);
+  const showTurns = /\bturn\s*by\s*turn\b/i.test(normed);
+  const vsAt = [];
+  for (let i = 0; i < atoms.length; i++) if (atoms[i].t === "vs") vsAt.push(i);
+  if (vsAt.length !== 1) {
     throw new Error('missing split: a query needs one "vs" between the attacker and the defender');
   }
-  const [attackerSide, defenderSide] = parts;
-  const attacker = parseCombatant(attackerSide, "attacker", { claimMoves: true });
-  const defender = parseCombatant(defenderSide, "defender");
-  const out = mergeArena({ attacker, defender, showTurns: flag });
-  const claim = attacker._claim;
-  delete attacker._claim;
-  if (claim) {
-    if (claim.single) out.move = claim.single;
-    else out.moves = claim.chain;
-    if (claim.signals) out.signals = claim.signals;
+  const v = vsAt[0];
+  const aAtoms = atoms.slice(0, v);
+  const dAtoms = atoms.slice(v + 1);
+  const aRaw = aAtoms.map((x) => x.raw).join(" ");
+  const dRaw = dAtoms.map((x) => x.raw).join(" ");
+  // Live logs captured per side so a throw can still render "scanned so far":
+  // attacker-complete + defender-partial (or attacker-only when the attacker
+  // itself throws, which happens BEFORE the defender is ever scanned).
+  const aCtx = {};
+  const dCtx = {};
+  try {
+    const attacker = parseCombatant(aRaw, "attacker", { claimMoves: true, atoms: aAtoms, capture: aCtx });
+    const defender = parseCombatant(dRaw, "defender", { atoms: dAtoms, capture: dCtx });
+    const out = mergeArena({ attacker, defender, showTurns });
+    const claim = attacker._claim;
+    delete attacker._claim;
+    if (claim) {
+      if (claim.single) out.move = claim.single;
+      else out.moves = claim.chain;
+      if (claim.signals) out.signals = claim.signals;
+    }
+    out._query = line.trim();
+    return out;
+  } catch (err) {
+    err.sideLogs = [...(aCtx.log ?? []), ...(dCtx.log ?? [])];
+    throw err;
   }
-  out._query = line.trim();
-  return out;
 }
 
 export {
