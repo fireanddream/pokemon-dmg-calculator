@@ -7,6 +7,10 @@ dist/
 # Local session archives (personal notes + scratch tools, not part of the project)
 session-tools-archive/
 
+# Python bytecode caches (teams_tools/)
+__pycache__/
+*.pyc
+
 # OS junk
 Thumbs.db
 .DS_Store
