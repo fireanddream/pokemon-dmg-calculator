@@ -550,11 +550,11 @@ function applyMaxFlags(spec, move, side) {
     const val = def.evs[named];
     const explicit = spec.evs?.[named];
     if (explicit != null && explicit !== val) {
-      throw new Error(`max ${named} conflicts with ${explicit} ${named} — "max ${named}" means ${val} ${named.toUpperCase()} EVs; type one or the other`);
+      throw new Error(`conflict on ev:${named}: ${val} vs ${explicit}`);
     }
     for (const [st, v] of Object.entries(def.evs)) {
       if (merged[st] != null && merged[st] !== v) {
-        throw new Error(`conflicting max shorthand EVs on ${st.toUpperCase()}: ${merged[st]} vs ${v}`);
+        throw new Error(`conflict on ev:${st}: ${merged[st]} vs ${v}`);
       }
       merged[st] = v;
     }
@@ -564,7 +564,7 @@ function applyMaxFlags(spec, move, side) {
   spec.evs = { ...merged, ...(spec.evs ?? {}) };
   const total = Object.values(spec.evs).reduce((a, b) => a + b, 0);
   if (total > 510) {
-    throw new Error(`max shorthand EVs total ${total} (> 510 cap) — "max def" and "max spd" already carry HP 252, so they only combine with one other max on a non-bulk stat`);
+    throw new Error(`too many EVs: ${total} (> 510 cap)`);
   }
 
   // auto-nature: first-typed max wins (spec._maxOrder from the converter);
@@ -663,9 +663,9 @@ function fillWeather(matchup, move) {
  *  ability/item/status, stage fields). All dex/nature lookups happen here — the
  *  calc stage receives only the finished record. Default level/IV/EV/nature
  *  come from auto-fill-defaults.md's Defaults-at-a-glance table (FILL_DEFAULTS). */
-function resolve(spec, side) {
+function resolve(spec) {
   const entry = monByName.get(norm(spec.name));
-  if (!entry) throw new Error(`Unknown ${side} pokemon: ${spec.name}`);
+  if (!entry) throw new Error(`missing species: "${spec.name}"`);
   const nature = natureByName.get((spec.nature ?? FILL_DEFAULTS.nature).toLowerCase()) ?? natureByName.get("serious");
   const evs = spec.evs ?? {};
   const ivFloor = FILL_DEFAULTS.ivs;
@@ -742,15 +742,15 @@ function cardFlags(matchup, spec, plateNote) {
 function resolveSingleInput(matchup) {
   const canonical = resolveMoveName(matchup.move);
   const move = moveByName.get(norm(canonical ?? matchup.move));
-  if (!move) throw new Error(`Unknown move: ${matchup.move}`);
+  if (!move) throw new Error(`missing move: "${matchup.move}"`);
   matchup.move = move.name;
 
   fillCombatant(matchup.defender, move, matchup, "defender");
   fillCombatant(matchup.attacker, move, matchup, "attacker");
   fillWeather(matchup, move);
 
-  const attacker = resolve(matchup.attacker, "attacker");
-  const defender = resolve(matchup.defender, "defender");
+  const attacker = resolve(matchup.attacker);
+  const defender = resolve(matchup.defender);
   const effWeather = suppressWeather(attacker, defender) ? undefined : matchup.weather;
   const plateNote = matchup.attacker?.plate ? resolvePlate(attacker, move, effWeather) : "";
   const flags = cardFlags(matchup, matchup, plateNote);
@@ -781,7 +781,7 @@ function resolveSingleInput(matchup) {
 function resolveComboInput(matchup) {
   const moveEntries = matchup.moves.map((nm) => {
     const m = moveByName.get(norm(nm));
-    if (!m) throw new Error(`Unknown move: ${nm}`);
+    if (!m) throw new Error(`missing move: "${nm}"`);
     return m;
   });
   const anchor = moveEntries[0];
@@ -790,8 +790,8 @@ function resolveComboInput(matchup) {
   fillCombatant(matchup.attacker, anchor, matchup, "attacker");
   fillWeather(matchup, anchor);
 
-  const attacker = resolve(matchup.attacker, "attacker");
-  const defender = resolve(matchup.defender, "defender");
+  const attacker = resolve(matchup.attacker);
+  const defender = resolve(matchup.defender);
   const effWeather = suppressWeather(attacker, defender) ? undefined : matchup.weather;
   const plateNote = matchup.attacker?.plate ? resolvePlate(attacker, anchor, effWeather) : "";
   const flags = cardFlags(matchup, matchup, plateNote);

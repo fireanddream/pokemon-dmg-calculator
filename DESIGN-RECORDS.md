@@ -116,19 +116,26 @@ arena grammar (§5, bare-only), seam-C startup warning (option A — no key, any
 word count, in two class lexicons), converter-side echo (§4 tail),
 one-shot `route.mjs` (§11), forme-word collision set (§3).
 
-## 4. Recognition echo (agent half live; converter half = TODO step 7)
+## 4. Recognition echo — the two-block answer (agent half live; converter + overhaul = TODO step 7)
 
-Show what was understood BEFORE the result card or error: the user's query
-line verbatim with a class ruler underneath, one short label per bound token.
-Unbound tokens are `???` (feedback, never fabricated; NEVER a blocker — the
-query still runs). Order: echo block first, then the card / error message.
+**Every answer is TWO blocks, in order** (target shape; the agent route
+approximates it today, the converter/route route is TODO step 7):
 
-**Layout contract, span schema, CLI**: `scripts/echo.mjs` header (owns the
+1. **Block 1 — recognition echo.** The user's **exact input line** (byte for
+   byte, exactly as typed — the renderer must NOT re-space it) with a class
+   ruler underneath: one short label per token bound **so far**. On success
+   the ruler covers every bound token; **on a hard error it covers only the
+   claims made before the throw**, the un-scanned tail left bare — so the
+   player sees exactly where the scan stopped.
+2. **Block 2 — the result.** Exactly one of:
+   - the **output card** (`output.mjs`, pasted verbatim — card layout is owned
+     there; see `OUTPUT-FORMAT.md`), or
+   - the **error message** (the consolidated taxonomy, §8).
+   Never both, never a hand-composed substitute.
+
+**Layout contract, span schema, CLI**: `scripts/echo.mjs` header (owns the live
 renderer). Binding rules:
 
-- Top line keeps the user's WORDS in order, spelling + punctuation as typed;
-  inter-token spacing is single by default, widened only so a label fits. The
-  line is NOT byte-verbatim.
 - Each label starts exactly at its token's first column; a label may overhang
   right but the next labeled token is pushed so no two labels sit within one
   column. Multi-word bindings (`Life Orb`) glue with single spaces and anchor
@@ -137,9 +144,9 @@ renderer). Binding rules:
 - Label set: `species` / `nature` / `ev:<stat>` / `move` / `item` / `status`
   / `ability` / `boost` / `level` / `arena` / `mega`. `max <stat>` echoes as
   that stat's `ev:` label (`max atk` → `ev:atk`; there is NO `max` class),
-  one unit spanning the phrase, anchored under its first word. Any leftover
-  token the shorthand displaced (a redundant bare `252`) is an unbound junk
-  atom: `???`.
+  one unit spanning the phrase, anchored under its first word. `???` is
+  retired for junk (T2, §8) and reserved only for honest cannot-place
+  feedback; an un-scanned error tail is BARE (no label), not `???`.
 - Wrapping: blocks wider than `--width` (default 100) wrap into row groups; a
   word, a glued binding, and a ruler label are never split across a row.
   `--width <= 0` never wraps.
@@ -149,6 +156,25 @@ renderer). Binding rules:
 - Route difference (accepted): the agent route echoes today; the offline
   converter route (`input-converter.mjs` / `damage.mjs`) does not until the
   converter-side echo (TODO step 7) wires it to the same renderer.
+
+**Overhaul targets (DESIGN ONLY, NOT BUILT; TODO step 7).**
+
+- **Exact input, not re-spaced.** The live `echo.mjs` widens inter-token
+  spacing so crowded labels fit, so its top line is NOT byte-verbatim. The
+  overhaul's Block 1 must keep the input byte-for-byte; label collisions must
+  be handled by wrapping/stacking the ruler (and, if unavoidable, the input
+  line) instead of rewriting the user's spacing. This may force a rework of
+  echo's span/`wrapAligned` plumbing — do not assume the current renderer
+  carries it.
+- **Error echo — "scanned so far".** Requires (a) each throw to carry the
+  PARTIAL `_sideLog` — attach at throw time, not only at the end of
+  `parseCombatant`; (b) a catch in the converter CLI / future `route.mjs` that
+  renders Block 1 via the same `renderEcho` and then Block 2's error message;
+  (c) the echo written to STDERR, since stdout is the JSON pipe to `fill.mjs`.
+- **Card wrap (Block 2).** The card is emitted by `output.mjs` at a fixed
+  layout; on a narrow display it can exceed the window. A wrap (like the
+  echo's `wrapAligned`) may need to be implemented — either in `output.mjs` or
+  a shared renderer — so Block 2 stays readable. Decide at the overhaul.
 
 ## 5. Arena grammar — bare words only, NO signals (bare-only + weather model DONE 2026-09-10)
 
@@ -317,7 +343,7 @@ Design decisions (verified against the current lexicons):
   forme at all hard-error. Corpus locks: `mega-prefix`, `mega-move-guard`,
   `mega-ability-guard`.
 
-## 8. Error & junk philosophy — R4 / T2 rulings (2026-09-07/08)
+## 8. Error & junk philosophy — R4 / T2 rulings (2026-09-07/08; taxonomy 2026-09-10)
 
 - **R1 — any stat-less signed `+N` / `-N` is the dynamic boost** (the
   `_plusBoost` token; `fill.mjs` resolves which stat: attacker = the move's
@@ -330,22 +356,33 @@ Design decisions (verified against the current lexicons):
   HP). `+2 hp` with no EV number after `hp` — and the mirror `hp +2` — HARD
   ERROR (never an ignored leak, never a silent dynamic fallback). No `+N hp`
   anchor spelling.
-- **R4 — unbound stat WORD and unbound unsigned NUMBER are both hard errors**
-  (a lone `hp`, a lone `252`, `252 special defense`). Stat lexicons carry
-  SHORT aliases only — `special`→spa / `spdefense`→spd / `hit point` were
-  removed; `atk / def / spe / accuracy / evasion` keep one-word names. (The
-  echo's `???` can't substitute for R4 — `???` ≠ "will corrupt your
-  numbers".)
+- **R4 — unbound EV tokens are a hard error.** A stat word with no adjacent
+  number (a lone `hp`, `defense`) and a number with no adjacent stat word (a
+  lone `252`, `252 special defense`) raise the SAME terse message:
+  `unbound EV: "<token>"`. The echo shows the offending token in place; `???`
+  never substitutes for R4 (`???` ≠ "will corrupt your numbers"). Stat
+  lexicons carry SHORT aliases only — `special`→spa / `spdefense`→spd /
+  `hit point` were removed; `atk / def / spe / accuracy / evasion` keep
+  one-word names.
 - **T2 — plain junk words are SILENTLY DROPPED.** `then` / `and` / `with` /
   `uses` / misspellings: no error, no `_ignored`, no `ignored:` flag, no
   label, no `???`. The `???` echo class is RETIRED for junk (reserved for
-  honest cannot-place feedback). R4 strays and semantic same-slot conflicts
-  keep their hard-error messages.
-- **Open consolidation question** (for the route session): once the echo
-  shows unbound tokens, does the converter still need its zoo of bespoke
-  errors? Lean: ONE "unrecognized input" master error carried by the echo,
-  KEEPING same-slot conflicts and the bare-EV-number error. Re-examine R4
-  under junk tolerance only deliberately.
+  honest cannot-place feedback).
+- **Error taxonomy (2026-09-10, replaces the former bespoke-error "zoo").**
+  Every converter/fill failure collapses to THREE shapes plus three KEPT
+  limits:
+    - `missing <var>: "<detail>"` — `missing side` (empty combatant),
+      `missing species` (nothing recognizable), `missing move` (no damaging
+      move — the old "only boosting moves" lecture is gone), `missing split`
+      (no `vs`; the worked example is gone).
+    - `conflict on <slot>: A vs B` — every same-slot dedupe-vs-conflict,
+      including terrain, weather, spikes layers, and the max-shorthand EV
+      collisions (`conflict on ev:atk: 252 vs 120`).
+    - `unbound EV: "<token>"` — the R4 stray.
+    - KEPT bespoke: `too many moves — capped at 2`, `"X 400" is not an EV:
+      gen 6 caps EVs at 252` / `too many EVs: N (> 510 cap)`, `"X" has no
+      Mega forme`.
+  Echo-on-error ("scanned so far") is a separate, unbuilt piece — see §4 tail.
 
 ## 9. `no item` semantics
 

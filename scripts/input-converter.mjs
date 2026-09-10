@@ -264,50 +264,11 @@ const USAGE = `usage:
 
 
 
-// Human list of the tokens parseCombatant recognized so far, so a hard error
-// shows the user what was understood before the confusing bit.
-const STAT_ORDER = ["hp", "atk", "def", "spa", "spd", "spe"];
-const sig = (v) => `${v > 0 ? "+" : ""}${v}`;
-function describeSpec(spec, name) {
-  const parts = [];
-  if (name) parts.push(name);
-  const stage = [];
-  for (const k of ["atk", "def", "spa", "spd", "spe"]) {
-    if (spec.boosts?.[k]) stage.push(`${sig(spec.boosts[k])} ${k}`);
-  }
-  if (spec._accStage) stage.push(`${sig(spec._accStage)} acc`);
-  if (spec._evaStage) stage.push(`${sig(spec._evaStage)} eva`);
-  const evL = [];
-  for (const k of STAT_ORDER) if (spec.evs?.[k]) evL.push(`${k.toUpperCase()} ${spec.evs[k]}`);
-  if (spec._plusBoost) parts.push(`${sig(spec._plusBoost)} (on the move's stat)`);
-  for (const s of stage) parts.push(s);
-  for (const e of evL) parts.push(e);
-  return parts;
-}
-
-/** Hard error for digit/stat tokens nothing claimed: list what WAS recognized,
- *  quote the strays, and explain in plain words what the converter expected.
- *  An unbound stat WORD and an unbound unsigned NUMBER are both mistakes —
- *  signed numbers never strand (a stat-less +N/-N is always the dynamic
- *  boost). */
-function strayTokenError(raw, side, spec, name, stats, digits) {
-  const rec = describeSpec(spec, name);
-  const quoted = [...stats, ...digits].map((t) => `"${t}"`).join(", ");
-  const lines = [
-    `I couldn't place ${quoted} on the ${side}.`,
-    rec.length ? `I did recognize: ${rec.join(" · ")}.` : "",
-  ];
-  if (digits.length) {
-    lines.push(`A bare number needs a stat right next to it to be an EV ("252 atk" / "atk 252", "188 HP" / "HP 188"). "${digits[0]}" had none, so nothing bound it.`);
-  }
-  if (stats.length) {
-    const w = stats[0];
-    const statHint = w === "hp"
-      ? `"hp" is a stat word with nothing bound to it. HP can't take a stage, so a lone "hp" (as in "+2 hp") binds nothing — write the boost as "+2" alone, or give hp its own EV ("+2 hp 252").`
-      : `"${w}" is a stat word with nothing bound to it — an EV needs a number right next to it ("252 hp" / "hp 252") and a stage needs a +/- sign ("+2 atk").`;
-    lines.push(statHint);
-  }
-  return lines.filter(Boolean).join("\n");
+/** Hard error for an EV token nothing claimed: a stat word with no adjacent
+ *  number, or a number with no adjacent stat word. One shape for both; the
+ *  echo shows the offending token in place. */
+function unboundEvError(tokens) {
+  return `unbound EV: ${tokens.map((t) => `"${t}"`).join(", ")}`;
 }
 
 
@@ -440,7 +401,7 @@ if (dualClass.length) {
  *  when different (dedupe-vs-conflict). Attacker move claims are validated
  *  (1 or 2 distinct) and ride back on spec._claim for parseQuery to lift. */
 function parseCombatant(raw, side = "attacker", opts = {}) {
-  if (typeof raw !== "string" || !raw.trim()) throw new Error("empty combatant spec");
+  if (typeof raw !== "string" || !raw.trim()) throw new Error(`missing side: empty ${side}`);
   raw = hyphenToSpace(raw);
   const s = ` ${raw.toLowerCase().replace(/[@'"]/g, " ").replace(PUNCT_BOUNDARY, PUNCT_SENT)} `;
   const spec = {};
@@ -461,7 +422,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     const list = seen.get(slot);
     if (list) {
       if (list.includes(value)) return false;
-      throw new Error(`conflicting ${labelOf(slot)}: ${[...list, value].join(" vs ")}`);
+      throw new Error(`conflict on ${labelOf(slot)}: ${[...list, value].join(" vs ")}`);
     }
     seen.set(slot, [value]);
     return true;
@@ -738,18 +699,16 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   spec._sideLog = sideLog;
   const words = atoms.filter((_, k) => !used[k]).map((x) => x.t);
   if (!spec.name) {
-    const rest = words.join(" ");
-    throw new Error(`could not identify a pokemon in: "${raw}" (leftover: "${rest}")`);
+    throw new Error(`missing species: "${raw}"`);
   }
   // T2 junk ruling (2026-09-08): R4 hard errors stand for a digit/stat token no
-  // claim bound (fail loud, show what WAS understood). PLAIN junk words (the
-  // rest of the leftover) are SILENTLY DROPPED — no _ignored, no "ignored:"
-  // card flag, no echo label or `???`.
+  // claim bound (fail loud). PLAIN junk words are SILENTLY DROPPED — no
+  // _ignored, no "ignored:" card flag, no echo label or `???`.
   const STAT_WORD = new Set([...Object.keys(EV_ALIAS), ...Object.keys(ACC_EVA_ALIAS)]);
   const strayStats = words.filter((w) => STAT_WORD.has(w));
   const strayNumbers = words.filter((t) => /\d/.test(t) && !STAT_WORD.has(t));
   if (strayStats.length || strayNumbers.length) {
-    throw new Error(strayTokenError(raw, side, spec, spec.name, strayStats, strayNumbers));
+    throw new Error(unboundEvError([...strayStats, ...strayNumbers]));
   }
   return spec;
 }
@@ -777,11 +736,11 @@ function mergeArena(matchup) {
     delete s.terrain;
   }
   const tCodes = [...new Set(terrain)];
-  if (tCodes.length > 1) throw new Error(`conflicting terrain: ${tCodes.join(" vs ")}`);
+  if (tCodes.length > 1) throw new Error(`conflict on terrain: ${tCodes.join(" vs ")}`);
   if (tCodes.length === 1) matchup.terrain = tCodes[0];
 
   const wCodes = [...new Set(weather)];
-  if (wCodes.length > 1) throw new Error(`conflicting weather: ${wCodes.join(" vs ")}`);
+  if (wCodes.length > 1) throw new Error(`conflict on weather: ${wCodes.join(" vs ")}`);
   if (wCodes.length === 1) matchup.weather = wCodes[0];
   // hazards sit on the field the defender switches into; either side may
   // declare them (a typed hazard is a statement about the field, not the mon)
@@ -791,7 +750,7 @@ function mergeArena(matchup) {
     const s = matchup[side];
     if (!s) continue;
     if (s.spikes != null) {
-      if (spikes != null && s.spikes !== spikes) throw new Error(`conflicting spikes layers: ${spikes} vs ${s.spikes}`);
+      if (spikes != null && s.spikes !== spikes) throw new Error(`conflict on spikes layers: ${spikes} vs ${s.spikes}`);
       spikes = s.spikes;
     }
     if (s.stealthRock) stealthRock = true;
@@ -873,10 +832,7 @@ function finishMoveClaim(claimed, signals, quote) {
   const sseen = new Set();
   const boostSignals = signals.filter((n) => (sseen.has(n) ? false : (sseen.add(n), true)));
   if (distinct.length === 0) {
-    if (boostSignals.length) {
-      throw new Error(`only boosting moves (no damaging move) in: "${quote}" - a setup move like Dragon Dance only sets attacker stages (+1 atk/+1 spe); add the attack move, e.g. "Dragon Dance Earthquake"`);
-    }
-    throw new Error(`could not identify a damaging move in: "${quote}"`);
+    throw new Error(`missing move: "${quote}"`);
   }
   if (distinct.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${quote}")`);
   const result = distinct.length === 2 ? { chain: distinct } : { single: distinct[0] };
@@ -905,7 +861,7 @@ function parseQuery(line) {
   const clean = normed.replace(/\bturn\s*by\s*turn\b/gi, " ").replace(/\s+/g, " ").trim();
   const parts = clean.split(/\bvs\b/i).map((p) => p.trim()).filter(Boolean);
   if (parts.length !== 2) {
-    throw new Error('a query needs exactly one "vs" splitting the attacker from the defender, e.g. "Garchomp @ Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP"');
+    throw new Error('missing split: a query needs one "vs" between the attacker and the defender');
   }
   const [attackerSide, defenderSide] = parts;
   const attacker = parseCombatant(attackerSide, "attacker", { claimMoves: true });

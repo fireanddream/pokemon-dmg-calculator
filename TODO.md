@@ -13,7 +13,9 @@ ordinary ability claims that `fill.mjs` resolves (primal beats regular
 regardless of Speed, else slower wins, tie → attacker); a typed weather
 always beats the ability. `snow` → hail added; fabricated spellings
 (`permanent *`, `harsh sunshine`, `hail storm`/`hailstorm`, `sand storm`)
-removed. Working tree green: `verify:damage` 63/63,
+removed. Error messages consolidated 2026-09-10 to `missing <var>` +
+`conflict on <slot>` + `unbound EV` (keeping moves/EV/no-Mega bespoke) —
+`DESIGN-RECORDS.md` §8. Working tree green: `verify:damage` 63/63,
 `verify:acc` 44/44, `verify:echo` 6/6, corpus chaincheck "all identical".
 
 ---
@@ -59,6 +61,9 @@ identical". Record of done steps: step 1 →
    unannotated atoms (NO `???` label); R4 strays and Tier-1 errors keep their
    messages. `no item` should carry an `item`-class binding. Drop the agent's
    hand-built echo path once this owns spans. Contract: `DESIGN-RECORDS.md` §4.
+   **Add error echo ("scanned so far"): on a hard error still render labels for
+   claims made before the throw, remainder bare — design pinned in
+   `DESIGN-RECORDS.md` §4, may require reworking span plumbing.**
 8. **One-shot route** (was `## 10`). `route.mjs "<line>" --chat` = converter →
    fill → calc → output in one node process (data loaded once), so a one-liner
    query is one tool call. Then retire the agent-route prose in AGENTS.md
@@ -73,11 +78,10 @@ identical". Record of done steps: step 1 →
 
 ## Small open threads
 
-- **Error-message consolidation** (route-related, `DESIGN-RECORDS.md` §8):
-  once the converter echo shows unbound tokens, does the bespoke converter
-  error zoo still earn its keep? Lean: one master "unrecognized input" error
-  carried by the echo, KEEPING same-slot conflicts and the bare-EV-number
-  error. Shape at the step-8 session.
+- **Error-message consolidation** — DONE 2026-09-10 (`DESIGN-RECORDS.md` §8):
+  taxonomy collapsed to `missing <var>` + `conflict on <slot>` + `unbound EV`;
+  `too many moves` / EV-cap (252 & 510) / `no Mega forme` kept bespoke. The
+  echo-on-error half folded into step 7.
 - **`no item` attacker-side semantics** (`DESIGN-RECORDS.md` §9): confirm
   nothing should gate on attacker itemlessness (auto-ability picks are
   item-blind today). Echo binding of `no item` folds into step 7.
