@@ -6,12 +6,11 @@ engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
 carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
-**State 2026-09-09:** tokenizer build-order steps 1–4 are DONE (unified
-longest-fit claim sweep; seam-B guard closed by it; species claims IN the
-sweep — residue/fuzzy resolver deleted; mega exact-shape upgrade incl. the
-"Mega X move / Mega Launcher" longer-phrase guards). Working tree green at the
-last commit: `verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 6/6,
-corpus chaincheck "all identical".
+**State 2026-09-10:** steps 1–4 and step 6 are DONE; step 5 is PARTIAL
+(bare-only arena — NO signals — with weather tiers, cross-side conflict
+rules, and setter names binding weather directly all landed 2026-09-10; only
+`snow` → hail remains). Working tree green: `verify:damage` 63/63,
+`verify:acc` 44/44, `verify:echo` 6/6, corpus chaincheck "all identical".
 
 ---
 
@@ -23,7 +22,8 @@ Steps 1–4 are done; the design contract for each open step lives in the
 identical". Record of done steps: step 1 →
 `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`, step 3 →
 `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`, step 4 →
-`SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md`.
+`SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md`, steps 5 (partial) + 6 →
+`SESSION-NOTES-20260910-BARE-ARENA-AND-SEAM-C.md`.
 
 1. ✅ **Layer-1 unified sweep** (was "build step 1") — DONE 2026-09-09.
 2. ✅ **Seam-B guard** — DONE 2026-09-09 (closed by step 1; no trie built).
@@ -34,14 +34,19 @@ identical". Record of done steps: step 1 →
    suffix); no-forme bases HARD-ERROR; `-X`/`-Y` bases keep the base pick;
    already-`-Mega` never re-upgraded; `Mega Punch/Kick/Drain` moves and
    `Mega Launcher` win by longer phrase. Contract: `DESIGN-RECORDS.md` §7.
-5. **Arena grammar inside the sweep** (was `## 4`). Bare arena words + the
-   optional `in`/`under`/`after` signals with exclusive post-signal scope;
-   terrain first-letter forms; bare words win by guard; same-slot conflicts
-   error; explicit beats ability-auto. (Spikes grammar landed 2026-09-08.)
-   Contract: `DESIGN-RECORDS.md` §5.
-6. **Seam-C startup warning + guard.** Warn loudly at startup if a single-word
-   key appears in two class lexicons (aliases.md edit guard); add a smoke that
-   class tables stay 1-word-disjoint. No behavior change when clean.
+5. **Arena grammar inside the sweep** (was `## 4`, bare-only). Bare arena words
+   only — NO `in`/`under`/`after` signals (decided 2026-09-10). PARTIAL:
+   weather tiers (HARD direct words vs SOFT setter names) + cross-side
+   resolution landed 2026-09-10 — hard beats soft, hard-vs-hard different
+   errors, soft-vs-soft settles by Speed (slower sets last), setter names set
+   weather directly and never the ability slot; terrain/spikes cross-side
+   different values error (never add); hazards hoist from either side. STILL
+   OPEN: `snow` → hail. Contract: `DESIGN-RECORDS.md` §5.
+6. **Seam-C startup warning + guard** — DONE 2026-09-10 (option A): warn at
+   startup if any key, ANY word count, is registered in two class lexicons
+   (the startup check in `input-converter.mjs` doubles as the smoke — it runs
+   on every converter/fill/damage start since fill imports the lexicon).
+   No behavior change when clean.
 7. **Converter-side echo** (was `## 8`). Wire the offline converter route into
    `scripts/echo.mjs` using the step-1 side log's claim→atom spans
    (`spec._sideLog`). Per the T2 ruling, plain junk words render as

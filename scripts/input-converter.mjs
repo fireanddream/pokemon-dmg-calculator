@@ -16,7 +16,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTypeChart, RESIST_BERRIES } from "../dist/index.js";
+import { buildTypeChart, calcStats, RESIST_BERRIES } from "../dist/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(here, "..", "data");
@@ -356,9 +356,8 @@ const WEATHER_MAP = [
   ["permanent sun", "sun"], ["permanent hail", "hail"], ["sand storm", "sand"],
   ["sandstorm", "sand"], ["hail storm", "hail"], ["hailstorm", "hail"],
   ["rain dance", "rain"], ["sunny day", "sun"],
-  ["desolate land", "desolate"], ["harsh sunshine", "desolate"], ["extremely harsh sunlight", "desolate"],
-  ["primordial sea", "primordial"], ["heavy rain", "primordial"],
-  ["delta stream", "delta"], ["strong winds", "delta"],
+  ["harsh sunshine", "desolate"], ["extremely harsh sunlight", "desolate"],
+  ["heavy rain", "primordial"], ["strong winds", "delta"],
   ["sunny", "sun"], ["sand", "sand"], ["rain", "rain"], ["hail", "hail"], ["sun", "sun"],
 ];
 const TERRAIN_MAP = [
@@ -368,8 +367,18 @@ const TERRAIN_MAP = [
 const STEALTH_ROCK_PHRASES = ["stealth rock", "stealthrock", "sr", "stealth rocks", "rock"];
 const NO_ITEM_PHRASES = ["no item", "noitem", "itemless"];
 
-// The primal weather phrases are arena words in queries, never the ability.
-const WEATHER_ABILITIES = new Set(["desolate land", "primordial sea", "delta stream"]);
+// Weather-setting ABILITY names as arena words — SOFT weather claims (kind
+// `weatherset`): a plain weather word overrides them (never a conflict), and
+// setter-vs-setter is settled by Speed (slower sets last), mirroring fill's
+// setter auto. They never claim the ability slot — the mon's ability comes
+// from another explicit token or the default pick. Each setter name lives in
+// this table ONLY (never the ability table), keeping class lexicons disjoint
+// (seam-C): no key binds two class tokens.
+const WEATHER_SETTER_MAP = [
+  ["drought", "sun"], ["drizzle", "rain"], ["sand stream", "sand"], ["snow warning", "hail"],
+  ["desolate land", "desolate"], ["primordial sea", "primordial"], ["delta stream", "delta"],
+];
+const WEATHER_ABILITIES = new Set(WEATHER_SETTER_MAP.map(([phrase]) => phrase));
 
 // Item acronyms + the bare-`plate` keyword. LO is side-sensitive: Life Orb on
 // the attacker, Leftovers on the defender. `<type> plate` aliases and full
@@ -400,9 +409,26 @@ for (const [word, item] of ITEM_ACRO) {
 }
 for (const [word, code] of STATUS_MAP) registerClaim(word, "status", code);
 for (const [phrase, code] of WEATHER_MAP) registerClaim(phrase, "weather", code);
+for (const [phrase, code] of WEATHER_SETTER_MAP) registerClaim(phrase, "weatherset", code);
 for (const [phrase, code] of TERRAIN_MAP) registerClaim(phrase, "terrain", code);
 for (const phrase of STEALTH_ROCK_PHRASES) registerClaim(phrase, "sr");
 for (const phrase of NO_ITEM_PHRASES) registerClaim(phrase, "noitem");
+
+// --- Seam-C guard (TODO step 6, option A): class lexicons stay disjoint.
+// A claimable key must bind exactly ONE class — no key, ANY word count, may
+// appear in two class tables (natures / abilities / items / status / weather /
+// terrain / stealth rock / no-item). Move names are NOT class tables, so
+// intentional move overlaps (`rain dance`, `stealth rock`, `hail`, ...) never
+// trip this — seam G + phrase-first resolve those. Warn loudly at startup
+// when an aliases.md / table edit creates a tie; no behavior change when clean.
+const dualClass = [];
+for (const [key, entries] of CLAIM_MAP) {
+  const kinds = [...new Set(entries.map((e) => e.kind))];
+  if (kinds.length > 1) dualClass.push(`  "${key}" -> [${kinds.join(", ")}]`);
+}
+if (dualClass.length) {
+  console.warn(`WARNING: seam-C violation — a key binds tokens in two class lexicons:\n${dualClass.join("\n")}`);
+}
 
 /** Turn a combatant's word chunk — a full free-order SIDE ("max atk LO
  *  Dragon Claw Garchomp") or a bare "Species [@ Item] [Nature] [N Stat EVs]
@@ -556,7 +582,16 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
       }
       case "plate": spec.plate = true; break;
       case "status": if (claimSlot("status", entry.value)) spec.status = entry.value; break;
-      case "weather": if (claimSlot("weather", entry.value)) spec.weather = entry.value; break;
+      case "weather": {
+        spec._weatherHard = true;
+        if (claimSlot("weather", entry.value)) spec.weather = entry.value;
+        break;
+      }
+      case "weatherset": {
+        spec._weatherSoft = true;
+        if (claimSlot("weather", entry.value)) spec.weather = entry.value;
+        break;
+      }
       case "terrain": if (claimSlot("terrain", entry.value)) spec.terrain = entry.value; break;
       case "sr": spec.stealthRock = true; break;
       case "noitem": spec.noItem = true; break;
@@ -742,20 +777,98 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
 }
 
 
-/** Pull side-level weather/terrain/hazards up to the matchup level. */
+/** Primal weathers beat regular ones in the setter-vs-setter tiebreak,
+ *  mirroring fill.mjs's PRIMAL_WEATHER. */
+const PRIMAL_WEATHER = new Set(["desolate", "primordial", "delta"]);
+
+/** Mirror fill.mjs's specSpeed: the final Speed a setter word's side would
+ *  have at the default stage (level 50 / 31 IVs / Serious), so the
+ *  setter-vs-setter tiebreak agrees with fill's setter auto. */
+function specSpeed(spec) {
+  const entry = monByName.get(norm(spec?.name ?? ""));
+  if (!entry) return 0;
+  const nature = natureByName.get((spec.nature ?? "serious").toLowerCase()) ?? natureByName.get("serious");
+  return calcStats(entry.baseStats, {
+    level: spec.level ?? 50,
+    nature,
+    ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
+    evs: spec.evs ?? {},
+  }).spe;
+}
+
+/** Pull side-level weather/terrain/hazards up to the matchup level. Weather
+ *  claims carry a tier: HARD = a direct weather word, SOFT = a setter word
+ *  (kind `weatherset`). Cross-side resolution:
+ *    - a hard claim wins over any soft one (no conflict);
+ *    - two different HARD values error (`weather: sun vs rain`);
+ *    - two different SOFT values are settled by Speed — the SLOWER side sets
+ *      last (primal beats regular regardless of Speed; an exact Speed tie
+ *      keeps the attacker), mirroring fill's setter auto;
+ *    - same-value claims collapse. Within a side, different values already
+ *      hard-error in the sweep's claimSlot, so the soft-vs-soft branch only
+ *      ever sees one claim per side.
+ *  Terrain and spikes are plain same-slot values: different cross-side values
+ *  error, never add. Hazards sit on the field the defender switches into but
+ *  EITHER side may declare them (a typed hazard is a statement about the
+ *  field, not the mon); Stealth Rock is a boolean and cannot conflict. */
 function mergeArena(matchup) {
+  const hardWeather = [];
+  const softWeather = [];
+  const terrain = [];
   for (const side of ["attacker", "defender"]) {
     const s = matchup[side];
-    if (s?.weather) matchup.weather = s.weather;
-    if (s?.terrain) matchup.terrain = s.terrain;
+    if (!s) continue;
+    if (s.weather != null) {
+      const claim = { code: s.weather, side };
+      (s._weatherHard || !s._weatherSoft ? hardWeather : softWeather).push(claim);
+    }
+    if (s.terrain) terrain.push(s.terrain);
     delete s.weather;
+    delete s._weatherSoft;
+    delete s._weatherHard;
     delete s.terrain;
   }
-  // hazards sit on the field the defender switches into
-  if (matchup.defender?.stealthRock) matchup.stealthRock = true;
-  if (matchup.defender?.spikes) matchup.spikes = matchup.defender.spikes;
-  delete matchup.defender?.stealthRock;
-  delete matchup.defender?.spikes;
+  const tCodes = [...new Set(terrain)];
+  if (tCodes.length > 1) throw new Error(`conflicting terrain: ${tCodes.join(" vs ")}`);
+  if (tCodes.length === 1) matchup.terrain = tCodes[0];
+
+  const hCodes = [...new Set(hardWeather.map((c) => c.code))];
+  if (hCodes.length > 1) throw new Error(`conflicting weather: ${hCodes.join(" vs ")}`);
+  if (hCodes.length === 1) {
+    matchup.weather = hCodes[0];
+  } else if (softWeather.length) {
+    const sCodes = [...new Set(softWeather.map((c) => c.code))];
+    if (sCodes.length === 1) {
+      matchup.weather = sCodes[0];
+    } else {
+      const a = softWeather.find((c) => c.side === "attacker");
+      const d = softWeather.find((c) => c.side === "defender");
+      const aPri = PRIMAL_WEATHER.has(a.code);
+      const dPri = PRIMAL_WEATHER.has(d.code);
+      if (aPri !== dPri) {
+        matchup.weather = aPri ? a.code : d.code;
+      } else {
+        matchup.weather = specSpeed(matchup.defender) < specSpeed(matchup.attacker) ? d.code : a.code;
+      }
+    }
+  }
+  // hazards sit on the field the defender switches into; either side may
+  // declare them (a typed hazard is a statement about the field, not the mon)
+  let spikes = undefined;
+  let stealthRock = false;
+  for (const side of ["attacker", "defender"]) {
+    const s = matchup[side];
+    if (!s) continue;
+    if (s.spikes != null) {
+      if (spikes != null && s.spikes !== spikes) throw new Error(`conflicting spikes layers: ${spikes} vs ${s.spikes}`);
+      spikes = s.spikes;
+    }
+    if (s.stealthRock) stealthRock = true;
+    delete s.spikes;
+    delete s.stealthRock;
+  }
+  if (spikes != null) matchup.spikes = spikes;
+  if (stealthRock) matchup.stealthRock = true;
   return matchup;
 }
 

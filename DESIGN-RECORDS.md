@@ -113,8 +113,8 @@ longest-fit claim walk over each side's atoms:
   to a single-move card.
 
 Open scope, in implementation order — see `TODO.md` build-order steps 5–9:
-arena grammar (§5), seam-C startup warning
-(class lexicons stay 1-word-disjoint), converter-side echo (§4 tail),
+arena grammar (§5, bare-only), seam-C startup warning (option A — no key, any
+word count, in two class lexicons), converter-side echo (§4 tail),
 one-shot `route.mjs` (§11), forme-word collision set (§3).
 
 ## 4. Recognition echo (agent half live; converter half = TODO step 7)
@@ -151,39 +151,51 @@ renderer). Binding rules:
   converter route (`input-converter.mjs` / `damage.mjs`) does not until the
   converter-side echo (TODO step 7) wires it to the same renderer.
 
-## 5. Arena grammar — bare words + OPTIONAL signals (contract for TODO step 5)
+## 5. Arena grammar — bare words only, NO signals (contract for TODO step 5)
 
-Arena words resolve to their arena condition typed BARE or right after an
-optional signal word (`in` / `under` / `after`). Signals are OPTIONAL sugar —
-the older signal-REQUIRED design is dead (the collision it guarded against is
-phantom; the real ambiguities — `rock`→`rock slide`, `sand`→`sand stream` —
-are solved by phrase-first matching, i.e. **win by guard**, never by signal
-scope). Agreed semantics:
+Arena words resolve to their arena condition typed BARE, anywhere on either
+side. There are NO `in` / `under` / `after` signals (a former optional-signal
+design is dead — the collision it guarded against is phantom; the real
+ambiguities — `rock`→`rock slide`, `sand`→`sand stream` — are solved by
+phrase-first matching, i.e. **win by guard**). `in` / `under` / `after` are
+plain junk words. Agreed semantics:
 
-- **Exclusive arena scope right after a signal.** The word (or word+nextword)
-  immediately after a signal resolves ONLY against the arena lexicons — never
-  a move / species / ability name. Greedy phrase-first within the lexicon:
-  2-word phrase (`rain dance`, `stealth rock`, `electric terrain`, `spikes
-  2`), then single word (`sun`, `rock`). Consume signal + phrase; the next
-  word starts its own resolution. A signal followed by nothing arena-like is
-  INERT (consumes nothing; the signal stays junk), not an error.
-- **Bare arena words win by guard, never by ordering** (the arena pass runs
-  before nature/ability/item sweeps, but that alone is not the mechanism —
-  `in sand stream` is arena while bare `sand stream` still reaches the
-  ability pass).
-- **Same-slot conflicts ERROR.** weather / terrain / spikes-layers are
-  independent slots; two DIFFERENT explicit values claiming one slot (within
-  a side or across sides at the arena hoist) is a hard error naming the slot
-  and both values (`weather: sun vs rain`). Duplicate same-value claims
-  collapse. Stealth Rock is a boolean and cannot conflict.
-- **Explicit beats ability-auto (never an error).** An explicitly typed arena
-  condition wins over what an auto-picked setter ability would set (keep the
-  setter auto-ability pick unchanged).
+- **Arena words are a normal class lexicon: no key, ANY word count, may bind
+  two class tokens** (seam-C, option A — enforced by the startup guard).
+  Move names are NOT class tables, so intentional overlaps (`rain dance`,
+  `stealth rock`, `hail`, the four terrains — all non-damaging moves) never
+  trip it; seam G + phrase-first resolve those.
+- **Weather tiers — HARD vs SOFT.** A direct weather word (`sun`, `rain`,
+  `sand`, `hail`, `sandstorm`, `sunny day`, `harsh sunshine`, ...) is HARD.
+  A weather-setting ABILITY name used as an arena word (`drought`, `drizzle`,
+  `sand stream`, `snow warning`, `desolate land`, `primordial sea`, `delta
+  stream`) is SOFT: it binds the weather directly but is weaker than a hard
+  word, and never claims the ability slot — the mon's ability comes from
+  another explicit token or the default.
+- **Cross-side weather resolution.**
+    - hard beats soft, never a conflict (`sand stream` is overridden by
+      `rain`);
+    - two different HARD values ERROR (`weather: sun vs rain`);
+    - two different SOFT values settle by Speed — the SLOWER side sets last
+      (a primal weather beats a regular one regardless of Speed; an exact
+      Speed tie keeps the attacker), mirroring fill's setter auto;
+    - same-value claims collapse.
+- **Within a side, different values for one slot hard-error** (the sweep's
+  claimSlot): `drought rain` on one side is `conflicting weather: sun vs
+  rain`.
+- **Terrain / spikes are plain same-slot values.** Different cross-side values
+  error, never add (`spike 1` on the attacker + `spike 2` on the defender is a
+  conflict, NOT 3 layers). Same values collapse. Stealth Rock is a boolean and
+  cannot conflict.
+- **Explicit beats ability-auto (never an error).** A typed weather/terrain
+  wins over what an auto-picked setter ability would set; fill only fills the
+  arena when nothing was typed (`fillWeather` returns early).
 
 Lexicon: simple weather (rain / sun / sand / hail, plus `snow` → hail;
 gen-6), full/official weather names incl. primal (desolate / primordial /
-delta), weather-setting moves + abilities as arena words, hazards (Stealth
-Rock, Spikes), terrains (electric / grassy / misty / psychic).
+delta), weather-setting moves as arena words (`rain dance`, `sandstorm`,
+`hail`, ...), weather-setting ABILITY names as SOFT arena words, hazards
+(Stealth Rock, Spikes), terrains (electric / grassy / misty / psychic).
 
 Forms that must resolve identically:
 
@@ -195,11 +207,14 @@ Forms that must resolve identically:
   recognized. Counts value-gate 1–3 (`4 spikes` strands → bare-number
   error). Comma breaks every phrase. `spike(s)` is never a move.
 - **Stealth Rock:** `stealth rock` or bare `rock` → same effect.
-- **Terrains:** full name (`electric terrain`) or first-letter forms
-  (`E terrain` / `Eterrain` / `e-terrain`) → electric; same for G/M/P.
+- **Terrains:** full name (`electric terrain`) only — no first-letter or bare
+  `psychic` shorthand. Bare `psychic` is the damaging move Psychic on the
+  attacker side (seam-C rule: a damaging move wins over the same-word class
+  token); terrain `psychic` is reachable only as the 2-word `psychic terrain`.
 
 Recorded examples: `charizard sun 252 atk blitz vs landot` → weather sun
-(bare); `in sun rock` → sun (exclusive scope) then `rock` = Stealth Rock.
+(bare); `sand stream vs rain` → rain (hard beats setter); `sun vs rain` →
+error; `drought vs sand stream` → the slower side's weather.
 
 ## 6. Boosting moves = boost signals (slot path DONE 2026-09-08, side path closed by the sweep)
 
