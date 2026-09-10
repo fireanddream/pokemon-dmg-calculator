@@ -16,8 +16,16 @@ always beats the ability. `snow` → hail added; fabricated spellings
 (`permanent *`, `harsh sunshine`, `hail storm`/`hailstorm`, `sand storm`)
 removed. Error messages consolidated 2026-09-10 to `missing <var>` +
 `conflict on <slot>` + `unbound EV` (keeping moves/EV/no-Mega bespoke) —
-`DESIGN-RECORDS.md` §8. Working tree green: `verify:damage` 63/63,
-`verify:acc` 44/44, `verify:echo` 6/6, corpus chaincheck "all identical".
+`DESIGN-RECORDS.md` §8. Payback after-target doubling removed (flat 50; out
+of scope like Avalanche, oracle intentionally diverges) and attacker-side
+`no item` now drives Acrobatics doubling (`attackerHoldsItem`) — §9/§10.
+Second pass same day: conditional BP clauses unified into the
+`CONDITIONAL_POWER` table; the result card (Block 2) now wraps through the
+echo's `wrapBlock` rule; Facade is exempted from burn's Attack drop (mirrors
+`@smogon/calc`), an explicit item/`plate` on a Mega now hard-errors, and
+`powerOverride` is gone from the engine API. Working tree green:
+`verify:damage` 65/65, `verify:acc` 44/44, `verify:echo` 7/7, corpus
+chaincheck "all identical".
 
 ---
 
@@ -25,7 +33,7 @@ removed. Error messages consolidated 2026-09-10 to `missing <var>` +
 
 Steps 1–7 are done (steps 8–9 remain); the design contract for each open step
 lives in the `DESIGN-RECORDS.md` section cited. Each step lands with
-`verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 7/7 green, no TS build
+`verify:damage` 65/65, `verify:acc` 44/44, `verify:echo` 7/7 green, no TS build
 errors, and the corpus chaincheck "all identical". Record of done steps: step 1
 → `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`, step 3 →
 `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`, step 4 →
@@ -79,31 +87,61 @@ errors, and the corpus chaincheck "all identical". Record of done steps: step 1
    alias escape (`<forme spelling>` → canonical dex name). Do NOT touch before
    steps 1–3 land (they have).
 
+## Engine — safe open work (`not implemented`, §10)
+
+These `DESIGN-RECORDS.md` §10 rows carry the legend's `not implemented` status
+("open, safe to implement" — as opposed to `(intentionally)` / `won't
+implement`), so each can be picked up on its own:
+
+- **Multi-hit without Skill Link** — the 2–5 hit weighted distribution
+  (Bullet Seed et al. still print as a single hit).
+- **Metronome** — consecutive-use power ramp.
+- **Future Sight / Doom Desire** — delayed-hit modeling.
+- **Minimize-target doubles** — Stomp / Steamroller / Dragon Rush.
+
 ## Small open threads
 
 - **Error-message consolidation** — DONE 2026-09-10 (`DESIGN-RECORDS.md` §8):
   taxonomy collapsed to `missing <var>` + `conflict on <slot>` + `unbound EV`;
   `too many moves` / EV-cap (252 & 510) / `no Mega forme` kept bespoke. The
   echo-on-error half shipped in step 7 (`err.sideLogs` → "scanned so far").
-- **`no item` attacker-side semantics** (`DESIGN-RECORDS.md` §9): confirm
-  nothing should gate on attacker itemlessness (auto-ability picks are
-  item-blind today). `no item` now echoes as `item` (step 7).
-- **Alias-list hyphen cleanup** (idea note 3 tail): prune the hyphen/spaced
-  duplicate forms the hyphen rule makes redundant. No hyphenated alias KEYS
-  exist today; low priority.
-- **Payback flat-50** (`DESIGN-RECORDS.md` §10, dynamic-power table): agreed
-  scope is flat 50 BP — delete the `named(move,"Payback")` branch in
-  `resolveTypeAndPower` (data already stores 50). Optional pick-up.
+- **`no item` attacker-side semantics** (`DESIGN-RECORDS.md` §9) — DONE
+  2026-09-10: attacker itemlessness is not display-only. `calc.mjs` derives
+  `attackerHoldsItem = !attacker.noItem` and Acrobatics doubles only when it is
+  false (the default inert held item suppresses the double). Auto-ability picks
+  stay item-blind. `no item` echoes as `item` (step 7).
+- **Alias-list hyphen cleanup** (idea note 3 tail) — CLOSED 2026-09-10:
+  `aliases.md` has zero hyphenated alias KEYS, and the master hyphen rule
+  (`hyphenToSpace`) folds every typed hyphen to a space, so a hyphenated key
+  would be unreachable anyway. Nothing to prune.
+- **Payback flat-50** (`DESIGN-RECORDS.md` §10) — DONE 2026-09-10: the
+  speed-based doubling branch is gone (flat 50 BP) and the move is documented
+  as out of scope, same class as Avalanche. `@smogon/calc` still doubles from
+  Speed, so the slower-user case is intentionally absent from `verify-smogon`
+  (64/64 now includes two Acrobatics item-presence rows, §9).
 - **Boost-signal recognition on the free-order attacker side** — CLOSED by
   step 1 (move/boost claims ride `spec._claim` in the sweep). No further work
   beyond step 7's echo spans for converted signals.
+- **Conditional-power clause table** — DONE 2026-09-10 (`DESIGN-RECORDS.md`
+  §10): one `CONDITIONAL_POWER` table (`src/damage-calc.ts`) replaces the
+  per-move inline `if` branches; Wake-Up Slap / Smelling Salts folded in.
+- **Card (Block 2) wrap** — DONE 2026-09-10: `output.mjs` wraps through the
+  echo's exported `wrapBlock` (default 100, `--width N`, `<= 0` never);
+  `damage.mjs` and `output.mjs` agree byte-for-byte (`OUTPUT-FORMAT.md`).
+- **Facade vs burn** — DONE 2026-09-10: `isBurned` exempts Facade (with Guts),
+  mirroring `@smogon/calc` gen56 `applyBurn`; oracle row added.
+- **Explicit item on a Mega** — DONE 2026-09-10: `fill.mjs` throws
+  `conflict on item: <item> vs Mega Stone` for a typed item or `plate`; a
+  stray `no item` is silently cleared (§9).
+- **`powerOverride` removal** — DONE 2026-09-10: deleted from `DamageParams`
+  and `resolveTypeAndPower` (no caller used it).
 
 ## New idea notes (user 2026-09-06; still TO DISCUSS — do not implement from these alone)
 
-1. **Faster agent extraction on one-liners** (ties into step 8 / §11): on a
-   short one-liner, recognize "this is a calc ask" and jump straight to the
-   `vs` sentence. Resolved upstream by the route direction — revisit only if
-   the route work stalls.
+1. **Agent skill optimization** (ties into step 8 / §11): the agent route
+   simply calls `damage.mjs` — recognize a calc ask, pull the one-liner out of
+   the message, and hand it to the tool; the agent authors NO spec JSON and NO
+   echo spans. Revisit only if the route work stalls.
 2. **`max` vs explicit-EV collision** — RESOLVED 2026-09-06 (user):
    same-stat `max <stat>` + explicit EV error (`max atk` then `120 atk` → hard
    error, both claims named); duplicate `max atk max atk` collapses; max on

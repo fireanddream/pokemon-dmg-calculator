@@ -94,6 +94,32 @@ function wrapAligned(top, ruler, wrapWidth, units) {
   return lines.join("\n");
 }
 
+/** Wrap a plain multi-line text block at wrapWidth columns under the SAME rule
+ *  as the echo renderer: break only at whitespace (a word is never split),
+ *  keep each line's leading indent on continuations, and wrap nothing when
+ *  wrapWidth <= 0. Used by output.mjs for the result card (Block 2) so the
+ *  card and the echo wrap identically. */
+export function wrapBlock(text, wrapWidth) {
+  if (!(wrapWidth > 0)) return text;
+  const out = [];
+  for (const line of text.split("\n")) {
+    if (line.length <= wrapWidth) {
+      out.push(line);
+      continue;
+    }
+    const indent = line.match(/^ */)[0];
+    let rest = line;
+    while (rest.length > wrapWidth) {
+      const cut = rest.lastIndexOf(" ", wrapWidth);
+      if (cut <= indent.length) break; // no breakable space: leave the word whole
+      out.push(rest.slice(0, cut));
+      rest = indent + rest.slice(cut + 1);
+    }
+    out.push(rest);
+  }
+  return out.join("\n");
+}
+
 /** Build the echo block for a raw line + labeled atom spans. */
 export function renderEcho(line, spans, wrapWidth = 0) {
   const atoms = atomize(line);

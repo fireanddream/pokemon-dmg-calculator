@@ -676,6 +676,13 @@ function resolve(spec) {
     ivs: spec.ivs ?? { hp: ivFloor, atk: ivFloor, def: ivFloor, spa: ivFloor, spd: ivFloor, spe: ivFloor },
     evs: evFloor > 0 ? { hp: evFloor, atk: evFloor, def: evFloor, spa: evFloor, spd: evFloor, spe: evFloor, ...evs } : evs,
   });
+  const isMega = entry.name.endsWith("-Mega");
+  // A Mega must hold its Mega Stone, so an explicitly typed item (or the
+  // `plate` keyword) contradicts it — fail loud instead of silently dropping
+  // it (DESIGN-RECORDS §9).
+  if (isMega && (spec.item || spec.plate)) {
+    throw new Error(`conflict on item: ${spec.item ?? "plate"} vs Mega Stone`);
+  }
   return {
     name: entry.name,
     types: entry.types,
@@ -685,8 +692,11 @@ function resolve(spec) {
     evs,
     ability: spec.ability ?? entry.abilities[0],
     item: spec.item,
-    noItem: !!spec.noItem,
-    mega: entry.name.endsWith("-Mega"),
+    // A Mega always holds its Mega Stone. That stone is the default item, set
+    // here in the defaults stage BEFORE any power calc, so a stray `no item`
+    // on a Mega can never make it look itemless (Acrobatics) or Knock Off-able.
+    noItem: !!spec.noItem && !isMega,
+    mega: isMega,
     weightKg: entry.weightKg,
     status: spec.status,
     boosts: spec.boosts,

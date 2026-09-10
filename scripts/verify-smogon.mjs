@@ -275,6 +275,12 @@ addCase("facade doubled when statused", {
   def: { ...TAU, ability: "Intimidate", ...base },
   move: "Facade",
 });
+// facade ignores burn's Attack drop while still doubling
+addCase("facade ignores burn attack drop", {
+  atk: { ...SNE, ability: "Immunity", status: "brn", ...base },
+  def: { ...TAU, ability: "Intimidate", ...base },
+  move: "Facade",
+});
 // unaware attacker ignores defender boosts
 addCase("unaware attacker ignores def boosts", {
   atk: { ...W, ability: "Unaware", ...base },
@@ -365,15 +371,28 @@ addCase("gyro ball: slow attacker vs fast target (Snorlax vs Electrode)", {
   move: "Gyro Ball",
 });
 // remaining deterministic dynamic base powers
-addCase("payback doubled on slower user (Snorlax vs Electrode)", {
-  atk: { ...SNE, ability: "Immunity", ...base },
-  def: { ...ELEK, ability: "Soundproof", ...base },
-  move: "Payback",
-});
+// Payback's after-target doubling is intentionally NOT modeled (out of scope,
+// same class as Avalanche): the engine treats it as its flat 50 BP. @smogon
+// doubles it from the speed comparison (gen56.js), so only the faster-user
+// branch agrees and is kept here; the slower-user case is deliberately absent.
 addCase("payback flat on faster user (Electrode vs Snorlax)", {
   atk: { ...ELEK, ability: "Soundproof", ...base },
   def: { ...SNE, ability: "Immunity", ...base },
   move: "Payback",
+});
+// Acrobatics doubles only when the user is genuinely itemless; the default
+// "inert held item" assumption suppresses the double (leftovers stands in).
+addCase("acrobatics flat with an assumed held item (Snorlax @ Leftovers)", {
+  atk: { ...SNE, ability: "Immunity", item: "Leftovers", ...base },
+  def: { ...AG, ability: "Sturdy", ...base },
+  move: "Acrobatics",
+  params: { attackerHoldsItem: true },
+});
+addCase("acrobatics doubles on a genuinely itemless user (Snorlax)", {
+  atk: { ...SNE, ability: "Immunity", ...base },
+  def: { ...AG, ability: "Sturdy", ...base },
+  move: "Acrobatics",
+  params: { attackerHoldsItem: false },
 });
 addCase("wake-up slap doubles on sleeping target", {
   atk: { ...W, ability: "Pressure", ...base },
@@ -497,6 +516,7 @@ for (const t of CASES) {
     attacker: atkC, defender: defC, move, chart,
     crit: !!t.params.crit, weather: t.params.weather, terrain: t.params.terrain,
     screens: t.params.screens, targetHoldsItem: t.params.targetHoldsItem,
+    attackerHoldsItem: t.params.attackerHoldsItem,
     ignoresAbilities: t.params.ignoresAbilities,
   });
 

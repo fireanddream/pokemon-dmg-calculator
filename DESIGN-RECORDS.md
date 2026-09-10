@@ -194,8 +194,10 @@ the `| fill | calc | output` pipe). Presentation lives in the single-process
 runner: `damage.mjs` `runQuery` prints echo+card/error on stdout, `--no-echo`
 for the card alone (used by the corpus chaincheck), `--chat` fences both blocks,
 and `--resolved` stays a pure JSON data path. A future `route.mjs` (step 8) is
-a thin alias. Card wrap (Block 2) is still open — the card prints at `output.mjs`
-fixed width.
+a thin alias. Card wrap (Block 2) SHIPPED 2026-09-10: `output.mjs` pipes the
+card through the same `wrapBlock` rule as the echo (default 100 columns,
+`--width N`, `<= 0` never), so `damage.mjs` and `output.mjs` agree byte for
+byte (`OUTPUT-FORMAT.md` "Wrapping").
 
 ## 5. Arena grammar — bare words only, NO signals (bare-only + weather model DONE 2026-09-10)
 
@@ -408,14 +410,22 @@ Design decisions (verified against the current lexicons):
 ## 9. `no item` semantics
 
 `no item` / `itemless` (and, since the hyphen rule, `no-item`) sets
-`spec.noItem` per side; `fill.mjs` passes `noItem` through; `calc.mjs` uses
-`!defender.noItem && !defender.mega` to default `targetHoldsItem` (Knock
-Off's +50% vs an itemless target). Default is inert-held. Attacker-side
-`noItem` only affects display. Same-slot conflict (an item/plate name AND
-`no item` on one side) is handled by the universal dedupe-vs-conflict pass.
-Still open: confirm nothing should gate on attacker itemlessness; the echo
-should show `no item` as an `item`-class binding once the converter echo
-lands (never let it vanish).
+`spec.noItem` per side; `fill.mjs` passes `noItem` through. `calc.mjs` derives
+two item-presence booleans, both defaulting to "an inert held item is assumed":
+`targetHoldsItem = !defender.noItem && !defender.mega` (Knock Off's +50% vs an
+itemless target) and `attackerHoldsItem = !attacker.noItem` (Acrobatics doubles
+only when this is explicitly false). So attacker-side `noItem` is **not**
+display-only: it is what makes a genuinely itemless Acrobatics user double, and
+an untyped attacker holds an inert item so it does not. A **Mega always holds
+its Mega Stone**: `fill.mjs` `resolve()` (the defaults stage, before the calc)
+clears `noItem` on a Mega, so a stray `no item` on a Mega cannot make it read as
+itemless — the stone is set first and Acrobatics stays at 55 BP. An **explicit
+item name or the `plate` keyword on a Mega is a HARD ERROR** (`conflict on item:
+<item> vs Mega Stone`): the stone is fixed, so a typed item is a contradiction,
+not a silent override. Same-slot
+conflict (an item/plate name AND `no item` on one side) is handled by the
+universal dedupe-vs-conflict pass; the echo shows `no item` as an `item`-class
+binding (step 7).
 
 ## 10. Known coverage gaps (engine)
 
@@ -481,8 +491,8 @@ practice · `done` — implemented.
 
 Statuses here reflect what a single-hit calc can express. The out-of-scope
 groups below are not modeled; **Weather Ball** is in-scope and implemented;
-**Payback → flat 50** is agreed but NOT yet applied — pick it up if you want
-it.
+**Payback** is modeled as its flat 50 BP — its after-target doubling is out of
+scope, the same class as Avalanche.
 
 | Move(s) | Status | Why / notes |
 |---|---|---|
@@ -490,8 +500,8 @@ it.
 | Eruption, Water Spout, Flail, Reversal (user HP); Crush Grip, Wring Out (target HP) | done | HP-fraction powers. |
 | Stored Power, Punishment (stat-stage counts) | done | Scales off the typed stage boosts. |
 | Return / Frustration | done | Fixed at 102 (max happiness) — no happiness tracking. |
-| Knock Off, Acrobatics, Facade, Venoshock, Hex, Wake-Up Slap, Smelling Salts (item/status condition doublers) | done | Doublers that a query can express (`@ item`, `no item`, status words). |
-| **Payback** | **partial — wrong** | Engine currently doubles it from a **Speed comparison** (`currentStat`), which is order inference the project avoids. Agreed scope: treat as a flat **50 BP** (no doubling). NOT yet applied — remove the special-case branch in `resolveTypeAndPower`. |
+| Knock Off, Acrobatics, Facade, Venoshock, Hex, Wake-Up Slap, Smelling Salts (item/status condition doublers) | done | Conditional **raw** multipliers (`CONDITIONAL_POWER` table, below): conditions a query can express (`@ item`, `no item`, status words). |
+| **Payback** | **not implemented (intentionally)** | Modeled as its flat **50 BP**; the after-target doubling is out of scope (order/state inference the project avoids, same class as Avalanche). `@smogon/calc` doubles it from a Speed comparison, so the slower-user case intentionally diverges and is absent from the `verify-smogon` matrix. |
 | **Weather Ball** | done | Base 50 → **100** and a type shift with weather (sun/desolate → Fire, rain/primordial → Water, hail → Ice, sand → Rock; none/Delta → Normal 50). `resolveWeatherBall` in `src/damage-calc.ts`; the type feeds the shared `effType` (STAB / effectiveness / immunities / resist berries) and the CLI plate picker. Air Lock/Cloud Nine null the weather first, so suppressed weather reads Normal 50. |
 | Pursuit, Assurance, Avalanche, Revenge (hit-this-turn / switch / damaged) | not implemented | Need a "took a hit this turn / opponent acted" state the CLI can't express. Intentional. |
 | Fury Cutter, Echoed Voice, Rollout, Ice Ball (consecutive-turn scaling) | not implemented | Multi-turn state. Intentional. |
@@ -500,8 +510,23 @@ it.
 | Stomp / Steamroller / Dragon Rush (double vs a Minimize target) | not implemented | Minimize isn't modeled (its +2 evasion stage is all that applies). |
 | Last Resort | not implemented (intentional) | "Always works": flat 140 BP, no availability condition. |
 
-**If you pick up the Payback flat-50 change:** delete the `named(move,
-"Payback")` branch in `resolveTypeAndPower`; data already stores 50 BP.
+**Conditional-power clauses (design choice).** Single-clause raw multipliers
+that key off engine-known state live in ONE table,
+`CONDITIONAL_POWER: Record<moveName, { mult, when(ctx) }[]>` in
+`src/damage-calc.ts`, applied in list order as `power *= mult` BEFORE the
+ability/item `bpMods` chain (so the two rounding regimes never mix). This
+replaced the former per-move inline `if (named(move, …) && cond) power *= …`
+branches, so a new conditional-BP move is a table row, not new control flow
+(Knock Off ×1.5; Acrobatics / Facade / Venoshock / Hex / Wake-Up Slap / Smelling
+Salts ×2; the table is also where Wake-Up Slap and Smelling Salts moved in from
+the dynamic-power chain). The table is **TS in the engine, not doc-as-code**: a
+condition is a predicate over engine state, and `aliases.md` / the other stores
+hold names, not logic. A move whose condition needs state the engine does not
+track (Payback "moved last", Avalanche "hit this turn") stays unmodeled rather
+than gaining a clause that can never fire. One companion rule lives in the
+damage formula, not the table: **Facade also ignores burn's Attack halving**
+(`isBurned` exempts Guts and Facade, mirroring `@smogon/calc` gen56 `applyBurn`),
+so a burned Facade user gets the doubled BP with no penalty.
 
 ### KO sim
 
@@ -514,8 +539,10 @@ it.
 ### Intentional simplifications (do not "fix")
 
 Neutral nature by default, EVs default 0, an inert held item is always
-assumed unless `no item`, megas always hold their Mega Stone (so Knock Off
-does not get its boost vs a mega), no auto stat-stage abilities, status
+assumed unless `no item`, megas always hold their Mega Stone (their stone is
+resolved in `fill.mjs` before the calc, so a Mega is never itemless: Knock Off
+does not get its boost vs a Mega and Acrobatics never doubles for one), no auto
+stat-stage abilities, status
 tokens ignore typing (Fire-types can be "burned" if typed), Flame Orb / Toxic
 Orb default their holder to burned / badly poisoned with the gen-6 type
 restriction (Fire can't be burned, Steel/Poison can't be badly poisoned).
@@ -552,7 +579,7 @@ supersedes the agent-route prose in AGENTS.md rule 2/3 and the
 
 ## 12. Verification baseline (gate for every change)
 
-`verify:damage` 63/63, `verify:acc` 44/44, `verify:echo` 6/6, corpus
+`verify:damage` 64/64, `verify:acc` 44/44, `verify:echo` 7/7, corpus
 chaincheck "all identical" (@smogon/calc = devDependency oracle only). Corpus
 + capture tooling:
 `session-tools-archive/20260904-pipeline-corpus.json`,

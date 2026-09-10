@@ -86,6 +86,17 @@ turn-by-turn rows) are indented a flat **12 spaces** to line up under the value.
             <continuation lines start at column 12>
 ```
 
+## Wrapping
+
+The whole card block (including its request-echo line) wraps at **100 columns by
+default**, using the SAME rule as the recognition echo (`wrapBlock` in
+`scripts/echo.mjs`): a line breaks only at a space, so a word is never split;
+continuation lines keep the source line's leading indent (2 or 12 spaces); a
+line whose single word exceeds the width is left whole. `--width N` overrides
+the width on both `damage.mjs` and `output.mjs`; `--width 0` (any value `<= 0`)
+never wraps. Both entry points default to 100 so the direct and staged pipelines
+stay byte-identical.
+
 ## Cards (Attacker / Defender)
 
 One card per line, built left to right as:

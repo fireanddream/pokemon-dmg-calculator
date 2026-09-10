@@ -8,6 +8,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { wrapBlock } from "./echo.mjs";
 
 const fmtStages = (c) => {
   const parts = [];
@@ -298,19 +299,32 @@ export function renderCombo(b) {
   return lines.join("\n") + "\n";
 }
 
-/** Dispatch on the calc bag's kind. */
-export function render(bag) {
-  return bag.kind === "combo" ? renderCombo(bag) : renderSingle(bag);
+/** Dispatch on the calc bag's kind, then wrap the card to `width` columns.
+ *  Default 100; `width <= 0` never wraps (same rule as the recognition echo). */
+export function render(bag, { width = 100 } = {}) {
+  const text = bag.kind === "combo" ? renderCombo(bag) : renderSingle(bag);
+  return wrapBlock(text, width);
 }
 
 // --- standalone CLI (only when run directly: node scripts/output.mjs) ---
 // Reads one result bag JSON (file arg, or stdin when "-" / no arg) and prints
 // the OUTPUT-FORMAT card. Default = terminal text; --chat = the identical card
-// wrapped in a fenced code block so fixed-width alignment survives markdown.
+// wrapped in a fenced code block so fixed-width alignment survives markdown;
+// --width N sets the card wrap width (default 100; N <= 0 = never).
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const isChat = process.argv.includes("--chat") || process.argv.includes("-c");
-  const inputArg = process.argv.slice(2).find((a) => a !== "--chat" && a !== "-c");
+  const argv = process.argv.slice(2);
+  const isChat = argv.includes("--chat") || argv.includes("-c");
+  const wIdx = argv.indexOf("--width");
+  const widthRaw = wIdx >= 0 ? argv[wIdx + 1] : undefined;
+  const width = widthRaw === undefined ? 100 : Number(widthRaw);
+  if (!Number.isFinite(width)) {
+    console.error(`output: --width must be a number, got "${widthRaw}"`);
+    process.exit(1);
+  }
+  const inputArg = argv.find(
+    (a, i) => a !== "--chat" && a !== "-c" && a !== "--width" && (wIdx < 0 || i !== wIdx + 1),
+  );
 
   let raw;
   if (inputArg && inputArg !== "-") {
@@ -321,6 +335,6 @@ if (isMain) {
     for await (const chunk of process.stdin) raw += chunk;
   }
   const bag = JSON.parse(raw);
-  const text = render(bag);
+  const text = render(bag, { width });
   process.stdout.write(isChat ? `\`\`\`\n${text}\`\`\`\n` : text);
 }

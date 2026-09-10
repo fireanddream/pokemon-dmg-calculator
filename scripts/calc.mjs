@@ -111,6 +111,7 @@ export function calcSingle(input) {
     terrain: input.terrain,
     screens: input.screens,
     targetHoldsItem: input.targetHoldsItem ?? (!defender.noItem && !defender.mega),
+    attackerHoldsItem: input.attackerHoldsItem ?? !attacker.noItem,
     movedAfterTarget: input.movedAfterTarget,
     flashFireBoosted: false,
     ignoresAbilities: input.ignoresAbilities,
@@ -212,6 +213,7 @@ export function calcCombo(input) {
     crit: input.crit, weather: effWeather, terrain: input.terrain,
     screens: input.screens,
     targetHoldsItem: input.targetHoldsItem ?? (!defender.noItem && !defender.mega),
+    attackerHoldsItem: input.attackerHoldsItem ?? !attacker.noItem,
     movedAfterTarget: input.movedAfterTarget, flashFireBoosted: false,
     ignoresAbilities: input.ignoresAbilities, damageTakenBefore: hazardTotal,
   };

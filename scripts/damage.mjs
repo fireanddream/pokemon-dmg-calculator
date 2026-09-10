@@ -40,23 +40,23 @@ const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json")
 const chart = buildTypeChart(typesData.types);
 
 /** Calculate + render an ALREADY-RESOLVED calc input (from fill.mjs). */
-function runResolved(input) {
+function runResolved(input, width) {
   return input.kind === "combo"
-    ? render(calcCombo({ ...input, chart }))
-    : render(calcSingle({ ...input, chart }));
+    ? render(calcCombo({ ...input, chart }), { width })
+    : render(calcSingle({ ...input, chart }), { width });
 }
 
 /** A spec-dict matchup JSON file is still RAW: resolve it via fill.mjs first. */
-function runMatchup(matchup) {
-  return runResolved(resolveMatchup(matchup));
+function runMatchup(matchup, width) {
+  return runResolved(resolveMatchup(matchup), width);
 }
 
 /** Recognition echo (Block 1) from converter logs, or "" when there is nothing
  *  to lay out. Never throws — a bad echo must not hide the card/error. */
-function echoBlock(line, logs) {
+function echoBlock(line, logs, width) {
   if (!logs.length) return "";
   try {
-    return renderEcho(line, spansFromLogs(logs)) + "\n";
+    return renderEcho(line, spansFromLogs(logs), width) + "\n";
   } catch {
     return "";
   }
@@ -65,7 +65,7 @@ function echoBlock(line, logs) {
 /** One-shot query: parse -> echo -> fill -> calc -> output, in one process. On
  *  a hard error the echo shows the claims made before the throw ("scanned so
  *  far") and Block 2 is the engine's error message. */
-export function runQuery(line, { chat = false, echo: wantEcho = true } = {}) {
+export function runQuery(line, { chat = false, echo: wantEcho = true, width = 100 } = {}) {
   let logs = [];
   let body;
   try {
@@ -73,12 +73,14 @@ export function runQuery(line, { chat = false, echo: wantEcho = true } = {}) {
     logs = [...(spec.attacker?._sideLog ?? []), ...(spec.defender?._sideLog ?? [])];
     if (spec.attacker) delete spec.attacker._sideLog;
     if (spec.defender) delete spec.defender._sideLog;
-    body = runResolved(resolveMatchup(spec));
+    body = runResolved(resolveMatchup(spec), width);
   } catch (err) {
-    logs = err.sideLogs ?? [];
+    // A converter throw carries its live partial log; a later-stage (fill/calc)
+    // throw has no sideLogs, so keep the claims the converter already made.
+    logs = err.sideLogs ?? logs;
     body = `${err.message}\n`;
   }
-  const echo = wantEcho ? echoBlock(line, logs) : "";
+  const echo = wantEcho ? echoBlock(line, logs, width) : "";
   if (chat) {
     const e = echo.replace(/\n+$/, "");
     const b = body.replace(/\n+$/, "");
@@ -101,6 +103,8 @@ const USAGE = `usage:
   the echo+card (feed it to: node scripts/calc.mjs | node scripts/output.mjs)
   add --no-echo    to print only the card (no recognition echo)
   add --chat       to wrap the echo and the card in fenced code blocks
+  add --width N    to wrap the echo and the card at N columns (default 100;
+                   N <= 0 never wraps)
 
   specs: "Species [@ Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
 
@@ -121,8 +125,16 @@ let args = process.argv.slice(2);
 const wantResolved = args.includes("--resolved");
 const wantChat = args.includes("--chat") || args.includes("-c");
 const noEcho = args.includes("--no-echo");
-args = args.filter((a) => a !== "--resolved" && a !== "--chat" && a !== "-c" && a !== "--no-echo");
-const runOpts = { chat: wantChat, echo: !noEcho };
+const wIdx = args.indexOf("--width");
+const widthRaw = wIdx >= 0 ? args[wIdx + 1] : undefined;
+const width = widthRaw === undefined ? 100 : Number(widthRaw);
+if (!Number.isFinite(width)) {
+  console.error(`--width must be a number, got "${widthRaw}"`);
+  process.exit(1);
+}
+args = args.filter((a, i) => a !== "--resolved" && a !== "--chat" && a !== "-c" &&
+  a !== "--no-echo" && a !== "--width" && (wIdx < 0 || i !== wIdx + 1));
+const runOpts = { chat: wantChat, echo: !noEcho, width };
 
 if (args.length === 0) {
   if (wantResolved) {
@@ -132,7 +144,7 @@ if (args.length === 0) {
   repl();
 } else if (args.length === 1 && args[0].endsWith(".json") && existsSync(args[0])) {
   const matchup = JSON.parse(await readFile(path.resolve(args[0]), "utf8"));
-  process.stdout.write(wantResolved ? emitResolvedJson(matchup) : runMatchup(matchup));
+  process.stdout.write(wantResolved ? emitResolvedJson(matchup) : runMatchup(matchup, width));
 } else if (args.length === 1) {
   // --resolved stays a pure data path (no echo); plain queries get Block 1 + 2.
   process.stdout.write(wantResolved

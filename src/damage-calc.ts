@@ -40,6 +40,10 @@ export interface DamageParams {
   screens?: "reflect" | "light";
   /** whether the target actually holds an item (Knock Off) */
   targetHoldsItem?: boolean;
+  /** whether the attacker actually holds an item (Acrobatics). The front
+   *  assumes an inert held item unless `no item` was typed, so only an explicit
+   *  false doubles Acrobatics. */
+  attackerHoldsItem?: boolean;
   /** attacker moved after the target (Analytic); never auto-inferred from speed */
   movedAfterTarget?: boolean;
   /** attacker has already been hit by Fire (Flash Fire boost) */
@@ -52,7 +56,6 @@ export interface DamageParams {
   /** attacker's moves ignore defender abilities (Mold Breaker etc.) */
   ignoresAbilities?: boolean;
   doubles?: boolean;
-  powerOverride?: number;
 }
 
 export interface DamageResult {
@@ -488,7 +491,10 @@ export function calcDamage(params: DamageParams): DamageResult {
   }
 
   const stabMod = getStabMod(attacker, effType);
-  const isBurned = attacker.status === "brn" && move.category === "Physical" && !hasAbility(attacker, "Guts");
+  // Burn halves physical damage, except Guts and Facade (gen 6 Facade ignores
+  // the Attack drop as well as doubling on a major status).
+  const isBurned = attacker.status === "brn" && move.category === "Physical" &&
+    !hasAbility(attacker, "Guts") && !named(move, "Facade");
 
   const makeRolls = (bd: number) => {
     const out: number[] = [];
@@ -519,44 +525,69 @@ interface TypePowerCtx {
   power: number;
 }
 
+/** Context a conditional power clause can read. Predicates are code, so the
+ *  table lives here in the engine rather than in the doc-as-code stores
+ *  (DESIGN-RECORDS §10). */
+interface PowerClauseCtx {
+  attacker: Combatant;
+  defender: Combatant;
+  move: Move;
+  params: DamageParams;
+  weather: Weather | undefined;
+  type: TypeName;
+}
+
+/** A one-shot raw power multiplier gated on engine-known state. Applied in
+ *  list order (so a move could stack clauses) before the ability/item chain.
+ *  Add a row here to model a new conditional-BP move; a condition needing state
+ *  the engine does not track (e.g. Payback's "moved last") stays unmodeled. */
+interface PowerClause {
+  mult: number;
+  when: (ctx: PowerClauseCtx) => boolean;
+}
+
+/** Statuses that trigger Facade's doubling (major status; not slp/frz). */
+const FACADE_STATUSES: readonly StatusName[] = ["brn", "par", "psn", "tox"];
+
+const CONDITIONAL_POWER: Record<string, PowerClause[]> = {
+  "Knock Off": [{ mult: 1.5, when: (c) => !!c.params.targetHoldsItem }],
+  "Acrobatics": [{ mult: 2, when: (c) => c.params.attackerHoldsItem === false }],
+  "Facade": [{ mult: 2, when: (c) => c.attacker.status !== undefined && FACADE_STATUSES.includes(c.attacker.status) }],
+  "Venoshock": [{ mult: 2, when: (c) => c.defender.status === "psn" || c.defender.status === "tox" }],
+  "Hex": [{ mult: 2, when: (c) => c.defender.status !== undefined }],
+  "Wake-Up Slap": [{ mult: 2, when: (c) => c.defender.status === "slp" }],
+  "Smelling Salts": [{ mult: 2, when: (c) => c.defender.status === "par" }],
+};
+
 function resolveTypeAndPower(params: DamageParams, weather: Weather | undefined): TypePowerCtx {
   const { attacker, defender, move } = params;
   let type = move.type as TypeName;
-  let power = params.powerOverride ?? move.power;
+  let power = move.power;
 
   // weight/speed/state-based power (data stores some of these as 0 BP)
-  if (params.powerOverride === undefined) {
-    if (named(move, "Heavy Slam", "Heat Crash")) {
-      power = heavySlamPower(attacker.weightKg ?? 0, defender.weightKg ?? 0);
-    } else if (named(move, "Low Kick", "Grass Knot")) {
-      power = lowKickPower(defender.weightKg ?? 0);
-    } else if (named(move, "Electro Ball")) {
-      power = electroBallPower(currentStat(attacker, "spe"), currentStat(defender, "spe"));
-    } else if (named(move, "Gyro Ball")) {
-      power = gyroBallPower(currentStat(attacker, "spe"), currentStat(defender, "spe"));
-    } else if (named(move, "Weather Ball")) {
-      // 50 BP Normal normally; 100 BP of the weather's type while weather is up
-      power = resolveWeatherBall(weather).power;
-    } else if (named(move, "Payback")) {
-      // doubles when the user moves after the target (current-speed ordering)
-      power = move.power * (currentStat(attacker, "spe") <= currentStat(defender, "spe") ? 2 : 1);
-    } else if (named(move, "Wake-Up Slap") && defender.status === "slp") {
-      power = move.power * 2;
-    } else if (named(move, "Smelling Salts") && defender.status === "par") {
-      power = move.power * 2;
-    } else if (named(move, "Eruption", "Water Spout")) {
-      power = Math.max(1, Math.floor((150 * curHp(attacker)) / hpMax(attacker)));
-    } else if (named(move, "Flail", "Reversal")) {
-      const p = Math.floor((48 * curHp(attacker)) / hpMax(attacker));
-      power = p <= 1 ? 200 : p <= 4 ? 150 : p <= 9 ? 100 : p <= 16 ? 80 : p <= 32 ? 40 : 20;
-    } else if (named(move, "Crush Grip", "Wring Out")) {
-      const f = Math.floor((curHp(defender) * 4096) / Math.max(hpMax(defender), 1));
-      power = Math.max(1, Math.floor(Math.floor((120 * (f * 100) + 2047) / 4096) / 100));
-    } else if (named(move, "Stored Power", "Power Trip")) {
-      power = 20 + 20 * countPositiveBoosts(attacker);
-    } else if (named(move, "Punishment")) {
-      power = Math.min(200, 60 + 20 * countPositiveBoosts(defender));
-    }
+  if (named(move, "Heavy Slam", "Heat Crash")) {
+    power = heavySlamPower(attacker.weightKg ?? 0, defender.weightKg ?? 0);
+  } else if (named(move, "Low Kick", "Grass Knot")) {
+    power = lowKickPower(defender.weightKg ?? 0);
+  } else if (named(move, "Electro Ball")) {
+    power = electroBallPower(currentStat(attacker, "spe"), currentStat(defender, "spe"));
+  } else if (named(move, "Gyro Ball")) {
+    power = gyroBallPower(currentStat(attacker, "spe"), currentStat(defender, "spe"));
+  } else if (named(move, "Weather Ball")) {
+    // 50 BP Normal normally; 100 BP of the weather's type while weather is up
+    power = resolveWeatherBall(weather).power;
+  } else if (named(move, "Eruption", "Water Spout")) {
+    power = Math.max(1, Math.floor((150 * curHp(attacker)) / hpMax(attacker)));
+  } else if (named(move, "Flail", "Reversal")) {
+    const p = Math.floor((48 * curHp(attacker)) / hpMax(attacker));
+    power = p <= 1 ? 200 : p <= 4 ? 150 : p <= 9 ? 100 : p <= 16 ? 80 : p <= 32 ? 40 : 20;
+  } else if (named(move, "Crush Grip", "Wring Out")) {
+    const f = Math.floor((curHp(defender) * 4096) / Math.max(hpMax(defender), 1));
+    power = Math.max(1, Math.floor(Math.floor((120 * (f * 100) + 2047) / 4096) / 100));
+  } else if (named(move, "Stored Power", "Power Trip")) {
+    power = 20 + 20 * countPositiveBoosts(attacker);
+  } else if (named(move, "Punishment")) {
+    power = Math.min(200, 60 + 20 * countPositiveBoosts(defender));
   }
   if (power === 0) {
     if (named(move, "Return", "Frustration")) power = 102; // max happiness
@@ -567,13 +598,12 @@ function resolveTypeAndPower(params: DamageParams, weather: Weather | undefined)
   // stored Normal typing — this drives the STAB/type-mod checks below.
   if (named(move, "Weather Ball")) type = resolveWeatherBall(weather).type;
 
-  // conditional move power
-  if (named(move, "Knock Off") && params.targetHoldsItem) power *= 1.5;
-  if (named(move, "Acrobatics") && !attacker.item) power *= 2;
-  if (named(move, "Facade") && attacker.status !== undefined &&
-    ["brn", "par", "psn", "tox"].includes(attacker.status)) power *= 2;
-  if (named(move, "Venoshock") && (defender.status === "psn" || defender.status === "tox")) power *= 2;
-  if (named(move, "Hex") && defender.status !== undefined) power *= 2;
+  // Conditional move power — ONE clause table, applied as raw multipliers
+  // before the ability/item bpMods chain below (DESIGN-RECORDS §10).
+  const clauseCtx: PowerClauseCtx = { attacker, defender, move, params, weather, type };
+  for (const clause of CONDITIONAL_POWER[move.name] ?? []) {
+    if (clause.when(clauseCtx)) power *= clause.mult;
+  }
 
   const bpMods: number[] = [];
   if (
