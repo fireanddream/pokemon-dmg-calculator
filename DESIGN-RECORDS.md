@@ -77,10 +77,9 @@ generated Smogon XY datasets.
 longest-fit claim walk over each side's atoms:
 
 - **Claim sources, longest-first at each unconsumed atom:** (1) literal /
-  class phrases from the module-scope `CLAIM_MAP` (natures, abilities with
-  the primal-weather phrases excluded → they register as weather, item full
-  names + `<type> plate` aliases + acronyms with side-sensitive LO, statuses,
-  weather, terrain, stealth rock, `no item` spellings); (2) an exact damaging
+  class phrases from the module-scope `CLAIM_MAP` (natures, abilities, item
+  full names + `<type> plate` aliases + acronyms with side-sensitive LO,
+  statuses, weather, terrain, stealth rock, `no item` spellings); (2) an exact damaging
   or boost move phrase (only with `opts.claimMoves` = the `parseQuery`
   attacker; seam G: Non-Damaging non-boost moves never claim the slot, so
   `toxic` still falls to status); (3) shape phrases (glued/split level,
@@ -151,7 +150,7 @@ renderer). Binding rules:
   converter route (`input-converter.mjs` / `damage.mjs`) does not until the
   converter-side echo (TODO step 7) wires it to the same renderer.
 
-## 5. Arena grammar — bare words only, NO signals (contract for TODO step 5)
+## 5. Arena grammar — bare words only, NO signals (bare-only + weather model DONE 2026-09-10)
 
 Arena words resolve to their arena condition typed BARE, anywhere on either
 side. There are NO `in` / `under` / `after` signals (a former optional-signal
@@ -165,37 +164,59 @@ plain junk words. Agreed semantics:
   Move names are NOT class tables, so intentional overlaps (`rain dance`,
   `stealth rock`, `hail`, the four terrains — all non-damaging moves) never
   trip it; seam G + phrase-first resolve those.
-- **Weather tiers — HARD vs SOFT.** A direct weather word (`sun`, `rain`,
-  `sand`, `hail`, `sandstorm`, `sunny day`, `harsh sunshine`, ...) is HARD.
-  A weather-setting ABILITY name used as an arena word (`drought`, `drizzle`,
-  `sand stream`, `snow warning`, `desolate land`, `primordial sea`, `delta
-  stream`) is SOFT: it binds the weather directly but is weaker than a hard
-  word, and never claims the ability slot — the mon's ability comes from
-  another explicit token or the default.
+- **Weather is ONE plain slot (no tiers).** A weather word binds an arena value
+  exactly like any other class token: identical values collapse, a different
+  value on the same side HARD-ERRORS (`conflicting weather: sun vs rain`).
+  Weather-setting ABILITY names are NOT weather words — they are ordinary
+  ability claims (see the primal note below).
 - **Cross-side weather resolution.**
-    - hard beats soft, never a conflict (`sand stream` is overridden by
-      `rain`);
-    - two different HARD values ERROR (`weather: sun vs rain`);
-    - two different SOFT values settle by Speed — the SLOWER side sets last
-      (a primal weather beats a regular one regardless of Speed; an exact
-      Speed tie keeps the attacker), mirroring fill's setter auto;
-    - same-value claims collapse.
-- **Within a side, different values for one slot hard-error** (the sweep's
-  claimSlot): `drought rain` on one side is `conflicting weather: sun vs
-  rain`.
+    - two different explicit weather values ERROR (`weather: sun vs rain`);
+    - the same value collapses;
+    - a typed weather always beats a weather-setting ability (below).
 - **Terrain / spikes are plain same-slot values.** Different cross-side values
   error, never add (`spike 1` on the attacker + `spike 2` on the defender is a
   conflict, NOT 3 layers). Same values collapse. Stealth Rock is a boolean and
   cannot conflict.
-- **Explicit beats ability-auto (never an error).** A typed weather/terrain
-  wins over what an auto-picked setter ability would set; fill only fills the
-  arena when nothing was typed (`fillWeather` returns early).
+- **Explicit beats ability (never an error).** A typed weather/terrain wins over
+  what an auto-picked or explicitly named setter ability would set; fill only
+  fills the arena from abilities when nothing was typed (`fillWeather` returns
+  early).
 
-Lexicon: simple weather (rain / sun / sand / hail, plus `snow` → hail;
-gen-6), full/official weather names incl. primal (desolate / primordial /
-delta), weather-setting moves as arena words (`rain dance`, `sandstorm`,
-`hail`, ...), weather-setting ABILITY names as SOFT arena words, hazards
-(Stealth Rock, Spikes), terrains (electric / grassy / misty / psychic).
+**Weather-setting abilities (incl. primal).** Drought / Drizzle / Sand Stream /
+Snow Warning and the primal Desolate Land / Primordial Sea / Delta Stream are
+ordinary ability claims. Once both sides' abilities are resolved, fill decides
+the arena from them (`weatherFromSetters`):
+
+- one setter → its weather;
+- two different regular setters → the SLOWER side sets last (an exact Speed tie
+  keeps the attacker);
+- primal vs regular → the PRIMAL wins regardless of Speed;
+- primal vs primal (different) → the slower wins (Speed tie keeps the attacker);
+- both set the same weather → collapse.
+
+**Primal weather behavior.** `desolate` / `primordial` / `delta` are permanent
+(no turn expiry) and dominant over regular weather:
+
+- `desolate` + a Water move → the move FAILS; `primordial` + a Fire move → the
+  move FAILS.
+- `desolate` acts as sun for Fire/Water power; `primordial` acts as rain;
+  `delta` removes Flying's Rock/Electric/Ice weaknesses.
+- Weather Ball: `desolate`→Fire, `primordial`→Water, `delta`→Normal 50 (as if
+  no weather), `sand`→Rock, `hail`→Ice.
+- Cloud Nine / Air Lock null every effect for the calc only (the arena row
+  still shows the weather, marked `(suppressed)`).
+- The primal CONDITION words (`extremely harsh sunlight` / `heavy rain` /
+  `strong winds`) are deliberately **NOT synced** with the primal abilities: an
+  explicit primal condition is an ordinary explicit weather, so it errors
+  against a different explicit weather, while the primal ABILITY beats a
+  regular ABILITY. (User 2026-09-10: keep the two categories separate.)
+
+Lexicon — explicit weather arena words: simple weather (`sun`, `rain`, `sand`,
+`hail`, plus `snow` → hail; gen-6), weather-setting moves / adjectives
+(`sunny day`, `sunny`, `rain dance`, `sandstorm`, `hail`, `harsh sunlight`),
+the primal condition words (`extremely harsh sunlight`, `heavy rain`,
+`strong winds`); hazards (Stealth Rock, Spikes); terrains (electric / grassy /
+misty / psychic). Weather-setting ability names are NOT arena words.
 
 Forms that must resolve identically:
 
@@ -213,8 +234,10 @@ Forms that must resolve identically:
   token); terrain `psychic` is reachable only as the 2-word `psychic terrain`.
 
 Recorded examples: `charizard sun 252 atk blitz vs landot` → weather sun
-(bare); `sand stream vs rain` → rain (hard beats setter); `sun vs rain` →
-error; `drought vs sand stream` → the slower side's weather.
+(bare); `sand stream vs rain` → rain (a typed weather beats the ability);
+`sun vs rain` → error; `drought vs sand stream` → the slower side's weather;
+`heavy rain vs sun` → error (two explicit weathers, never synced with the
+primal abilities).
 
 ## 6. Boosting moves = boost signals (slot path DONE 2026-09-08, side path closed by the sweep)
 

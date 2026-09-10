@@ -6,10 +6,14 @@ engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
 carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
-**State 2026-09-10:** steps 1–4 and step 6 are DONE; step 5 is PARTIAL
-(bare-only arena — NO signals — with weather tiers, cross-side conflict
-rules, and setter names binding weather directly all landed 2026-09-10; only
-`snow` → hail remains). Working tree green: `verify:damage` 63/63,
+**State 2026-09-10:** steps 1–6 are DONE. Step 5's weather model was revised
+2026-09-10 (second pass): weather is now ONE plain explicit slot (two
+different explicit weathers error); weather-setting ABILITY names are
+ordinary ability claims that `fill.mjs` resolves (primal beats regular
+regardless of Speed, else slower wins, tie → attacker); a typed weather
+always beats the ability. `snow` → hail added; fabricated spellings
+(`permanent *`, `harsh sunshine`, `hail storm`/`hailstorm`, `sand storm`)
+removed. Working tree green: `verify:damage` 63/63,
 `verify:acc` 44/44, `verify:echo` 6/6, corpus chaincheck "all identical".
 
 ---
@@ -34,14 +38,16 @@ identical". Record of done steps: step 1 →
    suffix); no-forme bases HARD-ERROR; `-X`/`-Y` bases keep the base pick;
    already-`-Mega` never re-upgraded; `Mega Punch/Kick/Drain` moves and
    `Mega Launcher` win by longer phrase. Contract: `DESIGN-RECORDS.md` §7.
-5. **Arena grammar inside the sweep** (was `## 4`, bare-only). Bare arena words
-   only — NO `in`/`under`/`after` signals (decided 2026-09-10). PARTIAL:
-   weather tiers (HARD direct words vs SOFT setter names) + cross-side
-   resolution landed 2026-09-10 — hard beats soft, hard-vs-hard different
-   errors, soft-vs-soft settles by Speed (slower sets last), setter names set
-   weather directly and never the ability slot; terrain/spikes cross-side
-   different values error (never add); hazards hoist from either side. STILL
-   OPEN: `snow` → hail. Contract: `DESIGN-RECORDS.md` §5.
+5. ✅ **Arena grammar inside the sweep** (was `## 4`, bare-only). DONE
+   2026-09-10; weather model revised the same day (second pass). Bare arena
+   words only — NO `in`/`under`/`after` signals. Weather is ONE plain slot:
+   two different explicit weathers across sides error, identical collapse;
+   weather-setting ABILITY names are ordinary ability claims that fill
+   resolves (primal beats regular regardless of Speed, else slower, tie →
+   attacker) and a typed weather always beats the ability. `snow` → hail
+   added; fabricated forms removed. Terrain/spikes cross-side different
+   values error (never add); hazards hoist from either side. Contract:
+   `DESIGN-RECORDS.md` §5.
 6. **Seam-C startup warning + guard** — DONE 2026-09-10 (option A): warn at
    startup if any key, ANY word count, is registered in two class lexicons
    (the startup check in `input-converter.mjs` doubles as the smoke — it runs

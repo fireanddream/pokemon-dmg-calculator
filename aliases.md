@@ -211,15 +211,21 @@ rejected; nobody types them and the fragments create fake partial matches):
 
 ## Weather words
 
+Arena weather is a plain slot: identical values collapse, and two different
+explicit weathers error. Weather-setting **ABILITY** names (`Drought`,
+`Drizzle`, `Sand Stream`, `Snow Warning`, and the primal `Desolate Land` /
+`Primordial Sea` / `Delta Stream`) are abilities, not weather words — type
+them as abilities and `fill.mjs` resolves their arena weather.
+
 | You type | Engine token |
 |---|---|
-| `sandstorm` / `sand storm` / `permanent sandstorm` / `sand` | sand |
-| `harsh sunlight` / `harsh sunshine` / `extremely harsh sunlight` / `sunny day` / `permanent sun` / `sunny` / `sun` | sun |
-| `permanent rain` / `rain dance` / `rain` | rain |
-| `hail storm` / `hailstorm` / `permanent hail` / `hail` | hail |
-| `desolate land` | desolate (primal) |
-| `primordial sea` / `heavy rain` | primordial (primal) |
-| `delta stream` / `strong winds` | delta (primal) |
+| `sand` / `sandstorm` | sand |
+| `sun` / `sunny` / `sunny day` / `harsh sunlight` | sun |
+| `rain` / `rain dance` | rain |
+| `hail` / `snow` | hail |
+| `extremely harsh sunlight` | desolate (primal condition) |
+| `heavy rain` | primordial (primal condition) |
+| `strong winds` | delta (primal condition) |
 
 ## Terrain words
 

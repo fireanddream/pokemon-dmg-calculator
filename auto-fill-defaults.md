@@ -58,7 +58,7 @@ next time the front runs.
 | Stat stages | +0 on all five stats | `-1 atk`, `+2 spa`, `-3 def`, `+1 spe` (cap ±6) |
 | Accuracy / evasion stages | +0 / +0 | `-2 acc`, `+1 eva` (cap ±6) |
 | Ability | auto-picked (see the ability sections below) | name any ability |
-| Weather | none | `sand`, `sun`, `rain`, `hail`, `permanent sandstorm`, ... |
+| Weather | none | `sand`, `sun`, `rain`, `hail`, `snow`, `harsh sunlight`, ... |
 | Terrain | none | `electric / grassy / misty / psychic terrain` |
 | Entry hazards | none | `rock`; Spikes: `spike` = 1 layer, `spikes` = 3, or a spaced count either order (`2 spikes` / `spikes 2` / `spikes x2`) |
 | Screens / other conditions | none | not modeled unless typed |
@@ -131,8 +131,10 @@ remain in force for every stat not covered by a token.
 
 A weather-setting ability on **either side** sets the Arena condition when no
 explicit weather was typed. An explicitly typed weather always overrides the
-ability's weather. In queries, `Desolate Land` / `Primordial Sea` / `Delta
-Stream` mean the **weather**, not the ability.
+ability's weather. The primal ability names (`Desolate Land` / `Primordial
+Sea` / `Delta Stream`) are typed as **abilities**; their *condition* words
+(`extremely harsh sunlight` / `heavy rain` / `strong winds`) are ordinary
+explicit weather, deliberately not synced with the abilities.
 
 | Ability | Weather |
 |---|---|
@@ -353,9 +355,9 @@ weather chip only; Magic Guard also negates the entry-hazard hit at switch-in.
 ## Weather / arena defaulting (fill rules)
 
 No weather by default. Weather appears only when:
-- a weather token is typed (`sand`, `rain`, `sun`, `hail`, or the permanent /
-  primal forms `permanent sandstorm`, `desolate land`, `primordial sea`,
-  `delta stream`, ...), or
+- an explicit weather word is typed (`sand`, `rain`, `sun`, `hail`, `snow`,
+  `harsh sunlight`, or the primal condition words `extremely harsh sunlight`,
+  `heavy rain`, `strong winds`), or
 - a weather-setter ability is named **or auto-defaulted** (see
   `## Weather setters`).
 
