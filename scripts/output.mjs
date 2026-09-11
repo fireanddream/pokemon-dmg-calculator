@@ -183,7 +183,10 @@ function koVerdict(b) {
     const eot = l.endOfTurn > 0.0005 ? " (+EoT)" : "";
     if (l.cumulative < 0.9995) koTokens.push(`${l.turn}HKO ${cumul(l.cumulative)}${eot}`);
   }
-  if (ko.cannotKO) return `no guaranteed KO in ${maxTurns} hits (${koTokens.join(", ")})`;
+  if (ko.cannotKO) {
+    const tokens = koTokens.length ? ` (${koTokens.join(", ")})` : "";
+    return `no guaranteed KO in ${maxTurns} hits${tokens}`;
+  }
   if (ko.guaranteedTurn === 1) return "guaranteed OHKO";
   return `guaranteed ${ko.guaranteedTurn}HKO${koTokens.length ? ` (${koTokens.join(", ")})` : ""}`;
 }
@@ -192,8 +195,6 @@ function koVerdict(b) {
  *  Returns the full text block including its trailing newline. */
 export function renderSingle(b) {
   const lines = [];
-  if (b.query) lines.push(`  ${b.query}`);
-  lines.push("");
   lines.push(`  Attacker  ${buildCard(b.attacker)}`);
   lines.push(`  Defender  ${buildCard(b.defender)}`);
   const arena = arenaParts(b);
@@ -242,8 +243,6 @@ export function renderSingle(b) {
 /** Render a two-move combo: shared card header + per-turn table + Result row. */
 export function renderCombo(b) {
   const lines = [];
-  if (b.query) lines.push(`  ${b.query}`);
-  lines.push("");
   lines.push(`  Attacker  ${buildCard(b.attacker)}`);
   lines.push(`  Defender  ${buildCard(b.defender)}`);
   const arena = arenaParts(b);

@@ -10,7 +10,9 @@ carries open work + status. Per-session verbatim narrative lives in
 curation) are DONE, the 2-5 multi-hit model shipped (`verify:multihit`
 34/34), and **Hidden Power + IVs (HP Fire → SpA IV 30; Foul Play →
 defender Atk IV 0) shipped**. The tokenizer overhaul and the engine gap list
-have NO open build step.
+have NO open build step. The two small output-card threads (card no longer
+repeats the query line; no empty `()` in the no-KO verdict) are also DONE — no
+open thread remains.
 
 **State 2026-09-10:** steps 1–7 are DONE (step 7 = converter-side echo / shared
 tokenizer, second pass same day). Step 5's weather model was revised
@@ -144,6 +146,15 @@ open now.
 
 ## Small open threads
 
+- **Result card repeats the query line** — DONE 2026-09-11: the card no longer
+  prints `b.query`; `renderSingle` / `renderCombo` start directly at `Attacker`
+  and the leading blank line is gone. The request is shown only by the Block-1
+  recognition echo. `OUTPUT-FORMAT.md` "Layout grid" + "Wrapping" updated; card
+  wrap unchanged (`verify:echo` 7/7, chaincheck "all identical").
+- **Empty `()` when there are no KO tokens** — DONE 2026-09-11: `koVerdict`
+  drops the trailing `(...)` when `koTokens` is empty, so a move that can never
+  KO within the cap prints `no guaranteed KO in 10 hits` (no empty parens),
+  matching the combo `Result` wording. Documented in `OUTPUT-FORMAT.md` "KO row".
 - **Error-message consolidation** — DONE 2026-09-10 (`DESIGN-RECORDS.md` §8):
   taxonomy collapsed to `missing <var>` + `conflict on <slot>` + `unbound EV`;
   `too many moves` / EV-cap (252 & 510) / `no Mega forme` kept bespoke. The

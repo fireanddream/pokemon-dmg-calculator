@@ -43,24 +43,23 @@ A matchup JSON / query has: attacker, defender, move, plus optional arena state
 
 ## Layout grid
 
-Each run echoes the caller's request on its own line (2-space indent) at the
-very top, followed by one blank line, then the result card — so a mistake in the
-typed request is visible next to the answer:
+The card starts directly at the `Attacker` row — the caller's request is not
+repeated inside the card. The one-shot runner (`damage.mjs` / `route.mjs`) shows
+the request separately as the recognition echo (Block 1; see
+`DESIGN-RECORDS.md` §4 "Recognition echo"), and `output.mjs` renders only the
+card block that follows:
 
 ```
-  <the request as typed>
-
   Attacker  <value>
   ...
 ```
 
-The echo is the exact query line (including `turn by turn`, status words, etc.).
-In the three-argument form (`"<atk>" "<move>" "<def>"`) the echo is
+In the three-argument form (`"<atk>" "<move>" "<def>"`) the runner's echo is
 reconstructed as `"<atk> <move> vs <def>"` (never a manufactured `uses` word);
 JSON-file runs have no echo.
 
-One run prints one card block. Blocks are separated by a blank line (a newline
-leads each block). Rows appear in a fixed order and may be omitted as noted:
+One run prints one card block. Rows appear in a fixed order and may be omitted
+as noted:
 
 | Row label | Always? | Contents |
 |---|---|---|
@@ -88,7 +87,7 @@ turn-by-turn rows) are indented a flat **12 spaces** to line up under the value.
 
 ## Wrapping
 
-The whole card block (including its request-echo line) wraps at **100 columns by
+The whole card block wraps at **100 columns by
 default**, using the SAME rule as the recognition echo (`wrapBlock` in
 `scripts/echo.mjs`): a line breaks only at a space, so a word is never split;
 continuation lines keep the source line's leading indent (2 or 12 spaces); a
@@ -226,7 +225,9 @@ HP, capped at `maxTurns` which defaults to 10). For a normal move a use is one
   cumulative chance is effectively all rolls (>= 99.95%). The Damage row
   truncates instead.
 - If not all rolls KO within the cap: `no guaranteed KO in <N> hits (tokens)`
-  (the count is turns/uses, not individual strikes).
+  (the count is turns/uses, not individual strikes). When no turn token reaches
+  the listed threshold, the parentheses are dropped entirely:
+  `no guaranteed KO in 10 hits`.
 
 ### Chance to hit all attacks (accuracy)
 
