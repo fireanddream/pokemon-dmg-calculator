@@ -7,9 +7,10 @@ carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
 **State 2026-09-11:** steps 8 (one-shot route) and 9 (forme-word collision
-curation) are DONE, and the 2-5 multi-hit model shipped (`verify:multihit`
-34/34). The tokenizer overhaul has NO open build step; only the engine
-safe-open rows below remain.
+curation) are DONE, the 2-5 multi-hit model shipped (`verify:multihit`
+34/34), and **Hidden Power + IVs (HP Fire → SpA IV 30; Foul Play →
+defender Atk IV 0) shipped**. The tokenizer overhaul and the engine gap list
+have NO open build step.
 
 **State 2026-09-10:** steps 1–7 are DONE (step 7 = converter-side echo / shared
 tokenizer, second pass same day). Step 5's weather model was revised
@@ -99,11 +100,11 @@ errors, and the corpus chaincheck "all identical". Record of done steps: step 1
    **intentionally not implemented** in §10 "Open forme-word collisions" — no
    open build step remains.
 
-## Engine — safe open work (`not implemented`, §10)
+## Engine — no open build step (all closed)
 
-These `DESIGN-RECORDS.md` §10 rows carry the legend's `not implemented` status
-("open, safe to implement" — as opposed to `(intentionally)` / `won't
-implement`), so each can be picked up on its own:
+**State 2026-09-11:** the user decided the remaining engine-coverage items are
+**not being built**, so the engineer-open `not implemented` rows are closed in
+`DESIGN-RECORDS.md` §10:
 
 - **Multi-hit without Skill Link** — DONE 2026-09-11: exact weighted 2-5 hit
   convolution (Technician per hit, berry first hit only, Sash/Sturdy never
@@ -112,9 +113,34 @@ implement`), so each can be picked up on its own:
   34/34. Fixed-count multi-hit moves (Bonemerang, Double Kick, Twineedle,
   Double Hit, Dual Chop, Gear Grind, Triple Kick) are documented **not
   implemented** (§10) — they still print as one hit.
-- **Metronome** — consecutive-use power ramp.
-- **Future Sight / Doom Desire** — delayed-hit modeling.
-- **Minimize-target doubles** — Stomp / Steamroller / Dragon Rush.
+- **Metronome** — **won't implement** (closed 2026-09-11).
+- **Future Sight / Doom Desire** — **won't implement** (closed 2026-09-11).
+- **Minimize-target doubles** (Stomp / Steamroller / Dragon Rush) —
+  **won't implement** (closed 2026-09-11).
+
+Hidden Power + IVs **shipped the same day** (next section) — no engine gap is
+open now.
+
+## Hidden Power + IVs — DONE 2026-09-11
+
+- **Hidden Power type** — DONE. `hidden power <type>` / the `hp <type>` alias
+  (adjacent type word) sets the move type; `fill.mjs` clones the dex move so
+  STAB/effectiveness/immunities/berries/plate/defender ability pick follow it.
+  16 legal types; **Normal/Fairy hard-error**; a missing type is
+  `missing hidden power type`. No derive-from-IVs path. The whole phrase is one
+  `move` echo span. `hp <number>` is still the HP EV — `252 HP fire` is EV +
+  dropped `fire` (no double-duty), by design. Contract: `DESIGN-RECORDS.md` §10
+  Moves "Hidden Power".
+- **IVs** — DONE (scope: forced values only). No manual IV input; every stat is
+  31 except **Hidden Power Fire → attacker SpA IV 30** and **Foul Play →
+  defender Atk IV 0** (base Atk < base SpA), both shown on the card. Contract:
+  `DESIGN-RECORDS.md` §10 "### IVs".
+- **Foul Play — DONE 2026-09-11.** `calcDamage` uses the **defender's current
+  Atk** as the attack stat (attacker-side modifiers and burn still apply);
+  `fill.mjs` sets the defender's **Atk IV = 0** when the defender's base Atk <
+  base SpA (shown on the card). Only Foul Play reads the defender's Atk, so
+  nothing else changes it. Covered by `verify-smogon`. Contract:
+  `DESIGN-RECORDS.md` §10 Moves / "### IVs".
 
 ## Small open threads
 
@@ -174,6 +200,7 @@ implement`), so each can be picked up on its own:
 
 | When | What | Record |
 | --- | --- | --- |
+| 2026-09-11 | Hidden Power (`hidden power <type>` / `hp <type>`, 16 types, Normal/Fairy rejected, no-type error) + forced IVs (HP Fire → attacker SpA 30; Foul Play → defender Atk 0 shown on card); Foul Play uses defender's Atk | DESIGN-RECORDS.md §10 Moves · "### IVs" · this file |
 | 2026-09-11 | Multi-hit 2-5 model: exact weighted convolution, Technician per hit, berry first-hit only, Sash/Sturdy never save; card total range `[2-5 hits]`; `verify:multihit` | DESIGN-RECORDS.md §10 · this file |
 | 2026-09-10 | Converter-side echo (step 7): shared tokenizer, `_sideLog` labels, "scanned so far" `err.sideLogs`, `damage.mjs` `runQuery` | `SESSION-NOTES-20260910-CONVERTER-ECHO.md` |
 | 2026-09-09 | Mega exact-shape upgrade: prefix/suffix `mega`, no-forme hard error, `Mega X` move + `Mega Launcher` guards | `SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md` |

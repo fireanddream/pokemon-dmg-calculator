@@ -32,6 +32,13 @@ const fmtSpread = (evs) => {
   return parts.length ? parts.join(" / ") : "";
 };
 
+// IVs default to 31 and are not user-settable; only a mechanic-driven drop
+// (Hidden Power Fire's SpA 30 today) shows, so the forced value is visible.
+const fmtIvs = (ivs) => ["hp", "atk", "def", "spa", "spd", "spe"]
+  .filter((k) => ivs && (ivs[k] ?? 31) !== 31)
+  .map((k) => `${k.toUpperCase()} IV ${ivs[k]}`)
+  .join(" / ");
+
 const itemOf = (c) => (c.item ? ` @ ${c.item}` : c.noItem ? " @ no item" : "");
 
 const STATUS_WORD = {
@@ -39,10 +46,12 @@ const STATUS_WORD = {
   slp: "asleep", frz: "frozen",
 };
 
-const buildCard = (c) =>
-  `${c.name}${itemOf(c)}  ${c.nature}${fmtSpread(c.evs) ? ` | ${fmtSpread(c.evs)}` : ""}` +
-  `  ${c.ability}${c.status ? ` (${STATUS_WORD[c.status] ?? c.status})` : ""}` +
-  fmtStages(c);
+const buildCard = (c) => {
+  const spread = [fmtSpread(c.evs), fmtIvs(c.ivs)].filter(Boolean).join(" / ");
+  return `${c.name}${itemOf(c)}  ${c.nature}${spread ? ` | ${spread}` : ""}` +
+    `  ${c.ability}${c.status ? ` (${STATUS_WORD[c.status] ?? c.status})` : ""}` +
+    fmtStages(c);
+};
 
 const WEATHER_WORD = {
   sun: "Sun", rain: "Rain", sand: "Sandstorm", hail: "Hail",

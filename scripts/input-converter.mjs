@@ -133,6 +133,13 @@ const BUILTIN_PLATES = {
 };
 const TYPE_BY_LOWER = new Map(typesData.types.map((t) => [t.name.toLowerCase(), t.name]));
 
+// Hidden Power (gen 6): the type word must immediately follow `hidden power` /
+// `hp`. The engine cannot roll Normal or Fairy, so those two are rejected; the
+// other 16 types are legal. `hpTypeOf` returns the canonical type for a word
+// (or undefined). There is NO derive-from-IVs path — the type is always typed.
+const HP_ILLEGAL = new Set(["Normal", "Fairy"]);
+const hpTypeOf = (word) => (word ? TYPE_BY_LOWER.get(String(word).toLowerCase()) : undefined);
+
 /** Parse the aliases.md "Type plates" table into { type -> item }. Each row
  *  also yields a `<type> plate` phrase alias (see ITEM_ALIAS below), so the one
  *  table drives both the bare-`plate` keyword and the type-first spellings.
@@ -510,6 +517,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
 
   const moveNames = [];
   const signalNames = [];
+  let hpType = null;
 
   const isSigned = (t) => /^[+-]\d{1,2}$/.test(t);
   const isNumber = (t) => /^\d{1,3}$/.test(t);
@@ -583,6 +591,24 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     return len;
   }
 
+  /** Claim a Hidden Power move whose type word is adjacent to the phrase.
+   *  `hidden power <type>` (len 2) and `hp <type>` (len 1) share this. A
+   *  missing type is a HARD ERROR (no type default, no derive-from-IVs);
+   *  Normal/Fairy are not producible and error too. The whole phrase is ONE
+   *  `move` echo span — the type gets no separate label. Returns the atom
+   *  count to consume (phrase + type). */
+  function claimHiddenPowerAt(i, len) {
+    const j = i + len;
+    const typeWord = adjacent(j - 1) && atoms[j] ? atoms[j].t : null;
+    const canon = hpTypeOf(typeWord);
+    if (!canon) throw new Error(`missing hidden power type: "${raw}"`);
+    if (HP_ILLEGAL.has(canon)) throw new Error(`"hidden power ${typeWord}" is not a legal Hidden Power type`);
+    moveNames.push("Hidden Power");
+    hpType = canon;
+    log("move", i, len + 1);
+    return len + 1;
+  }
+
   function literalClaimAt(i) {
     const maxL = Math.min(3, n - i);
     for (let len = maxL; len >= 1; len--) {
@@ -593,6 +619,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
       if (name) {
         const move = moveByName.get(norm(name));
         if (move && move.category !== "Non-Damaging") {
+          if (name === "Hidden Power") return claimHiddenPowerAt(i, len);
           moveNames.push(name); log("move", i, len); return len;
         }
         if (move && BOOST_MOVES.has(name)) {
@@ -655,6 +682,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     }
     if (tok === "hp") {
       const nxt = atoms[i + 1];
+      if (claimMovesHere && adjacent(i) && nxt && hpTypeOf(nxt.t)) return claimHiddenPowerAt(i, 1);
       if (adjacent(i) && nxt && isNumber(nxt.t)) { takeEv("hp", nxt.t); log("ev:hp", i, 2); return 2; }
       return 0;
     }
@@ -690,6 +718,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   // species-missing check so the move errors keep their old precedence.
   if (claimMovesHere) {
     spec._claim = finishMoveClaim(moveNames, signalNames, raw);
+    if (hpType) spec._claim.hpType = hpType;
   }
 
   // Species were claimed DURING the sweep (speciesKeyAt, exact glued-run
@@ -794,17 +823,31 @@ function moveTokenize(text) {
 }
 
 /** Longest-fit exact move scan over word atoms. Returns the claimed DAMAGING
- *  move names, the boost-signal names, and the word indexes each consumed (a
+ *  move names, the boost-signal names, the word indexes each consumed (a
  *  damaging phrase and a boost signal consume their words; a dropped
  *  Non-Damaging class move consumes nothing so a side pass can still claim it
- *  as its class token). */
-function scanMoveWords(words) {
+ *  as its class token), and the Hidden Power type when one was named.
+ *  `opts.hpType` supplies a type already claimed upstream (the free-order
+ *  converter lifts `matchup.move = "Hidden Power"` + `matchup.hpType`), so a
+ *  bare canonical `hidden power` here resolves instead of erroring. */
+function scanMoveWords(words, opts = {}) {
   const claimed = [];
   const signals = [];
   const usedIdx = [];
+  let hpType = null;
   for (let i = 0; i < words.length; i++) {
     let name = null;
     let len = 0;
+    // `hp <type>` alias — `hp` is not a dex move name on its own.
+    if (words[i] === "hp" && hpTypeOf(words[i + 1])) {
+      const canon = hpTypeOf(words[i + 1]);
+      if (HP_ILLEGAL.has(canon)) throw new Error(`"hidden power ${words[i + 1]}" is not a legal Hidden Power type`);
+      claimed.push("Hidden Power");
+      hpType = canon;
+      usedIdx.push(i, i + 1);
+      i += 1;
+      continue;
+    }
     for (let k = Math.min(3, words.length - i); k >= 1 && !name; k--) {
       const slice = words.slice(i, i + k);
       if (slice.includes("\u0001")) continue;
@@ -814,6 +857,18 @@ function scanMoveWords(words) {
     if (name) {
       const move = moveByName.get(norm(name));
       if (move?.category !== "Non-Damaging") {
+        if (name === "Hidden Power") {
+          const typeWord = words[i + len];
+          const canon = hpTypeOf(typeWord) ?? opts.hpType;
+          if (!canon) throw new Error(`missing hidden power type: "${words.join(" ")}"`);
+          if (HP_ILLEGAL.has(canon)) throw new Error(`"hidden power ${canon.toLowerCase()}" is not a legal Hidden Power type`);
+          claimed.push(name);
+          hpType = canon;
+          const take = hpTypeOf(typeWord) ? len + 1 : len;
+          for (let j = i; j < i + take; j++) usedIdx.push(j);
+          i += take - 1;
+          continue;
+        }
         claimed.push(name);
         for (let j = i; j < i + len; j++) usedIdx.push(j);
       } else if (BOOST_MOVES.has(name)) {
@@ -823,7 +878,7 @@ function scanMoveWords(words) {
       i += len - 1;
     }
   }
-  return { claimed, signals, usedIdx };
+  return { claimed, signals, usedIdx, hpType };
 }
 
 /** Dedupe + enforce the 1-or-2-move rule. Throws naming `quote` on 0 / >2. */
@@ -841,10 +896,12 @@ function finishMoveClaim(claimed, signals, quote) {
   return result;
 }
 
-function claimMoves(text) {
+function claimMoves(text, opts = {}) {
   const words = moveTokenize(text);
-  const { claimed, signals } = scanMoveWords(words);
-  return finishMoveClaim(claimed, signals, text);
+  const { claimed, signals, hpType } = scanMoveWords(words, opts);
+  const result = finishMoveClaim(claimed, signals, text);
+  if (hpType) result.hpType = hpType;
+  return result;
 }
 
 /** Parse a free-order damage line. `vs` is the MANDATORY splitter — a query
@@ -886,6 +943,7 @@ function parseQuery(line) {
       if (claim.single) out.move = claim.single;
       else out.moves = claim.chain;
       if (claim.signals) out.signals = claim.signals;
+      if (claim.hpType) out.hpType = claim.hpType;
     }
     out._query = line.trim();
     return out;

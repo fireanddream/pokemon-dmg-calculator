@@ -444,6 +444,12 @@ Status legend: `not implemented` — open, safe to implement · `not implemented
 design decision · `partial` — some path exists but nothing reaches it in
 practice · `done` — implemented.
 
+**2026-09-11 — open engine rows closed.** The user decided the remaining
+open engine-coverage items are not being built: **Metronome**, **Future
+Sight / Doom Desire**, and **Minimize-target doubles (Stomp / Steamroller /
+Dragon Rush)** are re-statused `won't implement`. **Hidden Power + IVs landed
+the same day** (§10 Moves / ### IVs); with that, no engine gap remains open.
+
 ### Abilities
 
 | Ability | Status | Notes |
@@ -474,7 +480,7 @@ practice · `done` — implemented.
 | Black Sludge | done | Heals a Poison-type holder 1/16 and chips non-Poison holders 1/16 in the KO sim / turn table. |
 | Soul Dew / Thick Club / Light Ball / Deep Sea Tooth / Deep Sea Scale | done | Species stat multipliers (Latios/Latias, Marowak/Cubone, Pikachu, Clamperl). |
 | Plates | done | All 17 plates parse by name AND by the `<Type> plate` spelling (`@ Fairy Plate` → Pixie Plate — source of truth: aliases.md "Type plates" table, parsed at startup). A bare `plate` picks by the move's **effective** type (a Pixilate Hyper Voice gets Pixie Plate); Normal has no plate, so `normal plate` / `plate` + a Normal move → Silk Scarf. |
-| Metronome | not implemented | Consecutive-use power ramp (multi-turn; low priority). |
+| Metronome | **won't implement** | Consecutive-use power ramp (multi-turn). Closed 2026-09-11: the user decided the item is not being built, so it is no longer open work. |
 | Self stat-raisers in the move slot (Dragon Dance, Swords Dance, ...) | done (boost signals) | A boosting move typed as the attack move is **never** the damage move: it converts to attacker stat stages (table source: aliases.md "## Boosting moves", doc-as-code; additive with typed stages, each stat capped ±6) and never occupies a combo slot. Pure status moves (Toxic, Will-O-Wisp) can't be the queried move either. See the contributor note below. |
 
 ### Moves
@@ -483,11 +489,36 @@ practice · `done` — implemented.
 |---|---|---|
 | Multi-hit moves (2-5) | done | Each use convolves the per-hit 16 rolls by hit count with the gen-6 odds (2:3/8, 3:3/8, 4:1/8, 5:1/8; Skill Link forces 5). Technician applies per hit (BP ≤ 60), a resist berry halves ONLY the first hit, and Focus Sash / Sturdy cannot save the attack. End-of-turn chip/heal applies ONCE after the whole action, never between strikes. The Damage row shows the total range `[2-5 hits]`; the KO sim runs the exact weighted total distribution. `multiHitDistribution` + the shared `moveUseDistribution` helper in `scripts/calc.mjs`; covered by `verify:multihit`. |
 | Fixed-count multi-hit (Bonemerang 2, Double Kick 2, Twineedle 2, Double Hit 2, Dual Chop 2, Gear Grind 2, Triple Kick 3) | not implemented | Still print as one hit. Same Sash/Sturdy property as the 2-5 set; Triple Kick additionally escalates 10/20/30 BP and checks accuracy per hit. |
+| Hidden Power (type from IVs) | done (2026-09-11) | The type is typed explicitly — `hidden power <type>` or the `hp <type>` alias, adjacent — never derived from IVs. 16 legal types (Normal/Fairy rejected: gen 6 cannot roll them); no type word is a hard error `missing hidden power type`. `fill.mjs` clones the dex move to the named type (never mutates the shared entry) so STAB/effectiveness/immunities/resist berries/plate pick/defender ability pick all follow it; the whole phrase is ONE `move` echo span. `hp fire` additionally forces attacker SpA IV 30 (shown on the card). Contract: the "Hidden Power" note below. |
 | Aerilate / Pixilate / Refrigerate / Normalize (type remap) | **done** | STAB, type effectiveness, immunities and the x1.3 all key off the remapped type (Flying/Fairy/Ice). |
 | Scrappy | done | (Ability row above; listed here for move-type completeness.) |
 | Freeze-Dry | done | x2 vs Water handled. |
+| Foul Play | done (2026-09-11) | Uses the **defender's current Atk** as the attack stat (see IVs section); all attacker-side modifiers and burn still apply. |
 | Avalanche / "moved-after-target" powers | **not implemented (intentionally)** | Avalanche (doubles if the user was hit this turn) is not modeled. Electro Ball and Gyro Ball keep their documented **stat-based** power scaling (current Speed stat), but the engine never infers *who actually moved first*. Payback is its own case — see Dynamic-power moves. See the move-order note below. |
-| Future Sight / Doom Desire-style delay | not implemented | (Not gen-6 damage-number relevant in the single-hit view.) |
+| Future Sight / Doom Desire-style delay | **won't implement** | (Not gen-6 damage-number relevant in the single-hit view.) Closed 2026-09-11: the user decided the item is not being built, so it is no longer open work. |
+
+**Hidden Power (design choice).** The dex holds ONE `Hidden Power` (Normal,
+60 BP, Special); gen 6 instead picks the type from the user's IVs, so the front
+takes the type from the query — never derived from IVs. Contract:
+- **Spelling:** `hidden power <type>` or the `hp <type>` alias, with the type
+  word **adjacent** to the phrase. The whole phrase is ONE `move` echo span
+  (no separate type label).
+- **Legality:** 16 types. **Normal and Fairy hard-error** (gen 6 cannot roll
+  them); a missing type word hard-errors `missing hidden power type`.
+- **`hp` vs the HP stat:** the one overloaded token. `hp <number>` is still the
+  HP EV (the EV branch is number-led); `hp <type>` is Hidden Power. `252 HP fire`
+  is **not** double-duty — the number-led EV branch consumes `252 HP` first, so
+  `fire` is silently dropped and the line errors `missing move` if that was the
+  only move. Write `252 HP hidden power fire` to combine them.
+- **Type override:** `fill.mjs` clones the move to the named type (never mutates
+  the shared dex entry) before the ability pick / plate pick / calc, so STAB,
+  effectiveness, immunities, resist berries and the defender's ability pick all
+  follow the real type.
+- **HP Fire's SpA IV:** `hp fire` (in move 0 or move 1) forces the **attacker's
+  SpA IV to 30** — the only damage-relevant "even IV" of the standard HP Fire
+  spread (BP is a fixed 60 in gen 6). Shown on the card as `SPA IV 30`. Other
+  types get the type override with no IV side effect; the full per-type IV
+  spreads are out of scope.
 
 #### Dynamic-power (variable BP) moves
 
@@ -509,7 +540,7 @@ scope, the same class as Avalanche.
 | Fury Cutter, Echoed Voice, Rollout, Ice Ball (consecutive-turn scaling) | not implemented | Multi-turn state. Intentional. |
 | Spit Up, Trump Card, Present, Natural Gift, Magnitude | not implemented | Need Stockpile count / PP left / random roll / berry — out of scope. |
 | Brine (double at ≤50% target HP) | not implemented (intentional) | Kept flat 65 BP. |
-| Stomp / Steamroller / Dragon Rush (double vs a Minimize target) | not implemented | Minimize isn't modeled (its +2 evasion stage is all that applies). |
+| Stomp / Steamroller / Dragon Rush (double vs a Minimize target) | **won't implement** | Minimize isn't modeled (its +2 evasion stage is all that applies). Closed 2026-09-11: the user decided the item is not being built, so it is no longer open work. |
 | Last Resort | not implemented (intentional) | "Always works": flat 140 BP, no availability condition. |
 
 **Conditional-power clauses (design choice).** Single-clause raw multipliers
@@ -549,6 +580,29 @@ This intentionally diverges from `@smogon/calc`, which models a 2-5 move as
 exactly **3** hits unless given an explicit count; `verify:multihit` compares our
 per-hit and each fixed n-hit total against the oracle driven with `{ hits: n }`,
 and checks the convolution weights and the Sash/Sturdy flag directly.
+
+### IVs
+
+**No manual IV input.** Every stat is IV 31 unless a mechanic forces it. There
+is no IV spec token (the `Defaults at a glance` row stays "31"). Two forced
+values exist, both rendered on the card in the same `| ...` spread slot as EVs
+(e.g. `Timid | HP 252 / SPA IV 30`):
+
+- **Hidden Power Fire → attacker SpA IV 30** (see the Hidden Power note above).
+- **Foul Play → defender Atk IV 0**, only when the defender's base Atk < base
+  SpA. Foul Play is the ONLY mechanic that reads the defender's Attack, so this
+  rule is scoped to a Foul Play query — a defender's Atk IV is irrelevant in
+  every other matchup, so nothing else ever changes it.
+
+**Foul Play (implemented 2026-09-11).** `calcDamage` uses the **defender's
+current Attack** (stat + its own boosts) as the attack stat; everything else
+keys off the attacker (Hustle, Guts/Huge Power/Choice Band, burn halving), and
+defense still comes from the defender — mirrors `@smogon/calc` gen56
+`var attackSource = move.named('Foul Play') ? defender : attacker`. The IV rule
+above (defender Atk IV 0 for a special-oriented defender) is applied in
+`fill.mjs` and is the only place the defender's Atk is IV-modified. Covered by
+`verify-smogon` (defender attack source, defender boosts, crit, burn, defender
+Unaware, attacker Huge Power).
 
 ### KO sim
 
@@ -640,8 +694,9 @@ rules 1–3 and the `pokemon-damage-calc` skill were rewritten to this contract.
 
 ## 12. Verification baseline (gate for every change)
 
-`verify:damage` 64/64, `verify:acc` 44/44, `verify:echo` 7/7, corpus
-chaincheck "all identical" (@smogon/calc = devDependency oracle only). Corpus
+`verify:damage` 72/72, `verify:acc` 44/44, `verify:echo` 7/7,
+`verify:multihit` 34/34, corpus chaincheck "all identical" (@smogon/calc =
+devDependency oracle only). Corpus
 + capture tooling:
 `session-tools-archive/20260904-pipeline-corpus.json`,
 `session-tools-archive/20260904-capture-goldens.mjs`,

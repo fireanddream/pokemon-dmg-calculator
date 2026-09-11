@@ -371,7 +371,11 @@ export function calcDamage(params: DamageParams): DamageResult {
   const attackStat: StatStageKey = move.category === "Physical" ? "atk" : "spa";
   const defenseStat: StatStageKey = move.category === "Physical" ? "def" : "spd";
 
-  let atkBoost = statBoost(attacker, attackStat);
+  // Foul Play uses the DEFENDER's current Attack (stat + its own boosts) as the
+  // attack stat; everything else (Hustle, Guts/Huge Power/Choice Band, burn
+  // halving) still keys off the attacker. Mirrors @smogon/calc gen56.
+  const attackSrc = named(move, "Foul Play") ? defender : attacker;
+  let atkBoost = statBoost(attackSrc, attackStat);
   let defBoost = statBoost(defender, defenseStat);
   if (isCrit) {
     atkBoost = Math.max(0, atkBoost);
@@ -380,8 +384,8 @@ export function calcDamage(params: DamageParams): DamageResult {
 
   const attack =
     hasAbility(defender, "Unaware") && !ignores
-      ? attacker.stats[attackStat]
-      : getModifiedStat(attacker.stats[attackStat], atkBoost);
+      ? attackSrc.stats[attackStat]
+      : getModifiedStat(attackSrc.stats[attackStat], atkBoost);
   let defense =
     hasAbility(attacker, "Unaware")
       ? defender.stats[defenseStat]

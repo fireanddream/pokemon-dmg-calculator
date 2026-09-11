@@ -457,6 +457,44 @@ addCase("infiltrator ignores reflect", {
   params: { screens: "reflect" },
 });
 
+// Foul Play uses the DEFENDER's current Attack as the attack stat (Dark move).
+addCase("foul play uses defender Atk (vs special mon)", {
+  atk: { species: "Sableye", level: 100, ability: "Keen Eye", ...base },
+  def: { species: "Alakazam", level: 100, ability: "Synchronize", ...base },
+  move: "Foul Play",
+});
+addCase("foul play vs a physical mon", {
+  atk: { species: "Sableye", level: 100, ability: "Keen Eye", ...base },
+  def: { species: "Machamp", level: 100, ability: "Guts", ...base },
+  move: "Foul Play",
+});
+addCase("foul play: defender Atk +2", {
+  atk: { species: "Sableye", level: 100, ability: "Keen Eye", ...base },
+  def: { species: "Machamp", level: 100, ability: "Guts", ...base, boosts: { atk: 2 } },
+  move: "Foul Play",
+});
+addCase("foul play: crit ignores defender -Atk", {
+  atk: { species: "Sableye", level: 100, ability: "Keen Eye", ...base },
+  def: { species: "Machamp", level: 100, ability: "Guts", ...base, boosts: { atk: -2 } },
+  move: "Foul Play",
+  params: { crit: true },
+});
+addCase("foul play: attacker burn halves", {
+  atk: { species: "Sableye", level: 100, ability: "Keen Eye", status: "brn", ...base },
+  def: { species: "Machamp", level: 100, ability: "Guts", ...base },
+  move: "Foul Play",
+});
+addCase("foul play: defender Unaware ignores its +Atk", {
+  atk: { species: "Sableye", level: 100, ability: "Keen Eye", ...base },
+  def: { species: "Quagsire", level: 100, ability: "Unaware", ...base, boosts: { atk: 2 } },
+  move: "Foul Play",
+});
+addCase("foul play: attacker Huge Power still applies", {
+  atk: { species: "Azumarill", level: 100, ability: "Huge Power", ...base },
+  def: { species: "Machamp", level: 100, ability: "Guts", ...base },
+  move: "Foul Play",
+});
+
 // snapshot for building oracle combatant
 const NEUTRAL = neutralNature.name;
 const IVS31 = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 };

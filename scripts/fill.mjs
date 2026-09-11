@@ -670,10 +670,11 @@ function resolve(spec) {
   const evs = spec.evs ?? {};
   const ivFloor = FILL_DEFAULTS.ivs;
   const evFloor = FILL_DEFAULTS.evs;
+  const ivs = { hp: ivFloor, atk: ivFloor, def: ivFloor, spa: ivFloor, spd: ivFloor, spe: ivFloor, ...(spec.ivs ?? {}) };
   const stats = calcStats(entry.baseStats, {
     level: spec.level ?? FILL_DEFAULTS.level,
     nature,
-    ivs: spec.ivs ?? { hp: ivFloor, atk: ivFloor, def: ivFloor, spa: ivFloor, spd: ivFloor, spe: ivFloor },
+    ivs,
     evs: evFloor > 0 ? { hp: evFloor, atk: evFloor, def: evFloor, spa: evFloor, spd: evFloor, spe: evFloor, ...evs } : evs,
   });
   const isMega = entry.name.endsWith("-Mega");
@@ -690,6 +691,7 @@ function resolve(spec) {
     stats,
     nature: nature.name,
     evs,
+    ivs,
     ability: spec.ability ?? entry.abilities[0],
     item: spec.item,
     // A Mega always holds its Mega Stone. That stone is the default item, set
@@ -745,15 +747,57 @@ function cardFlags(matchup, spec, plateNote) {
   return flags;
 }
 
+// --- Hidden Power (gen 6): explicit type only, no derive-from-IVs ---
+const HP_ILLEGAL_TYPES = new Set(["Normal", "Fairy"]);
+
+/** Override the dex `Hidden Power` (stored Normal) with the type the query
+ *  named. Clone — never mutate the shared dex entry — so STAB, effectiveness,
+ *  immunities, resist berries, the plate picker and the ability defaulting all
+ *  key off the real type. A Hidden Power that reaches here with no type is a
+ *  hard error (the front already errors on a typeless typed line; this catches
+ *  hand-authored specs). */
+function hiddenPowerMove(move, matchup) {
+  if (move.name !== "Hidden Power") return move;
+  const t = matchup.hpType;
+  if (!t) throw new Error(`missing hidden power type: "${matchup._query ?? move.name}"`);
+  if (HP_ILLEGAL_TYPES.has(t)) throw new Error(`"hidden power ${t.toLowerCase()}" is not a legal Hidden Power type`);
+  return { ...move, type: t };
+}
+
+/** Hidden Power Fire runs SpA IV 30 (its damage-relevant consequence; the other
+ *  two "even" IVs don't change a special attack's damage). Every other IV stays
+ *  at the 31 default unless `applyFoulPlayIV` forces one — manual IV input is
+ *  not modeled. */
+function applyHiddenPowerIV(matchup) {
+  if (matchup.hpType !== "Fire" || !matchup.attacker) return;
+  matchup.attacker.ivs = { ...(matchup.attacker.ivs ?? {}), spa: 30 };
+}
+
+/** The ONLY other forced IV: Foul Play reads the DEFENDER's Attack, so a
+ *  special-oriented defender (base Atk < base SpA) would run Atk IV 0 to
+ *  minimize the damage — assume it. Shown on the card. Everything else stays
+ *  31; manual IV input is not modeled. */
+function applyFoulPlayIV(matchup, moves) {
+  if (!matchup.defender || !moves.some((m) => m.name === "Foul Play")) return;
+  const defEntry = monByName.get(norm(matchup.defender.name ?? ""));
+  if (!defEntry) return;
+  if (defEntry.baseStats.atk < defEntry.baseStats.spa) {
+    matchup.defender.ivs = { ...(matchup.defender.ivs ?? {}), atk: 0 };
+  }
+}
+
 /** Single-move query: fill defaults and resolve everything calc needs. Returns
  *  the calc input object (attacker/defender records, the Move record, arena
  *  fields, flags, query). JSON-serializable — chart is NOT included (a Map);
  *  the caller supplies it (library path) or the calc CLI rebuilds it. */
 function resolveSingleInput(matchup) {
   const canonical = resolveMoveName(matchup.move);
-  const move = moveByName.get(norm(canonical ?? matchup.move));
-  if (!move) throw new Error(`missing move: "${matchup.move}"`);
-  matchup.move = move.name;
+  const dexMove = moveByName.get(norm(canonical ?? matchup.move));
+  if (!dexMove) throw new Error(`missing move: "${matchup.move}"`);
+  matchup.move = dexMove.name;
+  applyHiddenPowerIV(matchup);
+  const move = hiddenPowerMove(dexMove, matchup);
+  applyFoulPlayIV(matchup, [move]);
 
   fillCombatant(matchup.defender, move, matchup, "defender");
   fillCombatant(matchup.attacker, move, matchup, "attacker");
@@ -789,11 +833,14 @@ function resolveSingleInput(matchup) {
 /** Two-move combo: fill defaults anchored on the first move and resolve
  *  everything calc needs. Returns the calc input object (JSON-serializable). */
 function resolveComboInput(matchup) {
-  const moveEntries = matchup.moves.map((nm) => {
+  const dexMoves = matchup.moves.map((nm) => {
     const m = moveByName.get(norm(nm));
     if (!m) throw new Error(`missing move: "${nm}"`);
     return m;
   });
+  applyHiddenPowerIV(matchup);
+  const moveEntries = dexMoves.map((m) => hiddenPowerMove(m, matchup));
+  applyFoulPlayIV(matchup, moveEntries);
   const anchor = moveEntries[0];
 
   fillCombatant(matchup.defender, anchor, matchup, "defender");
@@ -838,10 +885,11 @@ function classifyMatchup(matchup) {
     delete matchup.signals;
   }
   if (!matchup.moves) {
-    const parsed = claimMoves(matchup.move ?? "");
+    const parsed = claimMoves(matchup.move ?? "", { hpType: matchup.hpType });
     if (parsed.signals) foldBoostSignals(matchup.attacker, parsed.signals);
     if (parsed?.chain) matchup.moves = parsed.chain;
     else if (parsed?.single) matchup.move = parsed.single;
+    if (parsed?.hpType) matchup.hpType = parsed.hpType;
   }
   if (Array.isArray(matchup.moves) && matchup.moves.length >= 2) {
     if (matchup.moves.length > 2) throw new Error(`too many moves in a combo — capped at 2 (${matchup.moves.join(" then ")})`);

@@ -51,7 +51,7 @@ next time the front runs.
 |---|---|---|
 | Level | 50 | `L100` / `level 100` / `Lv 75` (clamped 1–100) |
 | Nature | Serious | any nature word: `Jolly`, `Adamant`, ... |
-| IVs | 31 | (no spec token — always the table default) |
+| IVs | 31 | no spec token. Only forced values change: **Hidden Power Fire → attacker SpA IV 30**; **Foul Play → defender Atk IV 0** when its base Atk < base SpA (Foul Play is the only move that reads the defender's Atk). Shown on the card. |
 | EVs | 0 | only named `N <stat>` tokens get EVs (cap 252 each) |
 | Held item | inert item (held, no effect, not displayed) | name an item / acronym, or `no item` |
 | Status | none | `burned`, `poisoned`, `toxic`, `paralyzed`, `asleep`, `frozen` |
