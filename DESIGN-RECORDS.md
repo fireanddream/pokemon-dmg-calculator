@@ -111,15 +111,15 @@ longest-fit claim walk over each side's atoms:
   match). Same canonical move claimed twice (`EQ then Earthquake`) collapses
   to a single-move card.
 
-Open scope, in implementation order — see `TODO.md` build-order steps 5–9:
-arena grammar (§5, bare-only), seam-C startup warning (option A — no key, any
-word count, in two class lexicons), converter-side echo (§4 tail),
-one-shot `route.mjs` (§11), forme-word collision set (§3).
+Open scope, in implementation order — `TODO.md` build-order step 9 remains:
+the forme-word collision set (§3). **DONE 2026-09-11:** arena grammar (§5),
+seam-C startup guard, converter-side echo (§4 tail), one-shot `route.mjs` (§11).
 
-## 4. Recognition echo — the two-block answer (converter-side LIVE 2026-09-10; agent prose = TODO step 8)
+## 4. Recognition echo — the two-block answer (converter-side LIVE 2026-09-10; agent prose RETIRED 2026-09-11)
 
-**Every answer is TWO blocks, in order** (shipped for the offline converter /
-`damage.mjs` route; the agent's hand-authored spec+echo prose retires at step 8):
+**Every answer is TWO blocks, in order** (the offline converter / `damage.mjs` /
+`route.mjs` route; the agent's hand-authored spec+echo prose was retired by step
+8 — the agent now just runs `route.mjs` and pastes):
 
 1. **Block 1 — recognition echo.** The user's input line with the normalize-once
    words (case preserved; see the shared tokenizer below) and a class ruler
@@ -193,8 +193,9 @@ exactly how far the scan got.
 the `| fill | calc | output` pipe). Presentation lives in the single-process
 runner: `damage.mjs` `runQuery` prints echo+card/error on stdout, `--no-echo`
 for the card alone (used by the corpus chaincheck), `--chat` fences both blocks,
-and `--resolved` stays a pure JSON data path. A future `route.mjs` (step 8) is
-a thin alias. Card wrap (Block 2) SHIPPED 2026-09-10: `output.mjs` pipes the
+and `--resolved` stays a pure JSON data path. `route.mjs` (step 8, SHIPPED
+2026-09-11) is a thin alias of `runQuery`: one line argument, always fenced.
+Card wrap (Block 2) SHIPPED 2026-09-10: `output.mjs` pipes the
 card through the same `wrapBlock` rule as the echo (default 100 columns,
 `--width N`, `<= 0` never), so `damage.mjs` and `output.mjs` agree byte for
 byte (`OUTPUT-FORMAT.md` "Wrapping").
@@ -565,17 +566,16 @@ user-typed context token in the CLI that maps to the existing
 `movedAfterTarget` / `flashFireBoosted` hooks, with coverage rows in
 `scripts/verify-smogon.mjs`.
 
-## 11. One-liner → converter route (direction agreed 2026-09-06; TODO step 8)
+## 11. One-liner → converter route (SHIPPED 2026-09-11; TODO step 8)
 
-The agent becomes ONLY a conversational wrapper: pull the one-liner out of the
-user's message (strip conversational filler) and hand it to the converter. All
-extraction + defaulting = converter + `fill.mjs`; the agent authors NO spec
-JSON and computes NO echo spans. One-shot `route.mjs "<line>" --chat` =
-converter → fill → calc → output in one node process (data loaded once), so a
-query is one tool call. When the converter parse owns spans, its echo becomes
-the ONLY echo and the agent-side hand-built echo path is dropped. This
-supersedes the agent-route prose in AGENTS.md rule 2/3 and the
-`pokemon-damage-calc` skill's step 1 once it lands.
+The agent is ONLY a conversational wrapper: find the sentence with `vs` and hand
+it to the converter AS-IS. All extraction + defaulting = converter + `fill.mjs`;
+the agent authors NO spec JSON and computes NO echo spans. One-shot
+`scripts/route.mjs "<line>"` = converter → echo → fill → calc → output in one
+node process (data loaded once), so a query is one tool call; it always fences
+the two-block answer for pasting. The converter's parse owns the spans, so its
+echo is the ONLY echo (the agent-side hand-built echo path is gone). AGENTS.md
+rules 1–3 and the `pokemon-damage-calc` skill were rewritten to this contract.
 
 ## 12. Verification baseline (gate for every change)
 

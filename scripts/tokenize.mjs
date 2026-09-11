@@ -6,8 +6,9 @@
 //   - the master hyphen rule runs first (every typed hyphen becomes a space,
 //     except a minus glued to a boost/stage number) — so a hyphenated spelling
 //     shows up as plain spaced words;
-//   - `@` and quotes become spaces; the hard-boundary punctuation `,.;/\|`
-//     becomes a non-space sentinel so no phrase ever matches across it;
+//   - `@` and quotes become spaces; the hard-boundary punctuation `,.;/\|?!`
+//     becomes a non-space sentinel so no phrase ever matches across it (this
+//     lets a natural-sentence query like "… vs Heatran?" keep its last token);
 //   - split into atoms: each keeps the user's `raw` text (case preserved) for
 //     display plus a lowercased `match` form `t`, an absolute index `gi`, and
 //     `hardBefore` (a sentinel sits between it and the previous atom).
@@ -17,7 +18,7 @@
 // consumers (verify:echo, unit tests) may tokenize a line standalone; the
 // converter tokenizes the whole line once and slices it per side, so `gi` is
 // the global echo atom index.
-const PUNCT_BOUNDARY = /[,.;/\\|]/g;
+const PUNCT_BOUNDARY = /[,.;/\\|?!]/g;
 export const PUNCT_SENT = "\u0001";
 
 /** Master hyphen rule (idea-note-3): every hyphen in the INPUT is a word

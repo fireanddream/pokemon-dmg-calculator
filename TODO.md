@@ -31,7 +31,7 @@ chaincheck "all identical".
 
 ## Build order — what remains of the tokenizer overhaul
 
-Steps 1–7 are done (steps 8–9 remain); the design contract for each open step
+Steps 1–8 are done (step 9 remains); the design contract for each open step
 lives in the `DESIGN-RECORDS.md` section cited. Each step lands with
 `verify:damage` 65/65, `verify:acc` 44/44, `verify:echo` 7/7 green, no TS build
 errors, and the corpus chaincheck "all identical". Record of done steps: step 1
@@ -75,12 +75,15 @@ errors, and the corpus chaincheck "all identical". Record of done steps: step 1
    (echo + card, or echo + error "scanned so far"; `--no-echo`, `--chat`);
    converter stays data-only. Contract: `DESIGN-RECORDS.md` §4. Agent-route
    prose/echo retirement moved to step 8.
-8. **One-shot route** (was `## 10`). `route.mjs "<line>" --chat` becomes a thin
-   alias of `damage.mjs`'s `runQuery` (converter → echo → fill → calc → output
-   in one node process). Then retire the agent-route prose in AGENTS.md rule
-   2/3 and the `pokemon-damage-calc` skill step 1 (agents stop authoring spec
-   JSON/spans; AGENTS.md rule 2's echo becomes `runQuery`'s echo).
-   Direction: `DESIGN-RECORDS.md` §11.
+8. ✅ **One-shot route** (was `## 10`) — DONE 2026-09-11. `scripts/route.mjs`
+   is a thin alias of `damage.mjs`'s `runQuery`: one line argument, always
+   fenced (converter → echo → fill → calc → output in one process).
+   `damage.mjs` entry points are `isMain`-guarded so `runQuery` is importable.
+   Agent-route prose rewritten: AGENTS.md rules 1–3 and the
+   `pokemon-damage-calc` skill now say "find the `vs` line → run `route.mjs` →
+   paste verbatim". Shared tokenizer now treats `?`/`!` as hard boundaries so a
+   natural-sentence line ("... vs Heatran?") keeps its last token. Contract:
+   `DESIGN-RECORDS.md` §11.
 9. **Forme-word collision set** (post-tokenizer review). Once the sweep works,
    revisit `pikachu rock star`, `arceus rock`, `arceus poison`, `arceus
    electric/psychic` (terrain interaction), `genesect burn`, `arc-rock`; at-worst

@@ -272,6 +272,19 @@ export function calcCombo(input) {
   };
 }
 
+/**
+ * Dispatch a resolved calc input to the single or combo calculator — the ONE
+ * place that decides which. `kind` is set by fill.mjs; the moves[] length check
+ * covers hand-written resolved JSON that carries no kind. The caller attaches
+ * `chart` (a Map, so it cannot ride in the JSON input).
+ */
+export function runCalc(input) {
+  const isCombo = input.kind === "combo" || (Array.isArray(input.moves) && input.moves.length >= 2);
+  return isCombo
+    ? calcCombo(input)
+    : calcSingle({ ...input, move: input.move ?? input.moves?.[0] });
+}
+
 // --- standalone CLI (only when run directly: node scripts/calc.mjs) ---
 // Reads a resolved matchup JSON (file arg, or stdin when "-" / no arg) and
 // writes the result bag JSON to stdout. The chart is rebuilt from types-xy.json
@@ -294,10 +307,6 @@ if (isMain) {
   const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json"), "utf8"));
   const chart = buildTypeChart(typesData.types);
 
-  const isCombo = matchup.kind === "combo"
-    || (Array.isArray(matchup.moves) && matchup.moves.length >= 2);
-  const bag = isCombo
-    ? calcCombo({ ...matchup, chart })
-    : calcSingle({ ...matchup, move: matchup.move ?? matchup.moves?.[0], chart });
+  const bag = runCalc({ ...matchup, chart });
   process.stdout.write(JSON.stringify(bag, null, 2) + "\n");
 }

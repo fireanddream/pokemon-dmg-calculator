@@ -9,13 +9,14 @@ answering a damage query is the `pokemon-damage-calc` skill (project skill,
 `.opencode/skills/pokemon-damage-calc/SKILL.md`) — load it when a query
 fires.**
 
-Pipeline: an **agent** (free-word query → spec JSON — users are NOT assumed to
-type `uses`/`use`; `use(s)` is inert everywhere) or `input-converter.mjs`
+Pipeline: an **agent** (free-word query — users are NOT assumed to type
+`uses`/`use`; `use(s)` is inert everywhere) or `input-converter.mjs`
 (offline extractor: `vs` splits two free-order sides, NO `uses` syntax)
 → `scripts/fill.mjs` (defaults + resolve: spec JSON → calc-input JSON; rules
 parsed from `auto-fill-defaults.md`) → `scripts/calc.mjs` (pure math) →
-`scripts/output.mjs` (result card; OWNS the layout). `damage.mjs` is a thin
-compat card CLI gluing the same chain.
+`scripts/output.mjs` (result card; OWNS the layout). The agent's ONE tool call
+is `scripts/route.mjs` (converter → echo → fill → calc → output in one
+process); `damage.mjs` is a thin compat card CLI gluing the same chain.
 
 ## MUST OBEY — routing, tool-only truth, defaults, verbatim output
 
@@ -23,37 +24,36 @@ compat card CLI gluing the same chain.
 never ad hoc.** If an inquiry is identified as a pokemon damage calc — damage /
 KO / accuracy / chip numbers between sides ("Garchomp Dragon Claw vs Heatran",
 "does X one-shot Y", "how many hits to KO Y", "what % does Z do") — you MUST
-load the skill and answer it through the staged pipeline it defines (extract →
-spec JSON → echo → `fill | calc | output --chat` → paste verbatim). Do NOT go
-look up info or improvise: the engine, staged scripts, data files, and docs
-are the ONLY source of truth for numbers — no web research, no memorized
-stats, no knowledge from other gens. If a calc can't be modeled, report the
-limit (`DESIGN-RECORDS.md`) rather than inventing numbers. A query without
-`vs` is not answerable yet — ask for the other side.
+load the skill and answer it with its ONE tool call:
+`node scripts/route.mjs "<the user's query, verbatim>"`, then paste the output
+verbatim. Do NOT go look up info or improvise: the engine, staged scripts, data
+files, and docs are the ONLY source of truth for numbers — no web research, no
+memorized stats, no knowledge from other gens. If a calc can't be modeled,
+report the limit (`DESIGN-RECORDS.md`) rather than inventing numbers. A message
+with no `vs` has no answerable side split yet — ask the user to restate it as
+`<attacker side> vs <defender side>`.
 
 **2. Answer shape: recognition echo, then the card — both pasted verbatim.**
-Before any card or error, show what you understood: render
-`node scripts/echo.mjs --line "<query verbatim>" --spans '<spans>' --chat`
-(one span per token you bound, unbound tokens `???` — never fabricate) and
-paste that fenced block verbatim. Then paste the output script's card block
+`route.mjs` takes the user's line AS-IS (throw the whole vs-sentence at it; do
+NOT strip filler, reorder, translate, expand, or author spec JSON/spans) and
+prints ONE fenced block: Block 1 the recognition echo (the converter's own
+bindings, `???` for tokens it could not place) then Block 2 the result card —
+or, on a stage error, the echo then the error message. Paste that block
 **verbatim, byte for byte** — never summarize, restate, reformat, hand-write,
-or substitute your own numbers; on a stage error, report the error. Details,
-span schema, and token lexicons: the `pokemon-damage-calc` skill steps 1–2.
+or substitute your own numbers. Details: the `pokemon-damage-calc` skill.
 
-**3. Defaults policy: `fill.mjs` fills the defaults — you never do.** Your job
-is EXTRACTION: bind every token you recognize (consulting `aliases.md` for
-acronyms/shorthand is extraction, not filling) and pass the stated variables
-to `fill.mjs`, which consults `auto-fill-defaults.md` and fills every
-unspecified variable itself — level, nature, IVs, EVs, ability pick,
-orb→status, weather setters, `max atk` expansion, boost placement. Never add
-EVs, natures, items, status, stages, weather, or boosts the user didn't type,
-and never pre-compute what a default would be ("Garchomp Dragon Claw vs
-Heatran" ⇒ attacker Garchomp, move Dragon Claw, defender Heatran — nothing
-added). The card prints what was resolved, so a wrong assumption is visible
-there. The only times the agent may add a NON-DEFAULT token the user's intent
-requires (e.g. a genuinely itemless mon needs `no item`), plus all token
-rules: `auto-fill-defaults.md`. If a query can't be translated or needs a
-choice the front can't infer, ask the user instead of guessing.
+**3. Extraction and defaults are the tool's job — never do them by hand.**
+`input-converter.mjs` binds the tokens and `fill.mjs` fills every unspecified
+variable from `auto-fill-defaults.md` (level, nature, IVs, EVs, ability pick,
+orb→status, weather setters, `max atk` expansion, boost placement). Slide the
+user's words straight through; never add, drop, reorder, or rewrite a token,
+and never pre-compute a default ("Garchomp Dragon Claw vs Heatran" ⇒ that line
+exactly, nothing added). The card prints what got resolved, so a wrong
+assumption is visible there. The only times the agent may add a NON-DEFAULT
+token the user's intent requires (e.g. a genuinely itemless mon needs
+`no item`) are listed in `auto-fill-defaults.md` → "The only times the agent
+adds to the spec". If the line can't be translated or needs a choice the front
+can't infer, ask the user instead of guessing.
 
 **4. Card layout is not the agent's job.** The result-card layout is
 implemented once in `scripts/output.mjs` and pinned in `OUTPUT-FORMAT.md`. The
@@ -67,7 +67,7 @@ Read the section you need from the file that owns it; never memorize these.
 
 | Topic | Where it lives |
 | --- | --- |
-| **How to answer a damage query end to end** (extract → spec JSON → echo → chain → paste; worked example) | **`pokemon-damage-calc` skill** (`.opencode/skills/pokemon-damage-calc/SKILL.md`) |
+| **How to answer a damage query end to end** (form the line → `route.mjs` → paste; worked example) | **`pokemon-damage-calc` skill** (`.opencode/skills/pokemon-damage-calc/SKILL.md`) |
 | Query tokens & side shapes: word/phrase lexicons in `input-converter.mjs` passes; name/acronym tables (species, move, item, stat, status, weather, type plates) in **`aliases.md`** (doc-as-code); investment/stat-stage/arena token rules + "only times the agent adds to the spec" in **`auto-fill-defaults.md`** | `aliases.md` · `auto-fill-defaults.md` · `input-converter.mjs` |
 | Defaults the engine applies, EV/nature shorthands, orbs, weather setters, ability pick order, the only times the agent adds to the spec | **`auto-fill-defaults.md`** (doc-as-code, parsed by `fill.mjs`) |
 | Recognition echo: layout contract + span schema + CLI | `scripts/echo.mjs` header · `DESIGN-RECORDS.md` "Recognition echo" |
@@ -88,8 +88,9 @@ Read the section you need from the file that owns it; never memorize these.
 - `scripts/` — staged pipeline: `input-converter.mjs` (extractor; also hosts the
   shared front lexicon fill.mjs imports) → `fill.mjs` (defaults+resolve) →
   `calc.mjs` (pure calc) → `output.mjs` (card renderer); plus `echo.mjs`
-  (recognition-echo renderer), `damage.mjs` (compat card CLI), data-gen and
-  verify scripts (`verify:echo`, `verify:damage`, `verify:acc`).
+  (recognition-echo renderer), `route.mjs` (the agent one-shot: line →
+  echo+card), `damage.mjs` (compat card CLI), data-gen and verify scripts
+  (`verify:echo`, `verify:damage`, `verify:acc`).
 - `auto-fill-defaults.md` · `aliases.md` · `OUTPUT-FORMAT.md` — doc-as-code rule
   stores parsed at startup / by the parser; edit these, not the scripts.
 - `DESIGN-RECORDS.md` — binding design contracts (grammar/tokenizer/echo/
