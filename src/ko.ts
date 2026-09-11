@@ -20,8 +20,12 @@ export interface KOTurnSet {
   rolls: number[];
   /** optional probabilities parallel to `rolls` (Skill Link sum distribution etc.) */
   weights?: number[];
-  /** rolls for the very first hit of the sequence when a resist berry triggers on move 1 */
+  /** first-use rolls for this move when a resist berry triggers on it (any turn) */
   firstHitRolls?: number[];
+  /** probabilities parallel to `firstHitRolls` (a weighted first-use distribution) */
+  firstHitWeights?: number[];
+  /** true when this turn's damage comes from a multi-hit move: Sash / Sturdy can't save */
+  multiHit?: boolean;
 }
 
 export interface KOOptions {
@@ -37,6 +41,10 @@ export interface KOOptions {
    * is present and triggers. Halves damage once then consumed.
    */
   firstHitRolls?: number[];
+  /** probabilities parallel to `firstHitRolls` (a weighted first-use distribution) */
+  firstHitWeights?: number[];
+  /** true when the attack is multi-hit (2-5): Focus Sash / Sturdy cannot save it. */
+  multiHit?: boolean;
   maxHp: number;
   /**
    * Optional: starting HP for the simulation (defaults to maxHp). Entry hazards
@@ -106,7 +114,7 @@ export function koAnalysis(opts: KOOptions): KOResult {
 
   if (!p) {
     // no passives: simple cumulative distribution of hits
-    return noPassiveKO({ rolls, weights, maxHp, initialHp: opts.initialHp, maxTurns, firstHitRolls });
+    return noPassiveKO({ rolls, weights, maxHp, initialHp: opts.initialHp, maxTurns, firstHitRolls, firstHitWeights: opts.firstHitWeights });
   }
 
   // Magic Guard nullifies ALL indirect damage (status chip, weather chip,
@@ -176,7 +184,12 @@ export function koAnalysis(opts: KOOptions): KOResult {
     const set = turnSets ? turnSets[turn - 1] : undefined;
     const turnRolls = set?.rolls ?? rolls;
     const turnWeights = set?.weights ?? weights;
-    const firstForTurn = turn === 1 ? (set ? set.firstHitRolls : firstHitRolls) : undefined;
+    // A combo turn carries its own first-hit set (the berry move may not be
+    // turn 1); a single repeating move applies its first-hit set on turn 1.
+    const firstForTurn = set ? set.firstHitRolls : turn === 1 ? firstHitRolls : undefined;
+    const firstWeightsForTurn = set ? set.firstHitWeights : turn === 1 ? opts.firstHitWeights : undefined;
+    // Focus Sash / Sturdy cannot save a multi-hit attack: the later hits finish it.
+    const allowSave = survivesAttack && !(set ? set.multiHit : opts.multiHit);
 
     for (const [key, prob] of dist) {
       const parts = key.split(":");
@@ -188,17 +201,19 @@ export function koAnalysis(opts: KOOptions): KOResult {
       // choose rolls: first hit uses first-hit rolls if a resist berry still active
       const useFirstHit = !resistBerryUsed && !!firstForTurn;
       const hitRolls = useFirstHit ? firstForTurn! : turnRolls;
+      const hitWeights = useFirstHit ? firstWeightsForTurn : turnWeights;
 
       for (let i = 0; i < hitRolls.length; i++) {
         const d = hitRolls[i]!;
-        const weight = turnWeights
-          ? turnWeights[i] ?? 1 / hitRolls.length
+        const weight = hitWeights
+          ? hitWeights[i] ?? 1 / hitRolls.length
           : 1 / hitRolls.length;
         const after = hp - d;
         if (after <= 0) {
           // Sturdy / Focus Sash save the mon at 1 HP — but only from the
-          // attack itself, never from indirect damage (handled below).
-          if (survivesAttack && hp === maxHp) {
+          // attack itself, never from indirect damage (handled below), and
+          // never from a multi-hit attack (allowSave is false for those).
+          if (allowSave && hp === maxHp) {
             // fall through with h = 1 (Sash consumed / Sturdy broken by the damage)
           } else {
             koHit += prob * weight;
@@ -270,6 +285,7 @@ function noPassiveKO(opts: {
   initialHp?: number;
   maxTurns: number;
   firstHitRolls?: number[];
+  firstHitWeights?: number[];
 }): KOResult {
   const { rolls, weights, maxHp, maxTurns, firstHitRolls } = opts;
   const lines: KOLine[] = [];
@@ -281,11 +297,13 @@ function noPassiveKO(opts: {
   for (let turn = 1; turn <= maxTurns; turn++) {
     const next = new Map<number, number>();
     let ko = 0;
-    const hitRolls = turn === 1 && firstHitRolls ? firstHitRolls : rolls;
+    const useFirstHit = turn === 1 && !!firstHitRolls;
+    const hitRolls = useFirstHit ? firstHitRolls! : rolls;
+    const hitWeights = useFirstHit ? opts.firstHitWeights : weights;
     for (const [dmg, prob] of dist) {
       for (let i = 0; i < hitRolls.length; i++) {
         const d = hitRolls[i]!;
-        const w = weights ? weights[i] ?? 1 / hitRolls.length : 1 / hitRolls.length;
+        const w = hitWeights ? hitWeights[i] ?? 1 / hitRolls.length : 1 / hitRolls.length;
         if (dmg + d >= target) ko += prob * w;
         else next.set(dmg + d, (next.get(dmg + d) ?? 0) + prob * w);
       }

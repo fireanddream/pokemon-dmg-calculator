@@ -6,6 +6,11 @@ engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
 carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
+**State 2026-09-11:** steps 8 (one-shot route) and 9 (forme-word collision
+curation) are DONE, and the 2-5 multi-hit model shipped (`verify:multihit`
+34/34). The tokenizer overhaul has NO open build step; only the engine
+safe-open rows below remain.
+
 **State 2026-09-10:** steps 1–7 are DONE (step 7 = converter-side echo / shared
 tokenizer, second pass same day). Step 5's weather model was revised
 2026-09-10 (second pass): weather is now ONE plain explicit slot (two
@@ -100,8 +105,13 @@ These `DESIGN-RECORDS.md` §10 rows carry the legend's `not implemented` status
 ("open, safe to implement" — as opposed to `(intentionally)` / `won't
 implement`), so each can be picked up on its own:
 
-- **Multi-hit without Skill Link** — the 2–5 hit weighted distribution
-  (Bullet Seed et al. still print as a single hit).
+- **Multi-hit without Skill Link** — DONE 2026-09-11: exact weighted 2-5 hit
+  convolution (Technician per hit, berry first hit only, Sash/Sturdy never
+  save), `multiHitDistribution` in `scripts/calc.mjs` + `multiHit` flag in
+  `src/ko.ts`; card shows the total range `[2-5 hits]`; `verify:multihit`
+  34/34. Fixed-count multi-hit moves (Bonemerang, Double Kick, Twineedle,
+  Double Hit, Dual Chop, Gear Grind, Triple Kick) are documented **not
+  implemented** (§10) — they still print as one hit.
 - **Metronome** — consecutive-use power ramp.
 - **Future Sight / Doom Desire** — delayed-hit modeling.
 - **Minimize-target doubles** — Stomp / Steamroller / Dragon Rush.
@@ -164,6 +174,7 @@ implement`), so each can be picked up on its own:
 
 | When | What | Record |
 | --- | --- | --- |
+| 2026-09-11 | Multi-hit 2-5 model: exact weighted convolution, Technician per hit, berry first-hit only, Sash/Sturdy never save; card total range `[2-5 hits]`; `verify:multihit` | DESIGN-RECORDS.md §10 · this file |
 | 2026-09-10 | Converter-side echo (step 7): shared tokenizer, `_sideLog` labels, "scanned so far" `err.sideLogs`, `damage.mjs` `runQuery` | `SESSION-NOTES-20260910-CONVERTER-ECHO.md` |
 | 2026-09-09 | Mega exact-shape upgrade: prefix/suffix `mega`, no-forme hard error, `Mega X` move + `Mega Launcher` guards | `SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md` |
 | 2026-09-09 | Species claim IN the sweep; residue resolver deleted (step 3) | `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md` |

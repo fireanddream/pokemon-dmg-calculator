@@ -172,6 +172,20 @@ Damaging moves:
   decimal** to match Smogon's display — do not round this row.
   (`68 / 202 = 33.66%` prints as `33.6%`, not `33.7%`.)
 
+Multi-hit moves (2-5 hits): the row shows the **total** damage range over every
+possible hit count (min = the 2-hit total, max = the 5-hit total) and carries a
+`[2-5 hits]` marker. A resist berry halves **only the first hit**, so the row
+shows that first-use total with both markers (berry first):
+
+```
+  Damage    7.2% - 21%  (12-35) [2-5 hits]
+  Damage    58.5% - 210.7%  (120-432) [resist berry, 2-5 hits]
+```
+
+Skill Link keeps its `[Skill Link x5]` marker and its 5-hit total. The KO row
+uses the exact weighted convolution over the hit counts (see the KO row), never
+a single hit.
+
 Non-damaging / fixed-damage utility moves:
 
 ```
@@ -199,8 +213,11 @@ shorter HKO than the displayed first-hit range alone implies.)
   KO        no guaranteed KO in 10 hits (4HKO 12.3%, 5HKO 45.1%)
 ```
 
-Wording rules (gen-6 KO sim over 16 rolls, one hit per turn, starting at
-hazard-reduced HP, capped at `maxTurns` which defaults to 10):
+Wording rules (gen-6 KO sim, one **use** per turn, starting at hazard-reduced
+HP, capped at `maxTurns` which defaults to 10). For a normal move a use is one
+16-roll hit; for a 2-5 hit move a use is the exact weighted **total** over
+2/3/4/5 hits (gen-6 odds 3/8, 3/8, 1/8, 1/8; Skill Link forces 5), so an
+"OHKO" means the move's whole 2-5-hit action kills in one turn:
 
 - Each listed turn token is `NHKO <pct>%`, with ` (+EoT)` appended when the
   kill can come from end-of-turn chip rather than the hit. Tokens whose chance
@@ -208,7 +225,8 @@ hazard-reduced HP, capped at `maxTurns` which defaults to 10):
 - KO-token percentages **round** to 1 decimal; `100%` is only used when the
   cumulative chance is effectively all rolls (>= 99.95%). The Damage row
   truncates instead.
-- If not all 16 rolls KO within the cap: `no guaranteed KO in <N> hits (tokens)`.
+- If not all rolls KO within the cap: `no guaranteed KO in <N> hits (tokens)`
+  (the count is turns/uses, not individual strikes).
 
 ### Chance to hit all attacks (accuracy)
 
@@ -220,9 +238,10 @@ eva), items (Wide Lens, Zoom Lens, Bright Powder, Lax Incense, Micle),
 abilities (Compound Eyes, Victory Star, Hustle, Sand Veil, Snow Cloak, Tangled
 Feet, Mold Breaker bypass), weather and Gravity, after the 33% floor / 100% cap.
 
-Every hit of an NHKO is an independent accuracy roll, so the per-attack chance
-is raised to the guaranteed-KO turn count — an 80% move that needs 3 hits is
-`80%^3 = 51.2%`:
+Every use of an NHKO is an independent accuracy roll, so the per-attack chance
+is raised to the guaranteed-KO turn count — an 80% move that needs 3 uses is
+`80%^3 = 51.2%` (a 2-5 hit move still makes ONE accuracy check per use, so its
+exponent is the use count, not the number of strikes):
 
 ```
   KO        guaranteed 3HKO
@@ -323,7 +342,7 @@ is omitted when nothing KO'd that turn):
   finishes) so that story stays visible. When nothing of note happened the row
   ends right after the move + damage info (no colon). No HP numbers appear in
   turn rows.
-- Markers appear in the row cell: `[resist berry]`, `[Skill Link x5]`.
+- Markers appear in the row cell: `[resist berry]`, `[Skill Link x5]`, `[2-5 hits]`.
 - Non-damaging / immune hits show `--  (<note>)` for that turn's range.
 - If either attack guarantees the KO, the sim stops at that turn (later rows
   are omitted).

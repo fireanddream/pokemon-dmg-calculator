@@ -210,6 +210,7 @@ export function renderSingle(b) {
   const markers = [];
   if (b.berryHalved) markers.push("resist berry");
   if (b.skillLink) markers.push("Skill Link x5");
+  else if (b.multiHit) markers.push("2-5 hits");
   lines.push(`  Damage    ${fmt(lo)}% - ${fmt(hi)}%  (${lo}-${hi})${markers.length ? ` [${markers.join(", ")}]` : ""}`);
   for (const note of b.damageNotes) lines.push(`            ${note}`);
 

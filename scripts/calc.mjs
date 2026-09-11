@@ -31,26 +31,86 @@ const MULTIHIT_MOVES = new Set([
   "Rock Blast", "Spike Cannon", "Tail Slap", "Water Shuriken",
 ]);
 
+// Gen-6 probability of each hit total for a 2-5 move (Skill Link forces 5).
+const MULTIHIT_COUNTS = [
+  { hits: 2, prob: 3 / 8 }, { hits: 3, prob: 3 / 8 },
+  { hits: 4, prob: 1 / 8 }, { hits: 5, prob: 1 / 8 },
+];
+const SKILL_LINK_COUNTS = [{ hits: 5, prob: 1 }];
+
 /**
- * Distribution of a Skill Link 5-hit action: sum of 5 independent draws from
- * the per-hit 16 damage rolls (each roll equally likely). Returns sorted sums
- * plus their probabilities (weights total 1).
+ * Weighted distribution of the TOTAL damage of one multi-hit use.
+ *
+ * `perHitFull` are the 16 per-hit rolls with the resist berry NOT applying.
+ * When `firstRolls` is given (resist berry triggers), hit 1 draws from it and
+ * every later hit from `perHitFull`. Each entry in `counts` is convolved
+ * exactly (independent per-hit rolls) and combined into one distribution whose
+ * weights sum to 1 sorted by total. Returns { sums, weights }.
  */
-function fiveHitDistribution(rolls) {
-  let dist = new Map([[0, 1]]);
-  for (let hit = 0; hit < 5; hit++) {
-    const next = new Map();
-    for (const [dmg, count] of dist) {
-      for (const r of rolls) {
-        next.set(dmg + r, (next.get(dmg + r) ?? 0) + count);
+export function multiHitDistribution(perHitFull, firstRolls, counts) {
+  const dist = new Map();
+  for (const { hits, prob } of counts) {
+    let sub = new Map([[0, 1]]);
+    let denom = 1;
+    for (let h = 0; h < hits; h++) {
+      const rolls = h === 0 && firstRolls ? firstRolls : perHitFull;
+      const next = new Map();
+      for (const [dmg, count] of sub) {
+        for (const r of rolls) next.set(dmg + r, (next.get(dmg + r) ?? 0) + count);
       }
+      sub = next;
+      denom *= rolls.length;
     }
-    dist = next;
+    for (const [dmg, count] of sub) dist.set(dmg, (dist.get(dmg) ?? 0) + (count / denom) * prob);
   }
-  const total = 16 ** 5;
   const sums = [...dist.keys()].sort((a, b) => a - b);
-  const weights = sums.map((s) => dist.get(s) / total);
+  const weights = sums.map((s) => dist.get(s));
   return { sums, weights };
+}
+
+/**
+ * One-use damage distribution for a single move, plus the card markers.
+ *
+ * A plain move is just `counts = [{ hits: 1, prob: 1 }]`; a 2-5 move is the
+ * weighted hit-count table (Skill Link forces 5). The resist berry's
+ * first-hit-only halving is the SAME `firstRolls` path in every case, so the
+ * single-hit berry is the 1-hit special case, not separate code.
+ *
+ * `berryAvailable` is false for a combo move landing after the berry was
+ * already eaten. `multiHit` tells the KO sim Focus Sash / Sturdy cannot save
+ * the attack. `marker` is the row suffix used by the combo renderer.
+ */
+function moveUseDistribution(attacker, defender, move, result, baseParams, berryAvailable = true) {
+  const isMulti = MULTIHIT_MOVES.has(move.name);
+  const skillLink = attacker.ability === "Skill Link" && isMulti;
+  const berryCandidate = berryAvailable && resistBerryActivates(move.type, defender.types, defender.item);
+  const fullResult = berryCandidate
+    ? calcDamage({ ...baseParams, move, defender: { ...defender, item: undefined }, targetHoldsItem: false })
+    : result;
+  const berryHalved = berryCandidate && fullResult.rolls.some((r, i) => r !== result.rolls[i]);
+  const perHitFull = berryHalved ? fullResult.rolls : result.rolls;
+  const perHitFirst = berryHalved ? result.rolls : undefined;
+
+  const counts = isMulti
+    ? skillLink ? SKILL_LINK_COUNTS : MULTIHIT_COUNTS
+    : [{ hits: 1, prob: 1 }];
+  const full = multiHitDistribution(perHitFull, undefined, counts);
+  const first = berryHalved ? multiHitDistribution(perHitFull, perHitFirst, counts) : null;
+
+  const marker = [];
+  if (berryHalved) marker.push("resist berry");
+  if (isMulti) marker.push(skillLink ? "Skill Link x5" : "2-5 hits");
+
+  return {
+    rolls: full.sums,
+    weights: full.weights,
+    firstHitRolls: first?.sums,
+    firstHitWeights: first?.weights,
+    multiHit: isMulti,
+    berryHalved,
+    skillLink,
+    marker,
+  };
 }
 
 // Cloud Nine / Air Lock nullify ALL weather effects for the calculation only.
@@ -119,27 +179,15 @@ export function calcSingle(input) {
   };
   const result = calcDamage(baseParams);
 
-  // Skill Link: multi-hit moves always land 5 hits (weighted sum-of-5 rolls).
-  const skillLink = attacker.ability === "Skill Link" && MULTIHIT_MOVES.has(move.name);
-  const berryHalved = !skillLink && resistBerryActivates(move.type, defender.types, defender.item);
-  let rolls = result.rolls;
-  let rollWeights;
-  let firstHitRolls;
-  if (skillLink) {
-    const five = fiveHitDistribution(result.rolls);
-    rolls = five.sums;
-    rollWeights = five.weights;
-  } else if (berryHalved) {
-    // Resist berry halves the first hit; later hits are full after it is eaten.
-    const normalResult = calcDamage({ ...baseParams, defender: { ...defender, item: undefined }, targetHoldsItem: false });
-    rolls = normalResult.rolls;
-    firstHitRolls = result.rolls;
-  }
+  // One-use distribution: multi-hit convolution + the resist berry's first hit.
+  const use = moveUseDistribution(attacker, defender, move, result, baseParams);
 
   const ko = koAnalysis({
-    rolls,
-    firstHitRolls,
-    weights: rollWeights,
+    rolls: use.rolls,
+    firstHitRolls: use.firstHitRolls,
+    firstHitWeights: use.firstHitWeights,
+    weights: use.weights,
+    multiHit: use.multiHit,
     maxHp: hp,
     initialHp,
     passives: {
@@ -168,11 +216,12 @@ export function calcSingle(input) {
     spikes: input.spikes,
     hp,
     acc,
-    // Rolls actually shown on the Damage row (halved-first-hit or Skill Link
-    // set when applicable), plus markers for the row suffix.
-    displayRolls: firstHitRolls ?? rolls,
-    berryHalved: !!firstHitRolls,
-    skillLink,
+    // Rolls actually shown on the Damage row (the berry first use or the full
+    // multi-hit total when applicable), plus markers for the row suffix.
+    displayRolls: use.firstHitRolls ?? use.rolls,
+    berryHalved: use.berryHalved,
+    skillLink: use.skillLink,
+    multiHit: use.multiHit,
     ko,
     maxTurns: input.maxTurns ?? 10,
     showTurns: input.showTurns,
@@ -218,28 +267,20 @@ export function calcCombo(input) {
     ignoresAbilities: input.ignoresAbilities, damageTakenBefore: hazardTotal,
   };
 
-  // Per-move rolls. Each move lands exactly once in a chain, so the first move
-  // whose type matches a held resist berry gets that (halved) hit and the berry
-  // is gone — no full-damage "later hits" set needed.
+  // Per-move rolls. Each move lands exactly once in a chain, so only the first
+  // move whose type matches a held resist berry draws a halved FIRST hit (for a
+  // multi-hit move the later hits are full — the berry is eaten after hit 1).
   const firstBerry = moves.findIndex((m) => resistBerryActivates(m.type, defender.types, defender.item));
   const seqTurns = moves.map((m, i) => {
-    const skillLink = attacker.ability === "Skill Link" && MULTIHIT_MOVES.has(m.name);
     const result = calcDamage({ ...baseParams, move: m });
-    let rolls = result.rolls;
-    let weights;
-    const marker = [];
-    if (skillLink) {
-      const five = fiveHitDistribution(result.rolls);
-      rolls = five.sums;
-      weights = five.weights;
-      marker.push("Skill Link x5");
-    }
-    if (i === firstBerry) marker.push("resist berry");
-    return { name: m.name, rolls, weights, notes: result.notes, marker, noDmg: rolls.length === 0 };
+    const use = moveUseDistribution(attacker, defender, m, result, baseParams, i === firstBerry);
+    return { name: m.name, ...use, notes: result.notes, noDmg: use.rolls.length === 0 };
   });
 
   const turnSets = seqTurns.map((t) =>
-    t.noDmg ? { rolls: [0], weights: [1] } : { rolls: t.rolls, weights: t.weights }
+    t.noDmg
+      ? { rolls: [0], weights: [1] }
+      : { rolls: t.rolls, weights: t.weights, firstHitRolls: t.firstHitRolls, firstHitWeights: t.firstHitWeights, multiHit: t.multiHit }
   );
 
   const ko = koAnalysis({

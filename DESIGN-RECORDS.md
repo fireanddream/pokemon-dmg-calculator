@@ -455,19 +455,19 @@ practice · `done` — implemented.
 | Flash Fire (attacker) | **not implemented (intentionally)** | Boost hook exists (`params.flashFireBoosted` / `abilityOn`) but nothing sets it; there is no "already fire-boosted" context token. |
 | Rivalry | done | x1.25 same gender / x0.75 opposite (engine; needs both sides' `gender` set, which the CLI does not parse yet). |
 | Shell Armor / Battle Armor | done | Block a requested `crit` against the holder (Mold Breaker does not bypass). Covered by `verify-smogon.mjs`. |
-| Skill Link | done | Multi-hit moves land the guaranteed maximum 5 hits as a weighted 5-hit distribution (see Multi-hit row for the remaining gap). |
+| Skill Link | done | Forces a 2-5 move to land exactly 5 hits (a weighted 5-hit total distribution, the same model as the Multi-hit row). |
 | Unnerve | done | Disables the defender's Sitrus Berry in the KO sim (resist berries already gated in `calcDamage`). |
 | Infiltrator | done | Attacker's moves ignore Reflect/Light Screen. Covered by `verify-smogon.mjs`. |
 | Solar Power (defender chip) | done | End-of-turn 1/8 sun chip for a Solar Power holder in sun is in the KO sim and the turn table. |
 | Scrappy | done | Normal/Fighting moves connect against Ghost-types. Covered by `verify-smogon.mjs`. |
-| Sturdy (KO survival) | done | Full-HP Sturdy/Focus Sash holder survives a lethal **attack** at 1 HP; indirect chip can still KO it. See Items / Focus Sash. |
+| Sturdy (KO survival) | done | Full-HP Sturdy/Focus Sash holder survives a lethal **single-hit** attack at 1 HP; a **multi-hit** attack is never saved; indirect chip can still KO it. See Items / Focus Sash. |
 | Download / Intimidate / Defiant / Competitive / Moxie / stat-stage entries | `won't implement` | Stat-stage abilities are never auto-applied by design (see AGENTS.md). |
 
 ### Items
 
 | Item | Status | Notes |
 |---|---|---|
-| Focus Sash | done | Full-HP holder survives one lethal attack at 1 HP in the KO sim; never protects against indirect damage. Inactive if entry hazards already took HP. |
+| Focus Sash | done | Full-HP holder survives one lethal **single-hit** attack at 1 HP in the KO sim; a **multi-hit** attack is never saved (the later hits finish it); never protects against indirect damage. Inactive if entry hazards already took HP. |
 | Air Balloon | done | Holder is immune to Ground while the balloon is intact (not an ability, so Mold Breaker does not bypass it). |
 | Iron Ball | done | Holder is grounded: Ground moves connect against a Flying-type and Levitate stops working. |
 | Ring Target | done | Negates the holder's typing immunities (Normal hits a Ring Target Ghost, Ground hits a Flying, etc.). |
@@ -481,7 +481,8 @@ practice · `done` — implemented.
 
 | Mechanic | Status | Notes |
 |---|---|---|
-| Multi-hit moves (no Skill Link) | not implemented | Only the Skill Link guaranteed-5-hit case is modeled (as a weighted sum distribution). Non-Skill-Link 2-5 hit moves (Bullet Seed without Skill Link, etc.) still print as one hit. |
+| Multi-hit moves (2-5) | done | Each use convolves the per-hit 16 rolls by hit count with the gen-6 odds (2:3/8, 3:3/8, 4:1/8, 5:1/8; Skill Link forces 5). Technician applies per hit (BP ≤ 60), a resist berry halves ONLY the first hit, and Focus Sash / Sturdy cannot save the attack. End-of-turn chip/heal applies ONCE after the whole action, never between strikes. The Damage row shows the total range `[2-5 hits]`; the KO sim runs the exact weighted total distribution. `multiHitDistribution` + the shared `moveUseDistribution` helper in `scripts/calc.mjs`; covered by `verify:multihit`. |
+| Fixed-count multi-hit (Bonemerang 2, Double Kick 2, Twineedle 2, Double Hit 2, Dual Chop 2, Gear Grind 2, Triple Kick 3) | not implemented | Still print as one hit. Same Sash/Sturdy property as the 2-5 set; Triple Kick additionally escalates 10/20/30 BP and checks accuracy per hit. |
 | Aerilate / Pixilate / Refrigerate / Normalize (type remap) | **done** | STAB, type effectiveness, immunities and the x1.3 all key off the remapped type (Flying/Fairy/Ice). |
 | Scrappy | done | (Ability row above; listed here for move-type completeness.) |
 | Freeze-Dry | done | x2 vs Water handled. |
@@ -529,12 +530,32 @@ damage formula, not the table: **Facade also ignores burn's Attack halving**
 (`isBurned` exempts Guts and Facade, mirroring `@smogon/calc` gen56 `applyBurn`),
 so a burned Facade user gets the doubled BP with no penalty.
 
+**Multi-hit model (design choice).** A 2-5 hit move is ONE turn/use whose total
+damage is the exact convolution of independent per-hit rolls over the hit
+counts, weighted by the gen-6 odds (2:3/8, 3:3/8, 4:1/8, 5:1/8; Skill Link
+forces 5). The helper is `multiHitDistribution(perHitFull, firstRolls, counts)`
+in `scripts/calc.mjs`, wrapped by `moveUseDistribution` (used by both
+`calcSingle` and `calcCombo`, with `counts = [{hits:1}]` for a plain move, so
+single-hit is the 1-hit special case and the berry path is shared). The
+weighted total (plus `multiHit: true`, which disables the Focus Sash / Sturdy
+save in `src/ko.ts`) is what the KO sim consumes. A resist berry halves **only
+the first hit** (`firstRolls` replaces hit 1), so the first use's total is a
+separate weighted distribution from later uses. Because it is ONE use,
+end-of-turn chip/heal (sand, Leftovers, …) applies once **after** the whole
+action, never between strikes — a two-move combo is two turns and does apply it
+between moves (`verify:multihit` asserts the exact one-chip shift in each).
+Per-hit damage already carries Technician (BP ≤ 60) straight from `calcDamage`.
+This intentionally diverges from `@smogon/calc`, which models a 2-5 move as
+exactly **3** hits unless given an explicit count; `verify:multihit` compares our
+per-hit and each fixed n-hit total against the oracle driven with `{ hits: n }`,
+and checks the convolution weights and the Sash/Sturdy flag directly.
+
 ### KO sim
 
 | Mechanic | Status | Notes |
 |---|---|---|
 | Poison Heal + toxic | done | Poison Heal *replaces* poison/toxic damage with a 1/8 heal (no chip); low-HP Gliscor @ Toxic Orb no longer dies to end-of-turn poison. |
-| Sturdy / Focus Sash survival | done | Survive a lethal full-HP **attack** at 1 HP only; indirect end-of-turn chip (weather, burn/poison, hazards, Black Sludge, Solar Power) can still KO right after. |
+| Sturdy / Focus Sash survival | done | Survive a lethal full-HP **single-hit** attack at 1 HP only; a **multi-hit** attack is never saved; indirect end-of-turn chip (weather, burn/poison, hazards, Black Sludge, Solar Power) can still KO right after. |
 | Multiscale vs entry hazards | done | Hazards take HP before the attack, so the x1/2 Multiscale (and Sturdy/Focus Sash) check is inactive once the defender is below full HP (`damageTakenBefore`). |
 
 ### Intentional simplifications (do not "fix")
