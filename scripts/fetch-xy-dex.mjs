@@ -17,6 +17,52 @@ const TIER_LADDER = [
 // Tiers considered "RU or above" (for re-adding strong unevolved Pokemon).
 const TIER_RU_OR_ABOVE = ["AG", "Uber", "OU", "UUBL", "UU", "RUBL", "RU"];
 
+// Curated simplifications on top of the generated dex: collapse cosmetic /
+// optional-forme variants to a single base entry so each species resolves one
+// way. Arceus type formes and Genesect drive formes are intentionally not
+// modeled (DESIGN-RECORDS.md §10 "Curated-out variant formes").
+export const DROP_VARIANTS = new Set([
+  // Pikachu cosplay formes (the base name is promoted below).
+  "Pikachu-Cosplay", "Pikachu-Libre", "Pikachu-PhD",
+  "Pikachu-Pop-Star", "Pikachu-Rock-Star",
+  // Arceus type formes — not implemented.
+  "Arceus-Bug", "Arceus-Dark", "Arceus-Dragon", "Arceus-Electric",
+  "Arceus-Fairy", "Arceus-Fighting", "Arceus-Fire", "Arceus-Flying",
+  "Arceus-Ghost", "Arceus-Grass", "Arceus-Ground", "Arceus-Ice",
+  "Arceus-Poison", "Arceus-Psychic", "Arceus-Rock", "Arceus-Steel",
+  "Arceus-Water",
+  // Cosmetic / optional variants with no calc difference.
+  "Basculin-Blue-Striped", "Keldeo-Resolute",
+  // Darmanitan-Zen dropped for the `zen` / Zen Headbutt forme-word collision
+  // (DESIGN-RECORDS.md §10 "Open forme-word collisions").
+  "Darmanitan-Zen",
+  // Genesect drive formes — not implemented.
+  "Genesect-Burn", "Genesect-Chill", "Genesect-Douse", "Genesect-Shock",
+  // Vivillon patterns.
+  "Vivillon-Fancy", "Vivillon-Pokeball",
+]);
+
+// Pikachu has no plain entry upstream (only cosplay formes), so promote its
+// first cosmetic variant to the base name.
+export const PROMOTE_BASE = { "Pikachu-Belle": "Pikachu" };
+
+export function curate(out) {
+  const pokemon = [];
+  for (const p of out.pokemon) {
+    if (DROP_VARIANTS.has(p.name)) continue;
+    const base = PROMOTE_BASE[p.name];
+    pokemon.push(base ? { ...p, name: base, baseForme: base } : p);
+  }
+  if (!out.meta.rule.some((r) => r.startsWith("Curate:"))) {
+    out.meta.rule.push(
+      "Curate: one entry per species — cosmetic / optional variant formes dropped.",
+    );
+  }
+  out.meta.counts.curatedVariantsDropped = DROP_VARIANTS.size;
+  out.meta.counts.total = pokemon.length;
+  return { ...out, pokemon };
+}
+
 async function fetchBasics(gen) {
   const res = await fetch(RPC_URL, {
     method: "POST",
@@ -113,11 +159,18 @@ async function main() {
   };
 
   const outPath = path.join(DATA_DIR, `${GEN}-pokemon.json`);
-  await writeFile(outPath, JSON.stringify(out, null, 2));
-  console.log(`Wrote ${out.pokemon.length} Pokemon -> ${outPath}`);
+  const curated = curate(out);
+  await writeFile(outPath, JSON.stringify(curated, null, 2));
+  console.log(`Wrote ${curated.pokemon.length} Pokemon -> ${outPath}`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isMain =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

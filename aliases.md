@@ -53,6 +53,18 @@ in one place.
 | `thundurusi` / `thundurusincarnate` | Thundurus |
 | `tornadust` / `tornadustherian` | Tornadus-Therian |
 | `tornadusi` / `tornadusincarnate` | Tornadus |
+| `deoxysa` / `deoxys a` | Deoxys-Attack |
+| `deoxysd` / `deoxys d` | Deoxys-Defense |
+| `deoxyss` / `deoxys s` | Deoxys-Speed |
+| `giratinao` / `giratina o` | Giratina-Origin |
+| `kyuremb` / `kyurem b` | Kyurem-Black |
+| `kyuremw` / `kyurem w` | Kyurem-White |
+| `meloettap` / `meloetta p` | Meloetta-Pirouette |
+| `meowsticf` / `meowstic f` | Meowstic-F |
+| `meowsticm` / `meowstic m` | Meowstic-M |
+| `aegislashb` / `aegislash b` | Aegislash-Blade |
+| `aegislashs` / `aegislash s` | Aegislash |
+| `hoopau` / `hoopa u` | Hoopa-Unbound |
 
 Usage: `chomp EQ vs lando` — both sides resolve before damage is computed
 (the move is claimed anywhere on the attacker side; no `uses` word).

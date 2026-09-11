@@ -98,6 +98,15 @@ const SPECIES_ALIASES = new Map([
   ["thundurusi", "Thundurus"], ["thundurusincarnate", "Thundurus"],
   ["tornadust", "Tornadus-Therian"], ["tornadustherian", "Tornadus-Therian"],
   ["tornadusi", "Tornadus"], ["tornadusincarnate", "Tornadus"],
+  // Forme short aliases. Keys are the GLUED norm, so "deoxys a", "deoxys-a",
+  // and "deoxysa" all fold to the same key (spaces/punctuation ignored).
+  ["deoxysa", "Deoxys-Attack"], ["deoxysd", "Deoxys-Defense"], ["deoxyss", "Deoxys-Speed"],
+  ["giratinao", "Giratina-Origin"],
+  ["kyuremb", "Kyurem-Black"], ["kyuremw", "Kyurem-White"],
+  ["meloettap", "Meloetta-Pirouette"],
+  ["meowsticf", "Meowstic-F"], ["meowsticm", "Meowstic-M"],
+  ["aegislashb", "Aegislash-Blade"], ["aegislashs", "Aegislash"],
+  ["hoopau", "Hoopa-Unbound"],
 ]);
 // move acronyms (resolved when the whole move field normalizes to the key)
 const MOVE_ALIASES = new Map([

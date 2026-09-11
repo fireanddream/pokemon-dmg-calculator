@@ -563,8 +563,48 @@ such inference guesswork rather than a real answer. Do **not** "fix" these by
 comparing attacker/defender Speed in `calcDamage` or by auto-picking an
 ability from it. If a contributor wants them, the right shape is an explicit,
 user-typed context token in the CLI that maps to the existing
-`movedAfterTarget` / `flashFireBoosted` hooks, with coverage rows in
-`scripts/verify-smogon.mjs`.
+  `movedAfterTarget` / `flashFireBoosted` hooks, with coverage rows in
+  `scripts/verify-smogon.mjs`.
+
+### Curated-out variant formes (one entry per species)
+
+`scripts/fetch-xy-dex.mjs` exports `curate()`, applied to the generated dex so
+each species resolves one way (472 entries ship; 31 variants filtered). Keeping
+a single entry per species removes forme-word collisions that would otherwise
+need special parsing.
+
+| Variant group | Status | Notes |
+|---|---|---|
+| Arceus type formes (`Arceus-Rock`, `-Fire`, `-Water`, … 17 total) | **not implemented** | Type-changing formes (Multitype) are not modeled; only base Normal **Arceus** remains. A query naming a type forme does not resolve to a distinct entry. |
+| Genesect drive formes (`Genesect-Burn`, `-Chill`, `-Douse`, `-Shock`) | **not implemented** | Drive-based Techno Blast type changes are not modeled; only base **Genesect** remains. |
+| Darmanitan-Zen | **not implemented** (dropped) | The in-battle Zen forme is not modeled; its `zen` forme word collided with the move **Zen Headbutt** (`darmanitan zen headbutt` silently became Darmanitan-Zen + Headbutt). Only base **Darmanitan** remains. |
+| Pikachu cosplay formes (`Belle`, `Cosplay`, `Libre`, `PhD`, `Pop-Star`, `Rock-Star`) | removed (cosmetic) | No plain `Pikachu` entry exists upstream, so `Pikachu-Belle` is renamed to base **Pikachu**; the other five are dropped. |
+| Basculin-Blue-Striped | removed (cosmetic) | Base **Basculin** kept. |
+| Keldeo-Resolute | removed (cosmetic) | Base **Keldeo** kept. |
+| Vivillon patterns (`Fancy`, `Pokeball`) | removed (cosmetic) | Base **Vivillon** kept. |
+
+### Open forme-word collisions (not implemented)
+
+A species run whose trailing word is also the first word of a longer move /
+arena phrase still wins at its position, so the forme word is consumed and the
+move is stranded. The `-Mega` path guards this with `longerPhraseAt` +
+split-back (§7), but ordinary forme runs do **not** — this is a known,
+**intentionally not implemented** limitation (accepted as `missing move`,
+never a silent wrong number). The single-letter aliases (`giratina o`,
+`kyurem b`, …) are the escape hatch; spelling the forme suffix short avoids the
+collision (`giratina o origin pulse` resolves correctly).
+
+| Typed | Currently | Intended |
+|---|---|---|
+| `giratina origin pulse` | Giratina-Origin, `pulse` stranded → `missing move` | Giratina + Origin Pulse |
+| `rotom heat wave` / `rotom heat crash` | Rotom-Heat, trailing word stranded | Rotom + Heat Wave / Heat Crash |
+| `rotom frost breath` | Rotom-Frost, `breath` stranded | Rotom + Frost Breath |
+| `shaymin sky drop` | Shaymin-Sky, `drop` stranded | Shaymin + Sky Drop |
+| `castform sunny day` | Castform-Sunny, `day` stranded | Castform + Sunny Day |
+
+(Darmanitan-Zen, the previous worst case — it silently produced a *wrong* move,
+"Headbutt" — is no longer reachable: the variant is dropped above.) The fix, if
+ever wanted, is generalizing the mega split-back guard to every species run.
 
 ## 11. One-liner → converter route (SHIPPED 2026-09-11; TODO step 8)
 

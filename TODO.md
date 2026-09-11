@@ -84,11 +84,15 @@ errors, and the corpus chaincheck "all identical". Record of done steps: step 1
    paste verbatim". Shared tokenizer now treats `?`/`!` as hard boundaries so a
    natural-sentence line ("... vs Heatran?") keeps its last token. Contract:
    `DESIGN-RECORDS.md` §11.
-9. **Forme-word collision set** (post-tokenizer review). Once the sweep works,
-   revisit `pikachu rock star`, `arceus rock`, `arceus poison`, `arceus
-   electric/psychic` (terrain interaction), `genesect burn`, `arc-rock`; at-worst
-   alias escape (`<forme spelling>` → canonical dex name). Do NOT touch before
-   steps 1–3 land (they have).
+9. **Forme-word collision set** — CLOSED 2026-09-11. Curation drops the
+   colliding variants (`pikachu rock star`, `arceus` type formes,
+   `genesect burn`, `darmanitan zen`; `DESIGN-RECORDS.md` §10 "Curated-out
+   variant formes") and the single-letter / glued aliases cover the rest
+   (`giratina o`, `kyurem b`, `deoxys a`, …). The residual collisions a shorter
+   spelling works around (`giratina origin pulse`, `rotom heat wave`,
+   `shaymin sky drop`, `castform sunny day`, …) are documented as
+   **intentionally not implemented** in §10 "Open forme-word collisions" — no
+   open build step remains.
 
 ## Engine — safe open work (`not implemented`, §10)
 
