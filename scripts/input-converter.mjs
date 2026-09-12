@@ -112,6 +112,10 @@ const SPECIES_ALIASES = new Map([
 const MOVE_ALIASES = new Map([
   ["bb", "Brave Bird"], ["eq", "Earthquake"], ["blitz", "Flare Blitz"],
   ["draco", "Draco Meteor"], ["dd", "Dragon Dance"], ["sd", "Swords Dance"],
+  ["qd", "Quiver Dance"], ["cm", "Calm Mind"], ["tg", "Tail Glow"],
+  ["bp", "Bullet Punch"], ["jet", "Aqua Jet"], ["ko", "Knock Off"],
+  ["rage", "Outrage"], ["ut", "U-turn"], ["tbolt", "Thunderbolt"],
+  ["fo", "Fake Out"],
 ]);
 /** Resolve a typed move string (incl. acronyms) to its canonical dex name, or null. */
 function resolveMoveName(text) {

@@ -79,6 +79,16 @@ Usage: `chomp EQ vs lando` — both sides resolve before damage is computed
 | `draco` | Draco Meteor |
 | `dd` | Dragon Dance |
 | `sd` | Swords Dance |
+| `qd` | Quiver Dance |
+| `cm` | Calm Mind |
+| `tg` | Tail Glow |
+| `bp` | Bullet Punch |
+| `jet` | Aqua Jet |
+| `ko` | Knock Off |
+| `rage` | Outrage |
+| `ut` | U-turn |
+| `tbolt` / `t bolt` | Thunderbolt |
+| `fo` | Fake Out |
 
 Usage: `Garchomp EQ vs Skarmory`. Full move names (`Earthquake`,
 `Hidden Power`) and most multi-word move names work without an acronym.
