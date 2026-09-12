@@ -151,6 +151,21 @@ beats a regular one (sun / rain / sand / hail) regardless of Speed; otherwise
 the **slower** pokemon's weather wins (its ability activates last), and an
 exact Speed tie keeps the attacker's weather.
 
+## Aura setters
+
+An aura ability on **either side** raises a field aura condition — like a
+weather setter, except the two auras can be active at once and coexist with any
+weather/terrain (nothing overrides anything). While an aura is active, every
+move of its matching type, from **either** battler, is affected. `Aura Break`,
+held by either side, inverts every active aura instead. The Arena row names the
+active aura(s); an explicit ability always wins, and the auto ability default
+(e.g. Xerneas → Fairy Aura) feeds this same condition.
+
+| Ability | Aura |
+|---|---|
+| Fairy Aura | Fairy |
+| Dark Aura | Dark |
+
 ## Ability defaulting (overview)
 
 When no ability is named, the front picks one in this order — each step is

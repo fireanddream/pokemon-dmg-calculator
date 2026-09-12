@@ -68,6 +68,7 @@ const BUILTIN_WEATHER_SETTER = {
   "Primordial Sea": "primordial", "Sand Stream": "sand", "Snow Warning": "hail",
   "Delta Stream": "delta",
 };
+const BUILTIN_AURA_SETTER = { "Fairy Aura": "Fairy", "Dark Aura": "Dark" };
 const BUILTIN_SHORTHAND = {
   "max atk": { evs: { atk: 252 }, low: "Adamant", high: "Adamant" },
   "max spa": { evs: { spa: 252 }, low: "Modest", high: "Modest" },
@@ -112,6 +113,19 @@ function parseWeatherSetters(doc) {
     const ability = stripMdCell(cells[0]);
     const weather = stripMdCell(cells[1]).toLowerCase();
     if (ability && BUILTIN_WEATHER_SETTER[ability] !== undefined && weather) out[ability] = weather;
+  }
+  return out;
+}
+
+/** Aura setters from the "## Aura setters" table (ability -> boosted type). */
+function parseAuraSetters(doc) {
+  const section = mdSection(doc, "Aura setters");
+  if (!section) return { ...BUILTIN_AURA_SETTER };
+  const out = { ...BUILTIN_AURA_SETTER };
+  for (const cells of mdTableRows(section)) {
+    const ability = stripMdCell(cells[0]);
+    const type = stripMdCell(cells[1]);
+    if (ability && BUILTIN_AURA_SETTER[ability] !== undefined && type) out[ability] = type;
   }
   return out;
 }
@@ -231,6 +245,10 @@ if (!STATUS_FIRST && FIXED_ABILITY.size === 0 && DEFENDER_FIXED.size === 0) {
 // Doc-driven default maps (fallbacks above). Weather setters feed the
 // auto-default AND the arena-weather decision.
 const WEATHER_SETTER = parseWeatherSetters(DEFAULT_DOC);
+// Aura setters (Fairy Aura / Dark Aura) feed the arena aura condition; unlike
+// weather the auras stack and never override a weather/terrain.
+const AURA_SETTER = parseAuraSetters(DEFAULT_DOC);
+const AURA_BREAK = "Aura Break";
 const SHORTHAND = parseShorthand(DEFAULT_DOC);
 const ORB = parseOrbs(DEFAULT_DOC);
 // Primal weathers (Desolate Land / Primordial Sea / Delta Stream) beat regular
@@ -657,6 +675,21 @@ function fillWeather(matchup, move) {
   }
 }
 
+/** Resolve the arena AURA condition from both sides' final abilities (explicit
+ *  or auto-defaulted), the way `fillWeather` resolves a setter ability. The
+ *  auras coexist with each other and with any weather/terrain; `Aura Break` on
+ *  either side inverts every active aura. Runs after `fillWeather` so it sees
+ *  the abilities that defaulting settled on. */
+function fillAura(matchup) {
+  const auras = [];
+  for (const side of [matchup.attacker, matchup.defender]) {
+    const type = AURA_SETTER[side?.ability];
+    if (type && !auras.includes(type)) auras.push(type);
+  }
+  matchup.auras = auras;
+  matchup.auraBreak = [matchup.attacker, matchup.defender].some((s) => s?.ability === AURA_BREAK);
+}
+
 // --- pipeline glue ---
 
 /** Resolve a parsed combatant spec into a full Combatant record (stats, types,
@@ -802,6 +835,7 @@ function resolveSingleInput(matchup) {
   fillCombatant(matchup.defender, move, matchup, "defender");
   fillCombatant(matchup.attacker, move, matchup, "attacker");
   fillWeather(matchup, move);
+  fillAura(matchup);
 
   const attacker = resolve(matchup.attacker);
   const defender = resolve(matchup.defender);
@@ -815,6 +849,8 @@ function resolveSingleInput(matchup) {
     defender,
     move,
     weather: matchup.weather,
+    auras: matchup.auras,
+    auraBreak: matchup.auraBreak,
     terrain: matchup.terrain,
     crit: matchup.crit,
     screens: matchup.screens,
@@ -846,6 +882,7 @@ function resolveComboInput(matchup) {
   fillCombatant(matchup.defender, anchor, matchup, "defender");
   fillCombatant(matchup.attacker, anchor, matchup, "attacker");
   fillWeather(matchup, anchor);
+  fillAura(matchup);
 
   const attacker = resolve(matchup.attacker);
   const defender = resolve(matchup.defender);
@@ -859,6 +896,8 @@ function resolveComboInput(matchup) {
     defender,
     moves: moveEntries,
     weather: matchup.weather,
+    auras: matchup.auras,
+    auraBreak: matchup.auraBreak,
     terrain: matchup.terrain,
     crit: matchup.crit,
     screens: matchup.screens,

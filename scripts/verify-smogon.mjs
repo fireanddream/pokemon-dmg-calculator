@@ -495,6 +495,39 @@ addCase("foul play: attacker Huge Power still applies", {
   move: "Foul Play",
 });
 
+// Fairy/Dark Aura: a field condition raised by an ability on EITHER side, and
+// Aura Break inverts it. The front resolves these into the field `auras`.
+addCase("Fairy Aura attacker boosts a Fairy move", {
+  atk: { species: "Xerneas", level: 100, ability: "Fairy Aura", ...base },
+  def: { species: "Tauros", level: 100, ability: "Intimidate", ...base },
+  move: "Moonblast",
+});
+addCase("Fairy Aura on the DEFENDER still boosts a Fairy move", {
+  atk: { species: "Sylveon", level: 100, ability: "Cute Charm", ...base },
+  def: { species: "Xerneas", level: 100, ability: "Fairy Aura", ...base },
+  move: "Dazzling Gleam",
+});
+addCase("Dark Aura boosts a Dark move", {
+  atk: { species: "Yveltal", level: 100, ability: "Dark Aura", ...base },
+  def: { species: "Tauros", level: 100, ability: "Intimidate", ...base },
+  move: "Dark Pulse",
+});
+addCase("Aura Break inverts an active aura", {
+  atk: { species: "Xerneas", level: 100, ability: "Fairy Aura", ...base },
+  def: { species: "Zygarde", level: 100, ability: "Aura Break", ...base },
+  move: "Moonblast",
+});
+addCase("aura present but the move type does not match (no boost)", {
+  atk: { species: "Yveltal", level: 100, ability: "Dark Aura", ...base },
+  def: { species: "Tauros", level: 100, ability: "Intimidate", ...base },
+  move: "Oblivion Wing",
+});
+addCase("Pixilate remap rides a defender's Fairy Aura", {
+  atk: { species: "Altaria-Mega", level: 100, ability: "Pixilate", ...base },
+  def: { species: "Xerneas", level: 100, ability: "Fairy Aura", ...base },
+  move: "Hyper Voice",
+});
+
 // snapshot for building oracle combatant
 const NEUTRAL = neutralNature.name;
 const IVS31 = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 };
@@ -528,6 +561,12 @@ for (const t of CASES) {
     weightKg: defEntry.weightKg,
   };
 
+  // Aura field condition derived from the two abilities, the way fill.mjs
+  // resolves it (the oracle reads the abilities itself).
+  const auraTypeOf = (ab) => (ab === "Fairy Aura" ? "Fairy" : ab === "Dark Aura" ? "Dark" : null);
+  const auras = [auraTypeOf(t.atk.ability), auraTypeOf(t.def.ability)].filter(Boolean);
+  const auraBreak = t.atk.ability === "Aura Break" || t.def.ability === "Aura Break";
+
   // oracle combatants at identical params (stat formula identical to ours)
   const oAtk = new OPokemon(6, t.atk.species, {
     level: t.atk.level ?? 100, nature: NEUTRAL, ivs: IVS31, evs: t.atk.evs ?? {},
@@ -553,6 +592,7 @@ for (const t of CASES) {
   const ours = calcDamage({
     attacker: atkC, defender: defC, move, chart,
     crit: !!t.params.crit, weather: t.params.weather, terrain: t.params.terrain,
+    auras, auraBreak,
     screens: t.params.screens, targetHoldsItem: t.params.targetHoldsItem,
     attackerHoldsItem: t.params.attackerHoldsItem,
     ignoresAbilities: t.params.ignoresAbilities,

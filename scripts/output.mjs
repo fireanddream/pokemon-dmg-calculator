@@ -62,6 +62,9 @@ const TERRAIN_WORD = {
   misty: "Misty Terrain", psychic: "Psychic Terrain",
 };
 
+// Active Fairy/Dark Aura field condition -> the ability that raised it.
+const AURA_WORD = { Fairy: "Fairy Aura", Dark: "Dark Aura" };
+
 const arenaParts = (b) => {
   const parts = [];
   if (b.weather) {
@@ -70,6 +73,10 @@ const arenaParts = (b) => {
   if (b.terrain) parts.push(TERRAIN_WORD[b.terrain] ?? b.terrain);
   if (b.stealthRock) parts.push("Stealth Rock");
   if (b.spikes) parts.push(`Spikes x${b.spikes}`);
+  const auras = b.auras ?? [];
+  for (const t of auras) parts.push(AURA_WORD[t] ?? `${t} Aura`);
+  // Aura Break only matters while at least one aura is up.
+  if (b.auraBreak && auras.length) parts.push("Aura Break");
   return parts;
 };
 

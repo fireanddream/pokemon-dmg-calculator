@@ -131,7 +131,7 @@ Example card value:
 ## Arena row
 
 Placed between Defender and Move. **Omitted entirely when empty** (no weather,
-terrain, or hazards). Parts, in order, joined with ` + `:
+terrain, hazards, or aura). Parts, in order, joined with ` + `:
 
 1. Weather, using Smogon words: `Sun`, `Rain`, `Sandstorm`, `Hail`,
    `Harsh Sunshine`, `Heavy Rain`, `Strong Winds`. If Cloud Nine / Air Lock is
@@ -140,8 +140,12 @@ terrain, or hazards). Parts, in order, joined with ` + `:
    `Psychic Terrain`.
 3. `Stealth Rock` (when set).
 4. `Spikes xN` where N is the layer count 1-3 (when set).
+5. Each active aura: `Fairy Aura` / `Dark Aura` (both may show), then
+   `Aura Break` when it is inverting them. Aura is a field condition; the token
+   names the ability, never a multiplier.
 
-Examples: `Sandstorm`, `Harsh Sunshine (suppressed)`, `Sandstorm + Stealth Rock + Spikes x2`.
+Examples: `Sandstorm`, `Harsh Sunshine (suppressed)`, `Sandstorm + Stealth Rock + Spikes x2`,
+`Fairy Aura`, `Fairy Aura + Aura Break`.
 
 No damage numbers are shown here — hazard damage is applied once at switch-in
 and the KO sim starts from the reduced HP.

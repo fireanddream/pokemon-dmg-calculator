@@ -6,6 +6,12 @@ engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
 carries open work + status. Per-session verbatim narrative lives in
 `session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
 
+**State 2026-09-12:** the three aura abilities (**Fairy Aura / Dark Aura /
+Aura Break**) shipped as a FIELD condition — resolved by `fill.mjs` from the
+battlers' abilities (explicit or auto-defaulted) into `auras` / `auraBreak`,
+like a weather setter but stacking, and named on the Arena row. No open build
+step remains.
+
 **State 2026-09-11:** steps 8 (one-shot route) and 9 (forme-word collision
 curation) are DONE, the 2-5 multi-hit model shipped (`verify:multihit`
 34/34), and **Hidden Power + IVs (HP Fire → SpA IV 30; Foul Play →
@@ -211,6 +217,7 @@ open now.
 
 | When | What | Record |
 | --- | --- | --- |
+| 2026-09-12 | Fairy/Dark Aura + Aura Break as a field condition (`fill.mjs` resolves `auras`/`auraBreak` like a setter, stacking with weather/each other; engine 4/3 (`5448`) / Aura Break 3/4; Arena row names active aura(s); `verify-smogon` rows) | DESIGN-RECORDS.md §10 Abilities · `auto-fill-defaults.md` "Aura setters" · this file |
 | 2026-09-11 | Hidden Power (`hidden power <type>` / `hp <type>`, 16 types, Normal/Fairy rejected, no-type error) + forced IVs (HP Fire → attacker SpA 30; Foul Play → defender Atk 0 shown on card); Foul Play uses defender's Atk | DESIGN-RECORDS.md §10 Moves · "### IVs" · this file |
 | 2026-09-11 | Multi-hit 2-5 model: exact weighted convolution, Technician per hit, berry first-hit only, Sash/Sturdy never save; card total range `[2-5 hits]`; `verify:multihit` | DESIGN-RECORDS.md §10 · this file |
 | 2026-09-10 | Converter-side echo (step 7): shared tokenizer, `_sideLog` labels, "scanned so far" `err.sideLogs`, `damage.mjs` `runQuery` | `SESSION-NOTES-20260910-CONVERTER-ECHO.md` |

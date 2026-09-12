@@ -454,8 +454,8 @@ the same day** (§10 Moves / ### IVs); with that, no engine gap remains open.
 
 | Ability | Status | Notes |
 |---|---|---|
-| Fairy Aura / Dark Aura | **not implemented (intentionally)** | Gen-6: while the holder is in play, Fairy/Dark moves from **all** battlers deal x4/3. Affects Xerneas (Fairy Aura) and Yveltal (Dark Aura) as attackers and as defenders. See the contributor note below. |
-| Aura Break | **not implemented (intentionally)** | Zygarde. While present, reverses Aura abilities so matching-type moves deal x3/4 instead of x4/3. Only meaningful once the Auras above exist. |
+| Fairy Aura / Dark Aura | done | Gen-6 FIELD condition: while the holder is in play, Fairy/Dark moves from **both** battlers deal x4/3. Xerneas (Fairy Aura) / Yveltal (Dark Aura). Resolved by the front into the field `auras` like a weather setter (see the note below); the Arena row names the active aura(s). Covered by `verify-smogon.mjs`. |
+| Aura Break | done | Zygarde. While present, inverts every active Fairy/Dark Aura so matching moves deal x3/4 instead of x4/3 (field `auraBreak`). |
 | Sheer Force | done | x1.3 on the 133 gen-6 damaging moves whose chance-based secondary is suppressed (`SHEER_FORCE_MOVES` in `src/damage-calc.ts`, derived from @smogon/calc; covered by `verify-smogon.mjs`). |
 | Analytic | **not implemented (intentionally)** | Engine hook exists (`params.movedAfterTarget` → x1.3), but nothing sets it and the project deliberately does **not** infer "moved after the target" from a speed comparison. See the move-order note below. |
 | Flash Fire (attacker) | **not implemented (intentionally)** | Boost hook exists (`params.flashFireBoosted` / `abilityOn`) but nothing sets it; there is no "already fire-boosted" context token. |
@@ -623,12 +623,17 @@ tokens ignore typing (Fire-types can be "burned" if typed), Flame Orb / Toxic
 Orb default their holder to burned / badly poisoned with the gen-6 type
 restriction (Fire can't be burned, Steel/Poison can't be badly poisoned).
 
-**Auras (Fairy Aura / Dark Aura / Aura Break) are intentionally not
-implemented.** If you want to take them on, the cleanest place is a shared
-helper in `src/damage-calc.ts` that, given the matchup, computes the aura
-multiplier for the effective move type and feeds both the attacker and
-defender sides; wire auto-defaulting in `scripts/fill.mjs` and add coverage
-rows to `scripts/verify-smogon.mjs`.
+**Auras (Fairy Aura / Dark Aura / Aura Break) are a FIELD condition, not an
+ability check in the engine.** `fill.mjs` resolves the active aura types from
+both sides' final abilities (explicit OR auto-defaulted — Xerneas → Fairy Aura
+— via the `## Aura setters` table in `auto-fill-defaults.md`) into the field
+`auras` / `auraBreak`, exactly like a weather setter, except auras STACK: the
+two auras coexist and coexist with any weather/terrain (nothing overrides).
+`calcDamage` applies 4/3 (Showdown's `5448`, deliberately not the `5325` used
+by Ate/Mega Launcher) to a move whose effective type matches an active aura, or
+3/4 under Aura Break, in the base-power chain; Mold Breaker cannot suppress a
+field aura. `output.mjs` names the active aura(s) on the Arena row. Covered by
+`verify-smogon.mjs`.
 
 **Move-order-dependent mechanics** (Analytic, Avalanche, Flash Fire's
 attacker boost, "attacker was hit last turn") are **intentionally not

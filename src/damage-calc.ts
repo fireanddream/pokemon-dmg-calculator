@@ -55,6 +55,12 @@ export interface DamageParams {
   damageTakenBefore?: number;
   /** attacker's moves ignore defender abilities (Mold Breaker etc.) */
   ignoresAbilities?: boolean;
+  /** active Fairy/Dark Aura field condition: the move types being boosted.
+   *  Resolved by the front from the battlers' abilities (like weather) — this
+   *  is a FIELD state, not an ability check in the engine. */
+  auras?: TypeName[];
+  /** Aura Break is in play: an active aura is inverted to 3/4x. */
+  auraBreak?: boolean;
   doubles?: boolean;
 }
 
@@ -212,6 +218,9 @@ const M1_1 = 4505;
 const M1_25 = 5120;
 const M0_75 = 3072;
 const M0_5 = 2048;
+// gen-6 Fairy/Dark Aura (4/3). This is Showdown's fixed-point constant, which
+// is NOT the same as M1_3 (5325) used by Ate/Mega Launcher.
+const M_AURA = 5448;
 
 const TYPE_BOOST_ITEMS: Record<string, TypeName> = {
   "Adamant Orb": "Dragon", "Black Belt": "Fighting", "Black Glasses": "Dark",
@@ -647,6 +656,14 @@ function resolveTypeAndPower(params: DamageParams, weather: Weather | undefined)
     bpMods.push(M1_5);
   } else if (hasAbility(attacker, "Tough Claws") && hasFlag(move, "Contact")) {
     bpMods.push(M1_3);
+  }
+
+  // Fairy/Dark Aura: a FIELD condition resolved by the front from the battlers'
+  // abilities (like weather). While active, every move of the matching
+  // effective type deals 4/3x; Aura Break inverts it to 3/4x. Field state, so
+  // Mold Breaker does not suppress it.
+  if (params.auras?.includes(type)) {
+    bpMods.push(params.auraBreak ? M0_75 : M_AURA);
   }
 
   // terrain boosts
