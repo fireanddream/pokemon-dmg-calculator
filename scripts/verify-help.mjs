@@ -51,19 +51,21 @@ check("help shows the assumed defaults", help.includes("Assumed when you leave i
 check("help shows the held-item default", help.includes("has item, no effect"));
 check("help shows the ability default example", help.includes("Scizor -> Technician"));
 check("help shows an engine expansion", help.includes("max atk -> 252 Atk EVs + Adamant"));
-check("help shows the aura expansion", help.includes("Fairy Aura -> Fairy aura"));
+check("help shows the arena ability example", help.includes("Drizzle -> Rain"));
 
-for (const label of ["GRAMMAR", "LEXEMES", "Species", "Move", "Item", "Nature", "Ability", "Status", "Weather", "Terrain", "Hazard"]) {
+for (const label of ["Grammar", "LEXEMES", "Species", "Move", "Item", "Nature", "Ability", "Status", "Weather", "Terrain", "Hazard"]) {
   check(`grammar lists "${label}"`, grammar.includes(label));
 }
 check(
   "grammar credits both source files",
   grammar.includes("aliases.md") && grammar.includes("auto-fill-defaults.md"),
 );
-check("grammar draws a live species example", grammar.includes("chomp -> Garchomp"));
-check("grammar draws a live move example", grammar.includes("eq -> Earthquake"));
+check("grammar draws a hand-made species example", grammar.includes("chomp -> Garchomp"));
+check("grammar draws a hand-made move example", grammar.includes("eq -> Earthquake"));
+check("grammar notes hand-made examples", grammar.includes("hand-made"));
 check("grammar shows the plate phrase", grammar.includes('"fairy plate" = Pixie Plate'));
-check("grammar shows the full terrain word", grammar.includes("electric terrain -> Electric Terrain"));
+check("grammar shows the short terrain word", grammar.includes("e terrain -> Electric Terrain"));
+check("grammar shows the stealth rock example", grammar.includes("rock -> Stealth Rock"));
 check("grammar keeps the level forms", grammar.includes("lv100 / lv 100 / level 100"));
 check("grammar has no raw markdown", !/\*\*|`/.test(grammar));
 check("grammar does not mention @", !grammar.includes("@"));

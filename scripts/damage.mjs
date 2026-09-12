@@ -27,6 +27,10 @@ const DATA_DIR = path.join(here, "..", "data");
 const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json"), "utf8"));
 const chart = buildTypeChart(typesData.types);
 
+/** Full-width solid-block rule that heads every section (echo, banner, helpers). */
+const sectionRule = (width = 100) =>
+  "█".repeat(Number.isFinite(width) && width > 0 ? Math.floor(width) : 100);
+
 /** Resolve (fill defaults) + calculate + render a raw spec-dict matchup. */
 function renderMatchup(matchup, width) {
   return render(runCalc({ ...resolveMatchup(matchup), chart }), { width });
@@ -66,13 +70,14 @@ export function runQuery(line, { chat = false, echo: wantEcho = true, width = 10
     logs = err.sideLogs ?? logs;
     body = `${err.message}\n`;
   }
-  const echo = wantEcho ? echoBlock(line, logs, width) : "";
+  const rawEcho = wantEcho ? echoBlock(line, logs, width) : "";
+  const echo = rawEcho ? sectionRule(width) + "\n" + rawEcho : "";
   if (chat) {
     const e = echo.replace(/\n+$/, "");
     const b = body.replace(/\n+$/, "");
-    return `${e ? `\`\`\`\n${e}\n\`\`\`\n` : ""}\`\`\`\n${b}\n\`\`\`\n`;
+    return `${e ? `\`\`\`\n${e}\n\`\`\`\n\n` : ""}\`\`\`\n${b}\n\`\`\`\n`;
   }
-  return echo + body;
+  return echo + "\n" + body;
 }
 
 const USAGE = `usage:
@@ -102,6 +107,28 @@ const USAGE = `usage:
   may come before or after the species); only "vs" is fixed — it splits the
   sides. specs: "Species [Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
 
+/** Compact banner shown when the interactive prompt starts. */
+const BANNER = `Pokemon damage calculator by Winking Wizard
+
+Defaults   gen 6 mechanics · Level 50 · IVs 31 · 0 EVs ·
+           Serious nature · relevant ability
+
+Input      <attacker side>  <move>  vs  <defender side>
+           item, nature, EVs, ability and the move may sit anywhere on a side;
+           only "vs" is fixed — it splits the sides.
+
+Example    Garchomp Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP
+           EQ LO max Atk Jolly Garchomp vs 252 HP Heatran
+           Full alias list:        aliases.md
+           Full default algorithm: auto-fill-defaults.md
+
+Helpers
+  -help                                  quickstart + assumed defaults
+  -grammar                               token grammar + one example per name type
+  -limits                                what the calculator does not model
+  -search pokemon <type> [type2]         list pokemon whose exact typing matches
+  -search move <type> [power] [phy/spe]  list attacking moves of a type`;
+
 /** Parse argv into a run plan: flags plus the remaining source words. */
 function parseArgs(argv) {
   const plan = { parts: [], resolved: false, chat: false, echo: true, width: 100 };
@@ -123,22 +150,19 @@ function parseArgs(argv) {
 }
 
 function repl() {
-  console.log(USAGE.replace(/^/gm, "  "));
-  console.log("\n  example: Garchomp Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP");
-  console.log("  type -help for commands, -grammar for the token grammar, -limits for limits");
-  console.log("  or -search pokemon <type> [type2] / -search move <type> [power] [phys|special]");
+  console.log(BANNER.replace(/^/gm, "  "));
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("calc> ", (line) => {
     line = line.trim();
     if (line === "" || /^(q|quit|exit)$/i.test(line)) return rl.close();
     const topic = isHelpCommand(line);
     if (topic) {
-      process.stdout.write(helpTopic(topic));
+      process.stdout.write(sectionRule() + "\n" + helpTopic(topic));
       return prompt();
     }
     const words = line.split(/\s+/);
     if (isSearchCommand(words[0])) {
-      process.stdout.write(searchCommand(words.slice(1)));
+      process.stdout.write(sectionRule() + "\n" + searchCommand(words.slice(1)));
       return prompt();
     }
     process.stdout.write(runQuery(line));
@@ -156,7 +180,7 @@ if (isMain) {
 
   const helpCmd = parts.length === 1 ? isHelpCommand(parts[0]) : null;
   if (helpCmd) {
-    process.stdout.write(helpTopic(helpCmd, { width: plan.width }));
+    process.stdout.write(sectionRule(plan.width) + "\n" + helpTopic(helpCmd, { width: plan.width }));
     process.exit(0);
   }
 
@@ -166,7 +190,7 @@ if (isMain) {
     const searchArgs = parts.length === 1
       ? parts[0].trim().split(/\s+/).slice(1)
       : parts.slice(1);
-    process.stdout.write(searchCommand(searchArgs, { width: plan.width }));
+    process.stdout.write(sectionRule(plan.width) + "\n" + searchCommand(searchArgs, { width: plan.width }));
     process.exit(0);
   }
 

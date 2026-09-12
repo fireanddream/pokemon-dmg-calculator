@@ -296,6 +296,9 @@ card instead (reason as a note):
 
 ## Turn-by-turn block (only when the query says `turn by turn`)
 
+Internal test feature — the `turn by turn` keyword is deliberately kept out of
+the user `-grammar` text; it stays for engine verification and debugging.
+
 Printed after the KO row, all lines indented 12 spaces:
 
 ```

@@ -214,8 +214,8 @@ rejected; nobody types them and the fragments create fake partial matches):
 |---|---|
 | `atk` / `attack` | atk |
 | `def` / `defense` | def |
-| `spa` / `spatk` / `spc` | spa |
-| `spd` / `spdef` / `sdef` | spd |
+| `spa` / `spatk` | spa |
+| `spd` / `spdef` | spd |
 | `spe` / `speed` | spe |
 | `acc` / `accuracy` | accuracy stage |
 | `eva` / `evasion` | evasion stage |
@@ -253,11 +253,14 @@ them as abilities and `fill.mjs` resolves their arena weather.
 
 | You type | Engine token |
 |---|---|
-| `electric terrain` | electric |
-| `grassy terrain` | grassy |
-| `misty terrain` | misty |
-| `psychic terrain` | psychic |
+| `e terrain` / `electric terrain` | electric |
+| `g terrain` / `grassy terrain` / `grass terrain` | grassy |
+| `m terrain` / `misty terrain` / `fairy terrain` | misty |
+| `p terrain` / `psychic terrain` | psychic |
 
-Each terrain also accepts a one-letter short form (`e terrain`, `g terrain`,
-`m terrain`, `p terrain`) and the synonyms `grass terrain` (grassy) and
-`fairy terrain` (misty — the Fairy-themed terrain).
+## Hazard words
+
+| You type | Engine token |
+|---|---|
+| `rock` / `stealth rock` / `stealthrock` / `sr` | Stealth Rock |
+| `spike` / `spikes` / `2 spikes` / `spikes 2` / `spikes x2` | Spikes (1 / 3 / N layers) |

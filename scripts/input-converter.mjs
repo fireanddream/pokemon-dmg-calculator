@@ -291,8 +291,8 @@ function unboundEvError(tokens) {
 // keep spa/spd one-word aliases, no English full-name words (seam F).
 const STAGE_ALIAS = {
   atk: "atk", attack: "atk", def: "def", defense: "def",
-  spa: "spa", spatk: "spa", spc: "spa",
-  spd: "spd", spdef: "spd", sdef: "spd", spe: "spe", speed: "spe",
+  spa: "spa", spatk: "spa",
+  spd: "spd", spdef: "spd", spe: "spe", speed: "spe",
 };
 const EV_ALIAS = { hp: "hp", ...STAGE_ALIAS };
 const ACC_EVA_ALIAS = { acc: "acc", accuracy: "acc", eva: "eva", evasion: "eva" };
@@ -300,9 +300,9 @@ const ACC_EVA_ALIAS = { acc: "acc", accuracy: "acc", eva: "eva", evasion: "eva" 
 // first-typed max wins the auto-nature war (fill.mjs applyMaxFlags).
 const MAX_ALIAS = {
   atk: "_maxAtk", attack: "_maxAtk", phys: "_maxAtk",
-  spa: "_maxSpa", spatk: "_maxSpa", spc: "_maxSpa",
+  spa: "_maxSpa", spatk: "_maxSpa",
   def: "_maxDef", defense: "_maxDef",
-  spd: "_maxSpd", spdef: "_maxSpd", sdef: "_maxSpd",
+  spd: "_maxSpd", spdef: "_maxSpd",
   spe: "_maxSpe", speed: "_maxSpe",
   hp: "_maxHp",
 };
