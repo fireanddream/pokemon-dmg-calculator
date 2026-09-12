@@ -209,8 +209,8 @@ Assumed when you leave it out:
 Engine expansions:
   boost moves are auto-converted to stat boosts           sd -> Swords Dance (not an attacking move)
   max <stat> assumes a boosted nature                     max atk -> 252 Atk EVs + Adamant
-  flame orb / toxic orb assumes the corresponding status                         flame orb -> burned
-  arena ability assumes the corresponding arena condition                            Drizzle -> Rain
+  flame orb / toxic orb assumes the corresponding status               flame orb -> burned
+  arena ability assumes the corresponding arena condition              Drizzle -> Rain
 
 (Defaults are the engine's built-in assumptions; -grammar lists the token grammar.)
 
