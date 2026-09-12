@@ -707,6 +707,31 @@ devDependency oracle only). Corpus
 `session-tools-archive/20260904-capture-goldens.mjs`,
 `session-tools-archive/20260904-chaincheck.mjs`.
 
+## 13. CLI name / move lookup (`-search`)
+
+`-search` is a CLI-only convenience of `scripts/damage.mjs` (argv and the
+`calc>` prompt), implemented in `scripts/lookup.mjs`. It is NOT part of the
+damage-query front: it never enters the converter / route / echo / card path,
+and its output is a single unwrapped, comma-separated line sorted by name
+(`none found` when empty).
+
+- `-search pokemon <type> [type2]` — exact typing-set lookup, 1 or 2 **full**
+  type names (no aliases), order-insensitive. A mono type deliberately does NOT
+  match a dual typing. Source is the curated `data/xy-pokemon.json` exactly as
+  the calc sees it: kept variants (megas, Primal, forme entries) are returned,
+  and the 31 curated-out variant formes (Arceus / Genesect formes, the dropped
+  in-battle Zen forme, Pikachu cosplay, Basculin-Blue-Striped, Keldeo-Resolute,
+  Vivillon patterns — see "Curated-out variant formes") are already absent, so
+  nothing must be filtered at lookup time.
+- `-search move <type> [power] [phys|special]` — attacking moves of a **full**
+  type name; exact `power` and category are optional and order-free. Category
+  accepts `physical` / `special` plus `phy` / `spe` / `atk` / `spa`; `attack`
+  and `special attack` are rejected. Non-attacking moves (source category
+  `Non-Damaging`) are never returned.
+
+`npm run verify:lookup` pins all of the above, and `-help` advertises the
+command.
+
 ## Provenance
 
 Consolidated 2026-09-09 from `TODO.md` backlog sections and `ENGINE-GAPS.md`

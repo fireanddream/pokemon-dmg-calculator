@@ -19,6 +19,7 @@ import { renderEcho, spansFromLogs } from "./echo.mjs";
 import { parseQuery } from "./input-converter.mjs";
 import { resolveMatchup } from "./fill.mjs";
 import { helpTopic, isHelpCommand } from "./help.mjs";
+import { isSearchCommand, searchCommand } from "./lookup.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(here, "..", "data");
@@ -89,6 +90,14 @@ const USAGE = `usage:
   -help / -grammar / -limits  quickstart / token grammar / calculator limits
                               (from the prompt or as an argument)
 
+  -search pokemon <type> [type2]
+                      list pokemon whose FULL typing is exactly those types
+                      (1 or 2, any order; names only, comma-separated)
+  -search move <type> [power] [phys|special]
+                      list attacking moves of a type; exact power and category
+                      (physical/special, or phy/spe/atk/spa) are optional and
+                      may appear in either order
+
   tokens can go in ANY order on a side (item, nature, EVs, ability and the move
   may come before or after the species); only "vs" is fixed — it splits the
   sides. specs: "Species [Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
@@ -117,6 +126,7 @@ function repl() {
   console.log(USAGE.replace(/^/gm, "  "));
   console.log("\n  example: Garchomp Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP");
   console.log("  type -help for commands, -grammar for the token grammar, -limits for limits");
+  console.log("  or -search pokemon <type> [type2] / -search move <type> [power] [phys|special]");
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("calc> ", (line) => {
     line = line.trim();
@@ -124,6 +134,11 @@ function repl() {
     const topic = isHelpCommand(line);
     if (topic) {
       process.stdout.write(helpTopic(topic));
+      return prompt();
+    }
+    const words = line.split(/\s+/);
+    if (isSearchCommand(words[0])) {
+      process.stdout.write(searchCommand(words.slice(1)));
       return prompt();
     }
     process.stdout.write(runQuery(line));
@@ -142,6 +157,16 @@ if (isMain) {
   const helpCmd = parts.length === 1 ? isHelpCommand(parts[0]) : null;
   if (helpCmd) {
     process.stdout.write(helpTopic(helpCmd, { width: plan.width }));
+    process.exit(0);
+  }
+
+  // -search is CLI-only. Accept both split words and a single quoted line.
+  const firstWord = (parts[0] ?? "").trim().split(/\s+/)[0];
+  if (isSearchCommand(firstWord)) {
+    const searchArgs = parts.length === 1
+      ? parts[0].trim().split(/\s+/).slice(1)
+      : parts.slice(1);
+    process.stdout.write(searchCommand(searchArgs, { width: plan.width }));
     process.exit(0);
   }
 

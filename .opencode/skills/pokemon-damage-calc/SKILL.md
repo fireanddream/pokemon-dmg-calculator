@@ -84,6 +84,12 @@ stage errors, paste the output as-is (echo + error) — do not invent a number.
   prefer `route.mjs` for answering queries.
 - Card layout is owned by `output.mjs` and pinned in `OUTPUT-FORMAT.md` — never
   restyle a card.
+- A pure name/move lookup (which pokemon have a typing, or which attacking moves
+  are of a type / power / category) is NOT a damage query: use the CLI lookup
+  `node scripts/damage.mjs -search pokemon <type> [type2]` /
+  `node scripts/damage.mjs -search move <type> [power] [phys|special]` and paste
+  its comma-separated line (or `none found`) as-is, instead of the web or memory.
+  Never use a lookup to resolve or rewrite tokens on a damage line.
 
 ## Worked example
 

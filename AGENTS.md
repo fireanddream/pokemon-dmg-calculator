@@ -68,6 +68,21 @@ untouched unless the user explicitly asks, or at a stable release-ready point.
 When help content needs to change before then, stage it in a scratch preview
 (e.g. under `tmp/`) and wait for the go-ahead to implement.
 
+**6. Name / move lookups: use `-search`, never the web or memory.** When the
+question is *which* pokemon have a typing, or *which* moves are of a type /
+power / category, answer it with the CLI lookup instead of doing web research or
+recalling data:
+`node scripts/damage.mjs -search pokemon <type> [type2]` (exact typing-set;
+full type names, 1-2, any order; a mono type never returns duals) and
+`node scripts/damage.mjs -search move <type> [power] [phys|special]` (attacking
+moves only; exact `power` and category optional, any order; category
+`physical`/`special` or `phy`/`spe`/`atk`/`spa`). Output is one comma-separated
+line, or `none found` — paste it as-is. It is CLI-only and stays OUT of the
+damage path: **never** use it to resolve or rewrite tokens on a damage-query
+line (the converter + `fill.mjs` own that, rule 3), and a damage line still goes
+to `route.mjs` verbatim (rule 1). Contract: `DESIGN-RECORDS.md` §13;
+`npm run verify:lookup`.
+
 ## Reference index
 
 Read the section you need from the file that owns it; never memorize these.
@@ -78,6 +93,7 @@ Read the section you need from the file that owns it; never memorize these.
 | Query tokens & side shapes: word/phrase lexicons in `input-converter.mjs` passes; name/acronym tables (species, move, item, stat, status, weather, type plates) in **`aliases.md`** (doc-as-code); investment/stat-stage/arena token rules + "only times the agent adds to the spec" in **`auto-fill-defaults.md`** | `aliases.md` · `auto-fill-defaults.md` · `input-converter.mjs` |
 | Defaults the engine applies, EV/nature shorthands, orbs, weather setters, ability pick order, the only times the agent adds to the spec | **`auto-fill-defaults.md`** (doc-as-code, parsed by `fill.mjs`) |
 | Recognition echo: layout contract + span schema + CLI | `scripts/echo.mjs` header · `DESIGN-RECORDS.md` "Recognition echo" |
+| Pokemon-typing / attacking-move lookup (`-search`, CLI-only; use it instead of web/memory) | **`DESIGN-RECORDS.md` §13** · `scripts/lookup.mjs` |
 | Two-move combos · turn-by-turn sim | **`OUTPUT-FORMAT.md`** "Two-move combos (fixed sequence)" · "Turn-by-turn block" |
 | Accuracy/evasion: modeled SEPARATELY from damage — acc tokens never change damage/KO numbers (`verify:damage` stays byte-identical to the oracle); engine `src/accuracy.ts`, `npm run verify:acc` | **`OUTPUT-FORMAT.md`** "Chance to hit all attacks" + `src/accuracy.ts` |
 | Design records + engine coverage: grammar/tokenizer/arena/boost/mega contracts, known engine gaps & intentional simplifications | **`DESIGN-RECORDS.md`** |
@@ -96,8 +112,9 @@ Read the section you need from the file that owns it; never memorize these.
   shared front lexicon fill.mjs imports) → `fill.mjs` (defaults+resolve) →
   `calc.mjs` (pure calc) → `output.mjs` (card renderer); plus `echo.mjs`
   (recognition-echo renderer), `route.mjs` (the agent one-shot: line →
-  echo+card), `damage.mjs` (compat card CLI), data-gen and verify scripts
-  (`verify:echo`, `verify:damage`, `verify:acc`).
+  echo+card), `damage.mjs` (compat card CLI, also hosting the CLI-only
+  `-search` lookup), `lookup.mjs` (`-search` name/move lookup), data-gen and
+  verify scripts (`verify:echo`, `verify:damage`, `verify:acc`, `verify:lookup`).
 - `auto-fill-defaults.md` · `aliases.md` · `OUTPUT-FORMAT.md` — doc-as-code rule
   stores parsed at startup / by the parser; edit these, not the scripts.
 - `DESIGN-RECORDS.md` — binding design contracts (grammar/tokenizer/echo/

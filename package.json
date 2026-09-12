@@ -23,6 +23,7 @@
     "verify:acc": "npm run build && node scripts/verify-accuracy.mjs",
     "verify:echo": "node scripts/verify-echo.mjs",
     "verify:help": "node scripts/verify-help.mjs",
+    "verify:lookup": "node scripts/verify-lookup.mjs",
     "verify:multihit": "npm run build && node scripts/verify-multihit.mjs",
     "damage": "node scripts/damage.mjs"
   },
