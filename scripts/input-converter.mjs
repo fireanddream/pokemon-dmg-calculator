@@ -658,9 +658,9 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
 
   function shapeClaimAt(i) {
     const tok = atoms[i].t;
-    const glued = /^l(?:v|evel)?(\d{1,3})$/.exec(tok);
+    const glued = /^(?:lv|level)(\d{1,3})$/.exec(tok);
     if (glued) { setLevel(Number(glued[1])); log("level", i, 1); return 1; }
-    if ((tok === "level" || tok === "lv" || tok === "l") && adjacent(i) && isNumber(atoms[i + 1].t)) {
+    if ((tok === "level" || tok === "lv") && adjacent(i) && isNumber(atoms[i + 1].t)) {
       setLevel(Number(atoms[i + 1].t)); log("level", i, 2); return 2;
     }
     if (tok === "max" && adjacent(i) && MAX_ALIAS[atoms[i + 1].t]) {

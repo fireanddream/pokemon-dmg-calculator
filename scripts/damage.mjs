@@ -86,8 +86,8 @@ const USAGE = `usage:
   add --width N    to wrap the echo and the card at N columns (default 100;
                    N <= 0 never wraps)
 
-  -help / -tokens / -limits   quickstart / accepted input words / calculator
-                              limits (from the prompt or as an argument)
+  -help / -grammar / -limits  quickstart / token grammar / calculator limits
+                              (from the prompt or as an argument)
 
   tokens can go in ANY order on a side (item, nature, EVs, ability and the move
   may come before or after the species); only "vs" is fixed — it splits the
@@ -116,7 +116,7 @@ function parseArgs(argv) {
 function repl() {
   console.log(USAGE.replace(/^/gm, "  "));
   console.log("\n  example: Garchomp Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP");
-  console.log("  type -help for commands, -tokens for input words, -limits for limits");
+  console.log("  type -help for commands, -grammar for the token grammar, -limits for limits");
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("calc> ", (line) => {
     line = line.trim();

@@ -1,4 +1,4 @@
-// Help-topic regression checks: the three CLI topics (-help / -tokens /
+// Help-topic regression checks: the three CLI topics (-help / -grammar /
 // -limits) render, recognize their commands, project live from their source
 // docs (aliases.md, auto-fill-defaults.md, DESIGN-RECORDS.md §10), and wrap
 // through the shared `wrapBlock` rule at any width.
@@ -17,10 +17,10 @@ console.log("help topics");
 
 // --- command recognition ---
 check("-help maps to help", isHelpCommand("-help") === "help");
-check("-tokens maps to tokens", isHelpCommand("-tokens") === "tokens");
+check("-grammar maps to grammar", isHelpCommand("-grammar") === "grammar");
 check("-limits maps to limits", isHelpCommand("-limits") === "limits");
 check("case-insensitive", isHelpCommand("-HELP") === "help");
-check("accepts a double dash", isHelpCommand("--tokens") === "tokens");
+check("accepts a double dash", isHelpCommand("--grammar") === "grammar");
 check("trims surrounding space", isHelpCommand("  -limits  ") === "limits");
 check("rejects a query", isHelpCommand("Garchomp EQ vs Heatran") === null);
 check("rejects bare help", isHelpCommand("help") === null);
@@ -29,14 +29,14 @@ check("rejects a near-miss", isHelpCommand("-limit") === null);
 
 // --- rendering ---
 const help = helpTopic("help");
-const tokens = helpTopic("tokens");
+const grammar = helpTopic("grammar");
 const limits = helpTopic("limits");
 check("help renders", help.length > 0);
-check("tokens renders", tokens.length > 0);
+check("grammar renders", grammar.length > 0);
 check("limits renders", limits.length > 0);
-check("topics end in a newline", help.endsWith("\n") && tokens.endsWith("\n") && limits.endsWith("\n"));
+check("topics end in a newline", help.endsWith("\n") && grammar.endsWith("\n") && limits.endsWith("\n"));
 
-check("help names all three commands", ["-help", "-tokens", "-limits"].every((c) => help.includes(c)));
+check("help names all three commands", ["-help", "-grammar", "-limits"].every((c) => help.includes(c)));
 check("help shows a worked query", help.includes("vs"));
 check("help stresses any token order", /ANY order/.test(help));
 check(
@@ -47,19 +47,26 @@ check(
   "help points at both editable docs",
   help.includes("aliases.md") && help.includes("auto-fill-defaults.md"),
 );
+check("help shows the assumed defaults", help.includes("Assumed when you leave it out:"));
+check("help shows the held-item default", help.includes("has item, no effect"));
+check("help shows the ability default example", help.includes("Scizor -> Technician"));
+check("help shows an engine expansion", help.includes("max atk -> 252 Atk EVs + Adamant"));
+check("help shows the aura expansion", help.includes("Fairy Aura -> Fairy aura"));
 
-for (const label of ["Species aliases", "Move acronyms", "Item acronyms", "Weather setters", "EV / nature shorthand"]) {
-  check(`tokens lists "${label}"`, tokens.includes(label));
+for (const label of ["GRAMMAR", "LEXEMES", "Species", "Move", "Item", "Nature", "Ability", "Status", "Weather", "Terrain", "Hazard"]) {
+  check(`grammar lists "${label}"`, grammar.includes(label));
 }
 check(
-  "tokens credits both source files",
-  tokens.includes("aliases.md") && tokens.includes("auto-fill-defaults.md"),
+  "grammar credits both source files",
+  grammar.includes("aliases.md") && grammar.includes("auto-fill-defaults.md"),
 );
-check("tokens draws a live example", /rotom -> Rotom/.test(tokens));
-check("tokens shows the plate alias phrase", tokens.includes("Fairy plate -> Pixie Plate"));
-check("tokens shows the full terrain word", tokens.includes("e terrain -> electric terrain"));
-check("tokens shows the full aura word", tokens.includes("Fairy Aura -> Fairy Aura"));
-check("tokens has no raw markdown", !/\*\*|`/.test(tokens));
+check("grammar draws a live species example", grammar.includes("chomp -> Garchomp"));
+check("grammar draws a live move example", grammar.includes("eq -> Earthquake"));
+check("grammar shows the plate phrase", grammar.includes('"fairy plate" = Pixie Plate'));
+check("grammar shows the full terrain word", grammar.includes("electric terrain -> Electric Terrain"));
+check("grammar keeps the level forms", grammar.includes("lv100 / lv 100 / level 100"));
+check("grammar has no raw markdown", !/\*\*|`/.test(grammar));
+check("grammar does not mention @", !grammar.includes("@"));
 check("limits has no raw markdown", !/\*\*|`/.test(limits));
 
 for (const label of ["Abilities", "Items", "Moves", "Curated-out variant formes"]) {
@@ -71,7 +78,7 @@ check("limits points at the full inventory", limits.includes("DESIGN-RECORDS.md"
 
 // --- wrapping via the shared rule ---
 for (const width of [40, 100]) {
-  for (const [name, text] of [["help", helpTopic("help", { width })], ["tokens", helpTopic("tokens", { width })], ["limits", helpTopic("limits", { width })]]) {
+  for (const [name, text] of [["help", helpTopic("help", { width })], ["grammar", helpTopic("grammar", { width })], ["limits", helpTopic("limits", { width })]]) {
     const over = text.split("\n").filter((ln) => ln.length > width);
     check(`${name} wraps at ${width}`, over.length === 0, over[0] ?? "");
   }

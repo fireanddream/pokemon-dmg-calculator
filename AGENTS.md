@@ -61,6 +61,13 @@ agent never composes, restyles, reformats, or explains a card's layout — answe
 a query by pasting the output script's block verbatim (rule 2). When output
 rules change, edit `output.mjs` and `OUTPUT-FORMAT.md` together, never AGENTS.md.
 
+**5. Help scripts are FROZEN until asked.** `scripts/help.mjs` (and its
+`verify:help`) must NOT be edited to chase minor changes in the scripts/docs it
+projects from — don't touch them after every small change elsewhere. Leave them
+untouched unless the user explicitly asks, or at a stable release-ready point.
+When help content needs to change before then, stage it in a scratch preview
+(e.g. under `tmp/`) and wait for the go-ahead to implement.
+
 ## Reference index
 
 Read the section you need from the file that owns it; never memorize these.

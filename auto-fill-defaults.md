@@ -49,11 +49,11 @@ next time the front runs.
 
 | Variable | Default | Override in the spec |
 |---|---|---|
-| Level | 50 | `L100` / `level 100` / `Lv 75` (clamped 1–100) |
+| Level | 50 | `Lv100` / `level 100` / `Lv 75` (clamped 1–100) |
 | Nature | Serious | any nature word: `Jolly`, `Adamant`, ... |
 | IVs | 31 | no spec token. Only forced values change: **Hidden Power Fire → attacker SpA IV 30**; **Foul Play → defender Atk IV 0** when its base Atk < base SpA (Foul Play is the only move that reads the defender's Atk). Shown on the card. |
 | EVs | 0 | only named `N <stat>` tokens get EVs (cap 252 each) |
-| Held item | inert item (held, no effect, not displayed) | name an item / acronym, or `no item` |
+| Held item | has item, no effect | name an item / acronym, or `no item` |
 | Status | none | `burned`, `poisoned`, `toxic`, `paralyzed`, `asleep`, `frozen` |
 | Stat stages | +0 on all five stats | `-1 atk`, `+2 spa`, `-3 def`, `+1 spe` (cap ±6) |
 | Accuracy / evasion stages | +0 / +0 | `-2 acc`, `+1 eva` (cap ±6) |
@@ -71,8 +71,8 @@ them back into a spec.
 
 ## Held-item rules
 
-- No item named ⇒ an **inert item**: the mon still "holds" something with no
-  effect, so Knock Off gets its damage boost and the mon is never treated as
+- No item named ⇒ **has item, no effect**: the mon still "holds" something with
+  no effect, so Knock Off gets its damage boost and the mon is never treated as
   truly itemless. Nothing is shown on the card.
 - Real items (berries, Leftovers, Life Orb, Choice items, ...) apply **only
   when named** (full name or acronym — see the spec grammar).
@@ -81,8 +81,8 @@ them back into a spec.
 - **Megas always hold their Mega Stone** — it cannot be knocked off or
   consumed, a mega is never itemless, and Knock Off does **not** get its boost
   against one. Named items on a mega are ignored (caller must override).
-- Flame Orb / Toxic Orb are **not** the inert default — they only apply when
-  named, and then set a status (see `## Orb defaults` below).
+- Flame Orb / Toxic Orb are **not** the default — they only apply when named,
+  and then set a status (see `## Orb defaults` below).
 
 ## Orb defaults
 
@@ -385,7 +385,7 @@ token only when the user's intent contradicts a default and their wording
 cannot carry it through — chiefly:
 
 - genuinely **itemless** → the spec needs `no item` (an unmentioned item would
-  otherwise default to inert-held);
+  otherwise default to has-item-no-effect);
 - a **named item / nature / ability / boost / weather** the user stated but
   wrote loosely (translate to the token form; see the spec grammar).
 
