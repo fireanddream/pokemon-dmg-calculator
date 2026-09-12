@@ -96,6 +96,27 @@ the width on both `damage.mjs` and `output.mjs`; `--width 0` (any value `<= 0`)
 never wraps. Both entry points default to 100 so the direct and staged pipelines
 stay byte-identical.
 
+## Help topics (`-help` / `-tokens` / `-limits`)
+
+The interactive prompt (`calc>`) and the one-shot CLI accept three help
+commands, also as an argument (`node scripts/damage.mjs -tokens`). They never
+touch the query pipeline:
+
+| Command | Shows |
+|---|---|
+| `-help` | quickstart: the `vs` frame, one worked query, the command list |
+| `-tokens` | accepted input words, one live example per category |
+| `-limits` | what the engine does not model, with a short status tag |
+
+Content is **projected from the docs that own it** (`scripts/help.mjs`), so it
+cannot drift: `-tokens` reads the category headings + first table row of
+`aliases.md` and `auto-fill-defaults.md`; `-limits` reads the `Status` column of
+`DESIGN-RECORDS.md` §10 and drops every `done` row. Help wraps through the same
+`wrapBlock` rule and default 100 columns as the echo and card; `--width N`
+overrides it. Adding a token category or a coverage row to those docs changes
+the help automatically; the authored prose and worked example are guarded by
+`npm run verify:help`.
+
 ## Cards (Attacker / Defender)
 
 One card per line, built left to right as:

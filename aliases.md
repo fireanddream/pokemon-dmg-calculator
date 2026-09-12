@@ -118,11 +118,11 @@ Silk Scarf.
 
 | Move type | Plate |
 |---|---|
+| Fairy | Pixie Plate |
 | Bug | Insect Plate |
 | Dark | Dread Plate |
 | Dragon | Draco Plate |
 | Electric | Zap Plate |
-| Fairy | Pixie Plate |
 | Fighting | Fist Plate |
 | Fire | Flame Plate |
 | Flying | Sky Plate |
@@ -247,3 +247,7 @@ them as abilities and `fill.mjs` resolves their arena weather.
 | `grassy terrain` | grassy |
 | `misty terrain` | misty |
 | `psychic terrain` | psychic |
+
+Each terrain also accepts a one-letter short form (`e terrain`, `g terrain`,
+`m terrain`, `p terrain`) and the synonyms `grass terrain` (grassy) and
+`fairy terrain` (misty — the Fairy-themed terrain).

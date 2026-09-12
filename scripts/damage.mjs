@@ -18,6 +18,7 @@ import { render } from "./output.mjs";
 import { renderEcho, spansFromLogs } from "./echo.mjs";
 import { parseQuery } from "./input-converter.mjs";
 import { resolveMatchup } from "./fill.mjs";
+import { helpTopic, isHelpCommand } from "./help.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(here, "..", "data");
@@ -85,7 +86,12 @@ const USAGE = `usage:
   add --width N    to wrap the echo and the card at N columns (default 100;
                    N <= 0 never wraps)
 
-  specs: "Species [@ Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
+  -help / -tokens / -limits   quickstart / accepted input words / calculator
+                              limits (from the prompt or as an argument)
+
+  tokens can go in ANY order on a side (item, nature, EVs, ability and the move
+  may come before or after the species); only "vs" is fixed — it splits the
+  sides. specs: "Species [Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
 
 /** Parse argv into a run plan: flags plus the remaining source words. */
 function parseArgs(argv) {
@@ -109,11 +115,17 @@ function parseArgs(argv) {
 
 function repl() {
   console.log(USAGE.replace(/^/gm, "  "));
-  console.log("\n  example: Garchomp @ Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP");
+  console.log("\n  example: Garchomp Life Orb Jolly 252 Atk Earthquake vs Heatran 252 HP");
+  console.log("  type -help for commands, -tokens for input words, -limits for limits");
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("calc> ", (line) => {
     line = line.trim();
     if (line === "" || /^(q|quit|exit)$/i.test(line)) return rl.close();
+    const topic = isHelpCommand(line);
+    if (topic) {
+      process.stdout.write(helpTopic(topic));
+      return prompt();
+    }
     process.stdout.write(runQuery(line));
     prompt();
   });
@@ -126,6 +138,12 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const plan = parseArgs(process.argv.slice(2));
   const { parts } = plan;
+
+  const helpCmd = parts.length === 1 ? isHelpCommand(parts[0]) : null;
+  if (helpCmd) {
+    process.stdout.write(helpTopic(helpCmd, { width: plan.width }));
+    process.exit(0);
+  }
 
   if (parts.length === 0) {
     if (plan.resolved) {

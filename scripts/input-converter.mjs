@@ -260,7 +260,7 @@ const USAGE = `usage:
     node scripts/input-converter.mjs "<query>" | node scripts/fill.mjs - | node
     scripts/calc.mjs - | node scripts/output.mjs -
 
-  specs: "Species [@ Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
+  specs: "Species [Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
 
 
 
@@ -325,8 +325,10 @@ const WEATHER_MAP = [
   ["heavy rain", "primordial"], ["strong winds", "delta"],
 ];
 const TERRAIN_MAP = [
-  ["electric terrain", "electric"], ["grassy terrain", "grassy"],
-  ["misty terrain", "misty"], ["psychic terrain", "psychic"],
+  ["electric terrain", "electric"], ["e terrain", "electric"],
+  ["grassy terrain", "grassy"], ["g terrain", "grassy"], ["grass terrain", "grassy"],
+  ["misty terrain", "misty"], ["m terrain", "misty"], ["fairy terrain", "misty"],
+  ["psychic terrain", "psychic"], ["p terrain", "psychic"],
 ];
 const STEALTH_ROCK_PHRASES = ["stealth rock", "stealthrock", "sr", "stealth rocks", "rock"];
 const NO_ITEM_PHRASES = ["no item", "noitem", "itemless"];
