@@ -53,8 +53,15 @@ Risk: **low**. Watch the two `mdSection` variants and the `isMain` guard.
 
 ## Phase 2 — dedupe duplicated logic
 
-Objective: one implementation per rule. Rationale archived here so the work can
-be pulled later without re-deriving it.
+**Status: DONE (2026-09-13).** Implemented as `buildStats(spec, entry)` (2a —
+both it and `resolve` read the IV/EV floors from `FILL_DEFAULTS`),
+`buildBaseParams(input, effWeather, hazardTotal)` (2b), and `resolveAfterMoves(
+matchup, moveEntries, kind)` (2c — `anchor` derived internally from
+`moveEntries[0]`; single/combo shape via `kind`). Byte-identical: `npm run
+build` + verify:damage/acc/multihit/echo/lookup + corpus chaincheck (`all
+identical`) + corpus resolved-JSON/card diff all pass.
+
+Rationale archived below so the reasoning stays available.
 
 ### 2a. `fill.mjs` — one `buildStats(spec, entry)`
 - **Change:** `specSpeed` (`fill.mjs:414`) is a hand-copied version of

@@ -383,20 +383,32 @@ function mitigatorAbility(entry, spec, move, matchup) {
   return null;
 }
 
-/** Resolve a spec's current Speed stat (level/nature/EVs, default IVs) so
- * weather setter ordering can compare who is slower. Mirrors resolve()'s stat
- * build. */
-function specSpeed(spec) {
-  const entry = monByName.get(norm(spec?.name ?? ""));
-  if (!entry) return 0;
+/** The level/nature/IV/EV stat block for a spec, with every unspecified value
+ *  filled from auto-fill-defaults.md (FILL_DEFAULTS). This is the ONE stat
+ *  build: both the damage stats (resolve) and the weather-order Speed
+ *  comparison (specSpeed) read it, so changing a default can never make the two
+ *  disagree. */
+function buildStats(spec, entry) {
   const nature = natureByName.get((spec.nature ?? FILL_DEFAULTS.nature).toLowerCase()) ?? natureByName.get("serious");
+  const evs = spec.evs ?? {};
+  const ivFloor = FILL_DEFAULTS.ivs;
+  const evFloor = FILL_DEFAULTS.evs;
+  const ivs = { hp: ivFloor, atk: ivFloor, def: ivFloor, spa: ivFloor, spd: ivFloor, spe: ivFloor, ...(spec.ivs ?? {}) };
   const stats = calcStats(entry.baseStats, {
     level: spec.level ?? FILL_DEFAULTS.level,
     nature,
-    ivs: spec.ivs ?? { hp: FILL_DEFAULTS.ivs, atk: FILL_DEFAULTS.ivs, def: FILL_DEFAULTS.ivs, spa: FILL_DEFAULTS.ivs, spd: FILL_DEFAULTS.ivs, spe: FILL_DEFAULTS.ivs },
-    evs: spec.evs ?? {},
+    ivs,
+    evs: evFloor > 0 ? { hp: evFloor, atk: evFloor, def: evFloor, spa: evFloor, spd: evFloor, spe: evFloor, ...evs } : evs,
   });
-  return stats.spe;
+  return { nature, ivs, evs, stats };
+}
+
+/** Resolve a spec's current Speed stat so weather setter ordering can compare
+ * who is slower. */
+function specSpeed(spec) {
+  const entry = monByName.get(norm(spec?.name ?? ""));
+  if (!entry) return 0;
+  return buildStats(spec, entry).stats.spe;
 }
 
 /** Decide the arena weather from both sides' weather-setting abilities when
@@ -674,17 +686,7 @@ function fillAura(matchup) {
 function resolve(spec) {
   const entry = monByName.get(norm(spec.name));
   if (!entry) throw new Error(`missing species: "${spec.name}"`);
-  const nature = natureByName.get((spec.nature ?? FILL_DEFAULTS.nature).toLowerCase()) ?? natureByName.get("serious");
-  const evs = spec.evs ?? {};
-  const ivFloor = FILL_DEFAULTS.ivs;
-  const evFloor = FILL_DEFAULTS.evs;
-  const ivs = { hp: ivFloor, atk: ivFloor, def: ivFloor, spa: ivFloor, spd: ivFloor, spe: ivFloor, ...(spec.ivs ?? {}) };
-  const stats = calcStats(entry.baseStats, {
-    level: spec.level ?? FILL_DEFAULTS.level,
-    nature,
-    ivs,
-    evs: evFloor > 0 ? { hp: evFloor, atk: evFloor, def: evFloor, spa: evFloor, spd: evFloor, spe: evFloor, ...evs } : evs,
-  });
+  const { nature, ivs, evs, stats } = buildStats(spec, entry);
   const isMega = entry.name.endsWith("-Mega");
   // A Mega must hold its Mega Stone, so an explicitly typed item (or the
   // `plate` keyword) contradicts it — fail loud instead of silently dropping
@@ -794,64 +796,13 @@ function applyFoulPlayIV(matchup, moves) {
   }
 }
 
-/** Single-move query: fill defaults and resolve everything calc needs. Returns
- *  the calc input object (attacker/defender records, the Move record, arena
- *  fields, flags, query). JSON-serializable — chart is NOT included (a Map);
- *  the caller supplies it (library path) or the calc CLI rebuilds it. */
-function resolveSingleInput(matchup) {
-  const canonical = resolveMoveName(matchup.move);
-  const dexMove = moveByName.get(norm(canonical ?? matchup.move));
-  if (!dexMove) throw new Error(`missing move: "${matchup.move}"`);
-  matchup.move = dexMove.name;
-  applyHiddenPowerIV(matchup);
-  const move = hiddenPowerMove(dexMove, matchup);
-  applyFoulPlayIV(matchup, [move]);
-
-  fillCombatant(matchup.defender, move, matchup, "defender");
-  fillCombatant(matchup.attacker, move, matchup, "attacker");
-  fillWeather(matchup, move);
-  fillAura(matchup);
-
-  const attacker = resolve(matchup.attacker);
-  const defender = resolve(matchup.defender);
-  const effWeather = suppressWeather(attacker, defender) ? undefined : matchup.weather;
-  const plateNote = matchup.attacker?.plate ? resolvePlate(attacker, move, effWeather) : "";
-  const flags = cardFlags(matchup, matchup, plateNote);
-
-  return {
-    kind: "single",
-    attacker,
-    defender,
-    move,
-    weather: matchup.weather,
-    auras: matchup.auras,
-    auraBreak: matchup.auraBreak,
-    terrain: matchup.terrain,
-    crit: matchup.crit,
-    screens: matchup.screens,
-    stealthRock: matchup.stealthRock,
-    spikes: matchup.spikes,
-    targetHoldsItem: matchup.targetHoldsItem,
-    movedAfterTarget: matchup.movedAfterTarget,
-    ignoresAbilities: matchup.ignoresAbilities,
-    maxTurns: matchup.maxTurns,
-    showTurns: matchup.showTurns,
-    flags,
-    query: matchup._query,
-  };
-}
-
-/** Two-move combo: fill defaults anchored on the first move and resolve
- *  everything calc needs. Returns the calc input object (JSON-serializable). */
-function resolveComboInput(matchup) {
-  const dexMoves = matchup.moves.map((nm) => {
-    const m = moveByName.get(norm(nm));
-    if (!m) throw new Error(`missing move: "${nm}"`);
-    return m;
-  });
-  applyHiddenPowerIV(matchup);
-  const moveEntries = dexMoves.map((m) => hiddenPowerMove(m, matchup));
-  applyFoulPlayIV(matchup, moveEntries);
+/** The shared tail of resolution: given a matchup whose moves are already
+ *  normalized (canonical dex names, Hidden Power/Foul Play IVs applied), fill
+ *  the combatants off the FIRST move (`anchor`), resolve both sides, and
+ *  assemble the calc-input bag. `kind` selects the single/combo move shape and
+ *  the fields only that shape carries. JSON-serializable — chart is NOT
+ *  included (a Map); the caller supplies it or the calc CLI rebuilds it. */
+function resolveAfterMoves(matchup, moveEntries, kind) {
   const anchor = moveEntries[0];
 
   fillCombatant(matchup.defender, anchor, matchup, "defender");
@@ -866,10 +817,10 @@ function resolveComboInput(matchup) {
   const flags = cardFlags(matchup, matchup, plateNote);
 
   return {
-    kind: "combo",
+    kind,
     attacker,
     defender,
-    moves: moveEntries,
+    ...(kind === "combo" ? { moves: moveEntries } : { move: anchor }),
     weather: matchup.weather,
     auras: matchup.auras,
     auraBreak: matchup.auraBreak,
@@ -881,9 +832,37 @@ function resolveComboInput(matchup) {
     targetHoldsItem: matchup.targetHoldsItem,
     movedAfterTarget: matchup.movedAfterTarget,
     ignoresAbilities: matchup.ignoresAbilities,
+    ...(kind === "combo" ? {} : { maxTurns: matchup.maxTurns, showTurns: matchup.showTurns }),
     flags,
     query: matchup._query,
   };
+}
+
+/** Single-move query: canonicalize the move, apply the forced IVs, then resolve
+ *  the rest of the matchup. */
+function resolveSingleInput(matchup) {
+  const canonical = resolveMoveName(matchup.move);
+  const dexMove = moveByName.get(norm(canonical ?? matchup.move));
+  if (!dexMove) throw new Error(`missing move: "${matchup.move}"`);
+  matchup.move = dexMove.name;
+  applyHiddenPowerIV(matchup);
+  const move = hiddenPowerMove(dexMove, matchup);
+  applyFoulPlayIV(matchup, [move]);
+  return resolveAfterMoves(matchup, [move], "single");
+}
+
+/** Two-move combo: canonicalize both moves, apply the forced IVs, then resolve
+ *  the rest of the matchup anchored on the first move. */
+function resolveComboInput(matchup) {
+  const dexMoves = matchup.moves.map((nm) => {
+    const m = moveByName.get(norm(nm));
+    if (!m) throw new Error(`missing move: "${nm}"`);
+    return m;
+  });
+  applyHiddenPowerIV(matchup);
+  const moveEntries = dexMoves.map((m) => hiddenPowerMove(m, matchup));
+  applyFoulPlayIV(matchup, moveEntries);
+  return resolveAfterMoves(matchup, moveEntries, "combo");
 }
 
 /** Detect the move shape on the matchup; returns "single" or "combo". Mutates

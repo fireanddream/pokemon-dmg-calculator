@@ -132,6 +132,30 @@ function hazardDamage(defender, chart, { stealthRock, spikes }) {
   return { hp, hazardTotal, initialHp };
 }
 
+/** The calcDamage parameter bag shared by the single and combo paths. `move` is
+ *  NOT part of it — a single sets it once, a combo overrides it per move — so a
+ *  field added here is added to BOTH paths by construction. */
+function buildBaseParams(input, effWeather, hazardTotal) {
+  const { attacker, defender, chart } = input;
+  return {
+    attacker,
+    defender,
+    chart,
+    crit: input.crit,
+    weather: effWeather,
+    auras: input.auras,
+    auraBreak: input.auraBreak,
+    terrain: input.terrain,
+    screens: input.screens,
+    targetHoldsItem: input.targetHoldsItem ?? (!defender.noItem && !defender.mega),
+    attackerHoldsItem: input.attackerHoldsItem ?? !attacker.noItem,
+    movedAfterTarget: input.movedAfterTarget,
+    flashFireBoosted: false,
+    ignoresAbilities: input.ignoresAbilities,
+    damageTakenBefore: hazardTotal,
+  };
+}
+
 /**
  * Raw calculation for one move landing repeatedly (the normal card). Inputs are
  * trusted resolved records; the bag carries everything the output stage needs.
@@ -158,24 +182,7 @@ export function calcSingle(input) {
 
   const { hp, hazardTotal, initialHp } = hazardDamage(defender, chart, input);
 
-  const baseParams = {
-    attacker,
-    defender,
-    move,
-    chart,
-    crit: input.crit,
-    weather: effWeather,
-    auras: input.auras,
-    auraBreak: input.auraBreak,
-    terrain: input.terrain,
-    screens: input.screens,
-    targetHoldsItem: input.targetHoldsItem ?? (!defender.noItem && !defender.mega),
-    attackerHoldsItem: input.attackerHoldsItem ?? !attacker.noItem,
-    movedAfterTarget: input.movedAfterTarget,
-    flashFireBoosted: false,
-    ignoresAbilities: input.ignoresAbilities,
-    damageTakenBefore: hazardTotal,
-  };
+  const baseParams = { ...buildBaseParams(input, effWeather, hazardTotal), move };
   const result = calcDamage(baseParams);
 
   // One-use distribution: multi-hit convolution + the resist berry's first hit.
@@ -258,16 +265,7 @@ export function calcCombo(input) {
 
   const { hp, hazardTotal, initialHp } = hazardDamage(defender, chart, input);
 
-  const baseParams = {
-    attacker, defender, chart,
-    crit: input.crit, weather: effWeather, auras: input.auras, auraBreak: input.auraBreak,
-    terrain: input.terrain,
-    screens: input.screens,
-    targetHoldsItem: input.targetHoldsItem ?? (!defender.noItem && !defender.mega),
-    attackerHoldsItem: input.attackerHoldsItem ?? !attacker.noItem,
-    movedAfterTarget: input.movedAfterTarget, flashFireBoosted: false,
-    ignoresAbilities: input.ignoresAbilities, damageTakenBefore: hazardTotal,
-  };
+  const baseParams = buildBaseParams(input, effWeather, hazardTotal);
 
   // Per-move rolls. Each move lands exactly once in a chain, so only the first
   // move whose type matches a held resist berry draws a halved FIRST hit (for a
