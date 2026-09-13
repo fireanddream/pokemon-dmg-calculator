@@ -11,16 +11,13 @@
 // JSON to stdout. The chart is NOT part of the JSON input (a Map); this CLI
 // rebuilds it from types-xy.json for the run. Library importers (damage.mjs)
 // pass their own chart and never trigger this.
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   calcDamage,
   koAnalysis,
   resistBerryActivates,
   hitChance,
-  buildTypeChart,
 } from "../dist/index.js";
+import { isMain, readInput } from "./cli.mjs";
 
 // Gen-6 damaging moves that hit 2-5 times (Skill Link raises them to 5 hits).
 // Operates on an already-resolved move record's name (a game rule, not a
@@ -335,26 +332,12 @@ export function runCalc(input) {
 
 // --- standalone CLI (only when run directly: node scripts/calc.mjs) ---
 // Reads a resolved matchup JSON (file arg, or stdin when "-" / no arg) and
-// writes the result bag JSON to stdout. The chart is rebuilt from types-xy.json
-// because it is a Map and cannot ride in the JSON input.
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const DATA_DIR = path.join(here, "..", "data");
-  const inputPath = process.argv[2] && process.argv[2] !== "-" ? path.resolve(process.argv[2]) : null;
-
-  let raw;
-  if (inputPath) {
-    raw = await readFile(inputPath, "utf8");
-  } else {
-    raw = "";
-    process.stdin.setEncoding("utf8");
-    for await (const chunk of process.stdin) raw += chunk;
-  }
-  const matchup = JSON.parse(raw);
-  const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json"), "utf8"));
-  const chart = buildTypeChart(typesData.types);
-
+// writes the result bag JSON to stdout. The chart is loaded from the shared
+// data module (it is a Map and cannot ride in the JSON input); the dynamic
+// import keeps it out of the library-import path.
+if (isMain(import.meta.url)) {
+  const matchup = JSON.parse(await readInput(process.argv[2]));
+  const { chart } = await import("./data.mjs");
   const bag = runCalc({ ...matchup, chart });
   process.stdout.write(JSON.stringify(bag, null, 2) + "\n");
 }

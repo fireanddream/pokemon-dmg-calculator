@@ -98,7 +98,7 @@ Read the section you need from the file that owns it; never memorize these.
 | Accuracy/evasion: modeled SEPARATELY from damage — acc tokens never change damage/KO numbers (`verify:damage` stays byte-identical to the oracle); engine `src/accuracy.ts`, `npm run verify:acc` | **`OUTPUT-FORMAT.md`** "Chance to hit all attacks" + `src/accuracy.ts` |
 | Design records + engine coverage: grammar/tokenizer/arena/boost/mega contracts, known engine gaps & intentional simplifications | **`DESIGN-RECORDS.md`** |
 | Result-card contract (layout owned by `output.mjs`) | **`OUTPUT-FORMAT.md`** |
-| Backlog / approved work / open threads | **`TODO.md`** |
+| Front-refactor work order (approved phases 1–3) | **`TODO.md`** |
 | Repo layout, team DB, tools | "Project layout" below · `myteam/` · `teams_tools/` |
 
 ## Project layout (short)
@@ -121,8 +121,9 @@ Read the section you need from the file that owns it; never memorize these.
   arena/boost/mega) + the engine-coverage inventory & intentional
   simplifications (merges the former `ENGINE-GAPS.md`). Read before touching
   the front; the README-to-be.
-- `TODO.md` — lean future-session backlog (open build steps + threads);
-  history lives in `session-tools-archive/SESSION-NOTES-*.md`.
+- `TODO.md` — the front-refactor work order (approved phases 1–3); the completed
+  pre-refactor backlog was migrated to `DESIGN-RECORDS.md` §14. History lives in
+  `session-tools-archive/SESSION-NOTES-*.md`.
 - `examples/` — sample case JSON files (`.resolved.json` = calc-stage input).
 - `myteam/` — the user's **custom team database** (manual, user-authored;
   `teams.tsv` master, `teams.xlsx` derived). NOT official Smogon data — may

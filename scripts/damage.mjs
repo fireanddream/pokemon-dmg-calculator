@@ -11,8 +11,8 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { buildTypeChart } from "../dist/index.js";
+import { chart } from "./data.mjs";
+import { isMain } from "./cli.mjs";
 import { runCalc } from "./calc.mjs";
 import { render } from "./output.mjs";
 import { renderEcho, spansFromLogs } from "./echo.mjs";
@@ -20,12 +20,6 @@ import { parseQuery } from "./input-converter.mjs";
 import { resolveMatchup } from "./fill.mjs";
 import { helpTopic, isHelpCommand } from "./help.mjs";
 import { isSearchCommand, searchCommand } from "./lookup.mjs";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, "..", "data");
-
-const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json"), "utf8"));
-const chart = buildTypeChart(typesData.types);
 
 /** Full-width solid-block rule that heads every section (echo, banner, helpers). */
 const sectionRule = (width = 100) =>
@@ -77,7 +71,9 @@ export function runQuery(line, { chat = false, echo: wantEcho = true, width = 10
     const b = body.replace(/\n+$/, "");
     return `${e ? `\`\`\`\n${e}\n\`\`\`\n\n` : ""}\`\`\`\n${b}\n\`\`\`\n`;
   }
-  return echo + "\n" + body;
+  // The separating blank line belongs only between the echo and the card; a
+  // card/error with no echo (`--no-echo`) must not gain a leading blank line.
+  return echo ? `${echo}\n${body}` : body;
 }
 
 const USAGE = `usage:
@@ -173,8 +169,7 @@ function repl() {
 
 // --- entry points (only when run directly: node scripts/damage.mjs — importing
 // this module for `runQuery` must not trigger the CLI) ---
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMain(import.meta.url)) {
   const plan = parseArgs(process.argv.slice(2));
   const { parts } = plan;
 

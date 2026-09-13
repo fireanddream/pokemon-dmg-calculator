@@ -16,34 +16,23 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTypeChart, RESIST_BERRIES } from "../dist/index.js";
+import { RESIST_BERRIES } from "../dist/index.js";
 import { tokenizeLine, hyphenToSpace } from "./tokenize.mjs";
+import { mdSection, mdTableRows } from "./md.mjs";
+import { isMain } from "./cli.mjs";
+import {
+  dexData, typesData,
+  norm, chart, natureByName, moveByName, monByName,
+} from "./data.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, "..", "data");
-
-const dexData = JSON.parse(await readFile(path.join(DATA_DIR, "xy-pokemon.json"), "utf8"));
-const movesData = JSON.parse(await readFile(path.join(DATA_DIR, "moves-xy.json"), "utf8"));
-const naturesData = JSON.parse(await readFile(path.join(DATA_DIR, "natures-xy.json"), "utf8"));
-const typesData = JSON.parse(await readFile(path.join(DATA_DIR, "types-xy.json"), "utf8"));
 
 // Line tokenization (hyphen rule, punctuation boundaries, `@`/quote handling,
 // case-preserving display atoms) lives in the ONE shared `tokenize.mjs` so the
 // converter's `_sideLog` indices and the recognition echo's ruler columns are
 // the same atom space. `hyphenToSpace` is re-exported below for callers that
-// imported it from here historically.
-//
-// norm() folds punctuation and hyphens for GLUED LOOKUPS, so a typed
-// "Mr. Mime" ("mr. mime"), "Mr Mime", or "mrmime" all fold to the same lookup
-// key (species claims match on it; a `.` is a hard boundary and splits the
-// claim because tokenize marks it). The dex canon keys themselves are
-// hyphenated ("Rotom-Wash", "Venusaur-Mega"), so norm() keeps folding hyphens
-// for lookups regardless of the master hyphen rule.
-const norm = (s) => s.toLowerCase().replace(/[\s',.;/\\|-]/g, "");
-const chart = buildTypeChart(typesData.types);
-const natureByName = new Map(naturesData.natures.map((n) => [n.name.toLowerCase(), n]));
-const moveByName = new Map(movesData.moves.map((m) => [norm(m.name), m]));
-const monByName = new Map(dexData.pokemon.map((p) => [norm(p.name), p]));
+// imported it from here historically. `norm()`, the type chart and the
+// name-lookup maps live in the shared `data.mjs` loader.
 
 // --- doc-as-code rule store: aliases.md. The Type plates table is parsed at
 // startup so the plate map (and the `<type> plate` item phrases built from it)
@@ -53,30 +42,6 @@ let ALIAS_DOC = "";
 try {
   ALIAS_DOC = await readFile(path.join(here, "..", "aliases.md"), "utf8");
 } catch { /* missing/unreadable: fall back to the built-in table below */ }
-
-/** The text from a `#{1,6} <heading>` line to the next heading (any level). */
-function mdSection(doc, heading) {
-  if (!doc) return "";
-  const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^#{1,6}\\s+${esc}\\s*$`, "gm");
-  const m = re.exec(doc);
-  if (!m) return "";
-  const tail = doc.slice(m.index + m[0].length);
-  const next = /^#{1,6}\s/m.exec(tail);
-  return tail.slice(0, next ? next.index : tail.length);
-}
-
-/** Cell arrays of the rows in the first `|...|` table of a section (skips the
- *  column header and the `|---|` separator line). */
-function mdTableRows(section) {
-  return section
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith("|"))
-    .slice(2)
-    .map((l) => l.split("|").slice(1, -1).map((c) => c.trim()))
-    .filter((cells) => cells.length >= 2);
-}
 
 const NATURE_NAMES = [...natureByName.keys()];
 const ABILITY_CANON = [...new Set(dexData.pokemon.flatMap((p) => p.abilities))];
@@ -152,7 +117,7 @@ const hpTypeOf = (word) => (word ? TYPE_BY_LOWER.get(String(word).toLowerCase())
  *  BUILTIN_PLATES, mirroring fill.mjs's handling of a broken
  *  auto-fill-defaults.md). */
 function parsePlateTable(doc) {
-  const section = mdSection(doc, "Type plates");
+  const section = mdSection(doc, "Type plates", { anyLevel: true });
   if (!section) return null;
   const rows = new Map();
   for (const cells of mdTableRows(section)) {
@@ -197,7 +162,7 @@ const BUILTIN_BOOST_MOVES = new Map(Object.entries({
  *  = 0). Every move name must resolve in the dex, or the table is treated as
  *  broken (the caller warns and falls back to BUILTIN_BOOST_MOVES). */
 function parseBoostMoves(doc) {
-  const section = mdSection(doc, "Boosting moves");
+  const section = mdSection(doc, "Boosting moves", { anyLevel: true });
   if (!section) return null;
   const cols = ["atk", "def", "spa", "spd", "spe", "acc", "eva"];
   const out = new Map();
@@ -969,8 +934,7 @@ export {
 // Reads one natural-language line (or explicit atk/move/def args) and writes
 // the SPEC JSON to stdout for the chain:
 //   input-converter "<line>" | fill.mjs - | calc.mjs - | output.mjs -
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   const writeSpec = (mc) => process.stdout.write(JSON.stringify(mc, null, 2) + "\n");
   if (args.length === 1) {

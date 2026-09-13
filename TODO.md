@@ -1,245 +1,150 @@
-# TODO.md — future-session backlog
+# TODO.md — front-refactor work order (phases 1–3)
 
-Standing to-do list for the loose-English → variables (fuzzy parse) work and
-the tokenizer/grammar build-out. Read at session start. **Design records and
-engine-coverage inventory live in `DESIGN-RECORDS.md`** — this file only
-carries open work + status. Per-session verbatim narrative lives in
-`session-tools-archive/SESSION-NOTES-*.md` (`INDEX.md` catalogs them).
+Approved 2026-09-13. Goal: **fewer hard exceptions, more modular, easier to
+expand, reuse functions where possible** — with **zero behavior change**. This
+file now tracks that refactor. The completed pre-refactor backlog it used to
+hold (all "old news") was migrated verbatim to `DESIGN-RECORDS.md` §14.
 
-**State 2026-09-12:** the three aura abilities (**Fairy Aura / Dark Aura /
-Aura Break**) shipped as a FIELD condition — resolved by `fill.mjs` from the
-battlers' abilities (explicit or auto-defaulted) into `auras` / `auraBreak`,
-like a weather setter but stacking, and named on the Arena row. No open build
-step remains.
+Pipeline under review (scripts only; the `src/` TypeScript engine is out of
+scope):
 
-**Also 2026-09-12:** CLI help topics redesigned — the old `-tokens` is now
-**`-grammar`**: an authored, human-readable GRAMMAR block plus one auto-derived
-LEXEME example per name type (read from `aliases.md` / `auto-fill-defaults.md`).
-`-help` now carries an auto-derived defaults block (level/nature/IVs/EVs/held
-item/ability + engine expansions) read from `auto-fill-defaults.md`;
-`verify:help` 57/57. Help scripts stay FROZEN per AGENTS.md rule 5 until asked.
+```
+input-converter.mjs → fill.mjs → calc.mjs → output.mjs
+         └── echo.mjs / tokenize.mjs / damage.mjs / route.mjs
+```
 
-**State 2026-09-11:** steps 8 (one-shot route) and 9 (forme-word collision
-curation) are DONE, the 2-5 multi-hit model shipped (`verify:multihit`
-34/34), and **Hidden Power + IVs (HP Fire → SpA IV 30; Foul Play →
-defender Atk IV 0) shipped**. The tokenizer overhaul and the engine gap list
-have NO open build step. The two small output-card threads (card no longer
-repeats the query line; no empty `()` in the no-KO verdict) are also DONE — no
-open thread remains.
+## Ground rules (apply to every phase)
 
-**State 2026-09-10:** steps 1–7 are DONE (step 7 = converter-side echo / shared
-tokenizer, second pass same day). Step 5's weather model was revised
-2026-09-10 (second pass): weather is now ONE plain explicit slot (two
-different explicit weathers error); weather-setting ABILITY names are
-ordinary ability claims that `fill.mjs` resolves (primal beats regular
-regardless of Speed, else slower wins, tie → attacker); a typed weather
-always beats the ability. `snow` → hail added; fabricated spellings
-(`permanent *`, `harsh sunshine`, `hail storm`/`hailstorm`, `sand storm`)
-removed. Error messages consolidated 2026-09-10 to `missing <var>` +
-`conflict on <slot>` + `unbound EV` (keeping moves/EV/no-Mega bespoke) —
-`DESIGN-RECORDS.md` §8. Payback after-target doubling removed (flat 50; out
-of scope like Avalanche, oracle intentionally diverges) and attacker-side
-`no item` now drives Acrobatics doubling (`attackerHoldsItem`) — §9/§10.
-Second pass same day: conditional BP clauses unified into the
-`CONDITIONAL_POWER` table; the result card (Block 2) now wraps through the
-echo's `wrapBlock` rule; Facade is exempted from burn's Attack drop (mirrors
-`@smogon/calc`), an explicit item/`plate` on a Mega now hard-errors, and
-`powerOverride` is gone from the engine API. Working tree green:
-`verify:damage` 65/65, `verify:acc` 44/44, `verify:echo` 7/7, corpus
-chaincheck "all identical".
+- **Byte-identical output.** No behavior, message, card, or echo change. A
+  phase that alters a byte is wrong — revert it.
+- **Verify gate after each phase:** `npm run build`, then
+  `node scripts/verify-smogon.mjs`, `node scripts/verify-accuracy.mjs`,
+  `node scripts/verify-multihit.mjs`, `node scripts/verify-echo.mjs`,
+  `node scripts/verify-lookup.mjs`, and the corpus chaincheck
+  ("all identical"). Baseline: `DESIGN-RECORDS.md` §12.
+- **Frozen:** `scripts/help.mjs` + `verify-help.mjs` (AGENTS.md rule 5), the
+  `output.mjs` card layout, the doc-as-code semantics, and the loud-error
+  philosophy (§8).
+- **One phase at a time**, verified before starting the next.
+- **Not trimming tests.** The suites stay whole (the ~78-case `verify:damage`
+  oracle runs in ~0.2s; the cost is the repeated `tsc` build, not the cases).
 
----
+## Phase 1 — shared low-level modules
 
-## Build order — what remains of the tokenizer overhaul
+Objective: remove copy-pasted plumbing. No logic changes.
 
-Steps 1–8 are done (step 9 remains); the design contract for each open step
-lives in the `DESIGN-RECORDS.md` section cited. Each step lands with
-`verify:damage` 65/65, `verify:acc` 44/44, `verify:echo` 7/7 green, no TS build
-errors, and the corpus chaincheck "all identical". Record of done steps: step 1
-→ `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md`, step 3 →
-`SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md`, step 4 →
-`SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md`, steps 5 (partial) + 6 →
-`SESSION-NOTES-20260910-BARE-ARENA-AND-SEAM-C.md`, step 7 →
-`SESSION-NOTES-20260910-CONVERTER-ECHO.md`.
+1. **`scripts/md.mjs`** — one home for the doc-as-code markdown helpers:
+   `mdSection(doc, heading, opts)`, `mdTableRows(section)`, `stripMdCell(s)`,
+   `firstInt(s)`. `input-converter.mjs` (lines ~57–79) and `fill.mjs`
+   (lines ~39–61) each carry their own `mdSection`/`mdTableRows`; keep BOTH
+   heading behaviors behind an option (fill anchors `## ` only; the converter
+   allows `#{1,6}`). Replace both copies with imports.
+2. **`scripts/cli.mjs`** — shared CLI plumbing: `isMain(importMetaUrl)`,
+   `readStdin()`, `readInput(arg)` (file-or-stdin; `-` = stdin). Apply in
+   `calc.mjs`, `fill.mjs`, `output.mjs`, `input-converter.mjs`, `damage.mjs`
+   (and the `echo.mjs` main guard, which uses a different pattern).
+3. **`scripts/data.mjs`** — one loader exporting `DATA_DIR`, the parsed
+   datasets, `chart`, and `natureByName` / `moveByName` / `monByName`. Point
+   `input-converter.mjs` (loads 4 files today), `damage.mjs` and `calc.mjs`
+   (both rebuild the chart) at it; re-export from `input-converter.mjs` so
+   existing importers are untouched.
 
-1. ✅ **Layer-1 unified sweep** (was "build step 1") — DONE 2026-09-09.
-2. ✅ **Seam-B guard** — DONE 2026-09-09 (closed by step 1; no trie built).
-3. ✅ **Species claim in the sweep** (was "residue resolution", SUPERSEDED) —
-   DONE 2026-09-09: exact glued-run literals, no residue layer/fuzzy.
-4. ✅ **Mega exact-shape signal** (was `## 6` scope) — DONE 2026-09-09:
-   standalone `mega` upgrades an adjacent species to `-Mega` (prefix or
-   suffix); no-forme bases HARD-ERROR; `-X`/`-Y` bases keep the base pick;
-   already-`-Mega` never re-upgraded; `Mega Punch/Kick/Drain` moves and
-   `Mega Launcher` win by longer phrase. Contract: `DESIGN-RECORDS.md` §7.
-5. ✅ **Arena grammar inside the sweep** (was `## 4`, bare-only). DONE
-   2026-09-10; weather model revised the same day (second pass). Bare arena
-   words only — NO `in`/`under`/`after` signals. Weather is ONE plain slot:
-   two different explicit weathers across sides error, identical collapse;
-   weather-setting ABILITY names are ordinary ability claims that fill
-   resolves (primal beats regular regardless of Speed, else slower, tie →
-   attacker) and a typed weather always beats the ability. `snow` → hail
-   added; fabricated forms removed. Terrain/spikes cross-side different
-   values error (never add); hazards hoist from either side. Contract:
-   `DESIGN-RECORDS.md` §5.
-6. **Seam-C startup warning + guard** — DONE 2026-09-10 (option A): warn at
-   startup if any key, ANY word count, is registered in two class lexicons
-   (the startup check in `input-converter.mjs` doubles as the smoke — it runs
-   on every converter/fill/damage start since fill imports the lexicon).
-   No behavior change when clean.
-7. ✅ **Converter-side echo** (was `## 8`) — DONE 2026-09-10. `scripts/tokenize.mjs`
-   is the ONE shared line tokenizer (normalize-once: hyphen rule, `@`/punct
-   handling, case-preserving display atoms with global `gi`); `parseCombatant`
-   logs EVERY claim as `{label, from, len}` (echo labels: `ev:<stat>`, `arena`,
-   `item`, `boost`, ...) with GLOBAL atom indices; a throw carries the live
-   partial log via `opts.capture` → `err.sideLogs`; `echo.mjs` gains
-   `spansFromLogs`. Presentation is the single-process `damage.mjs` `runQuery`
-   (echo + card, or echo + error "scanned so far"; `--no-echo`, `--chat`);
-   converter stays data-only. Contract: `DESIGN-RECORDS.md` §4. Agent-route
-   prose/echo retirement moved to step 8.
-8. ✅ **One-shot route** (was `## 10`) — DONE 2026-09-11. `scripts/route.mjs`
-   is a thin alias of `damage.mjs`'s `runQuery`: one line argument, always
-   fenced (converter → echo → fill → calc → output in one process).
-   `damage.mjs` entry points are `isMain`-guarded so `runQuery` is importable.
-   Agent-route prose rewritten: AGENTS.md rules 1–3 and the
-   `pokemon-damage-calc` skill now say "find the `vs` line → run `route.mjs` →
-   paste verbatim". Shared tokenizer now treats `?`/`!` as hard boundaries so a
-   natural-sentence line ("... vs Heatran?") keeps its last token. Contract:
-   `DESIGN-RECORDS.md` §11.
-9. **Forme-word collision set** — CLOSED 2026-09-11. Curation drops the
-   colliding variants (`pikachu rock star`, `arceus` type formes,
-   `genesect burn`, `darmanitan zen`; `DESIGN-RECORDS.md` §10 "Curated-out
-   variant formes") and the single-letter / glued aliases cover the rest
-   (`giratina o`, `kyurem b`, `deoxys a`, …). The residual collisions a shorter
-   spelling works around (`giratina origin pulse`, `rotom heat wave`,
-   `shaymin sky drop`, `castform sunny day`, …) are documented as
-   **intentionally not implemented** in §10 "Open forme-word collisions" — no
-   open build step remains.
+Risk: **low**. Watch the two `mdSection` variants and the `isMain` guard.
 
-## Engine — no open build step (all closed)
+## Phase 2 — dedupe duplicated logic
 
-**State 2026-09-11:** the user decided the remaining engine-coverage items are
-**not being built**, so the engineer-open `not implemented` rows are closed in
-`DESIGN-RECORDS.md` §10:
+Objective: one implementation per rule. Rationale archived here so the work can
+be pulled later without re-deriving it.
 
-- **Multi-hit without Skill Link** — DONE 2026-09-11: exact weighted 2-5 hit
-  convolution (Technician per hit, berry first hit only, Sash/Sturdy never
-  save), `multiHitDistribution` in `scripts/calc.mjs` + `multiHit` flag in
-  `src/ko.ts`; card shows the total range `[2-5 hits]`; `verify:multihit`
-  34/34. Fixed-count multi-hit moves (Bonemerang, Double Kick, Twineedle,
-  Double Hit, Dual Chop, Gear Grind, Triple Kick) are documented **not
-  implemented** (§10) — they still print as one hit.
-- **Metronome** — **won't implement** (closed 2026-09-11).
-- **Future Sight / Doom Desire** — **won't implement** (closed 2026-09-11).
-- **Minimize-target doubles** (Stomp / Steamroller / Dragon Rush) —
-  **won't implement** (closed 2026-09-11).
+### 2a. `fill.mjs` — one `buildStats(spec, entry)`
+- **Change:** `specSpeed` (`fill.mjs:414`) is a hand-copied version of
+  `resolve`'s stat build (`fill.mjs:699`) — its comment literally says "Mirrors
+  resolve()'s stat build." They are NOT identical: `resolve` applies the IV/EV
+  floors from `FILL_DEFAULTS`, while `specSpeed` hardcodes IV 31 and
+  `spec.evs ?? {}`. One helper reads `FILL_DEFAULTS` for both.
+- **Why good:** the two disagree the moment `auto-fill-defaults.md` changes a
+  default, silently making the weather-order Speed comparison disagree with the
+  stats used for damage. One source of truth.
+- **Risk:** low/medium — numbers must be identical; the gate asserts it.
 
-Hidden Power + IVs **shipped the same day** (next section) — no engine gap is
-open now.
+### 2b. `calc.mjs` — one `buildBaseParams(input, effWeather, hazardTotal)`
+- **Change:** `calcSingle` (`calc.mjs:164-181`) and `calcCombo`
+  (`calc.mjs:264-273`) build the same `baseParams` bag field by field. Extract
+  one builder both call.
+- **Why good:** every field (`targetHoldsItem`, `attackerHoldsItem`,
+  `auraBreak`, `ignoresAbilities`, `damageTakenBefore`, …) is listed twice; a
+  new ancestor-side parameter added to one and not the other is a silent
+  divergence bug.
+- **Risk:** low/medium — no field changes; byte output must match.
 
-## Hidden Power + IVs — DONE 2026-09-11
+### 2c. `fill.mjs` — one `resolveCommon(matchup, moveEntries, anchor, kind)`
+- **Change:** `resolveSingleInput` (`fill.mjs:826`) and `resolveComboInput`
+  (`fill.mjs:871`) are ~95% identical (canonicalize moves, `applyHiddenPowerIV`,
+  `hiddenPowerMove`, `applyFoulPlayIV`, `fillCombatant` x2, `fillWeather`,
+  `fillAura`, `resolve`, `suppressWeather`, plate, `cardFlags`, return bag).
+  Share the core; each wrapper resolves only its own move shape + return `kind`.
+- **Why good:** new resolution steps (Hidden Power and Foul Play both did this)
+  must currently be added to both in the right order — the concrete "harder to
+  expand" problem. Shrinks where the two card shapes can drift.
+- **Risk:** medium (biggest single dedupe here) — ordering and the `flags` /
+  `query` fields must match exactly.
 
-- **Hidden Power type** — DONE. `hidden power <type>` / the `hp <type>` alias
-  (adjacent type word) sets the move type; `fill.mjs` clones the dex move so
-  STAB/effectiveness/immunities/berries/plate/defender ability pick follow it.
-  16 legal types; **Normal/Fairy hard-error**; a missing type is
-  `missing hidden power type`. No derive-from-IVs path. The whole phrase is one
-  `move` echo span. `hp <number>` is still the HP EV — `252 HP fire` is EV +
-  dropped `fire` (no double-duty), by design. Contract: `DESIGN-RECORDS.md` §10
-  Moves "Hidden Power".
-- **IVs** — DONE (scope: forced values only). No manual IV input; every stat is
-  31 except **Hidden Power Fire → attacker SpA IV 30** and **Foul Play →
-  defender Atk IV 0** (base Atk < base SpA), both shown on the card. Contract:
-  `DESIGN-RECORDS.md` §10 "### IVs".
-- **Foul Play — DONE 2026-09-11.** `calcDamage` uses the **defender's current
-  Atk** as the attack stat (attacker-side modifiers and burn still apply);
-  `fill.mjs` sets the defender's **Atk IV = 0** when the defender's base Atk <
-  base SpA (shown on the card). Only Foul Play reads the defender's Atk, so
-  nothing else changes it. Covered by `verify-smogon`. Contract:
-  `DESIGN-RECORDS.md` §10 Moves / "### IVs".
+## Phase 3 — centralize rules & errors
 
-## Small open threads
+Objective: one home for game-rule tables and one builder per error shape.
+Rationale archived here so the work can be pulled later.
 
-- **Result card repeats the query line** — DONE 2026-09-11: the card no longer
-  prints `b.query`; `renderSingle` / `renderCombo` start directly at `Attacker`
-  and the leading blank line is gone. The request is shown only by the Block-1
-  recognition echo. `OUTPUT-FORMAT.md` "Layout grid" + "Wrapping" updated; card
-  wrap unchanged (`verify:echo` 7/7, chaincheck "all identical").
-- **Empty `()` when there are no KO tokens** — DONE 2026-09-11: `koVerdict`
-  drops the trailing `(...)` when `koTokens` is empty, so a move that can never
-  KO within the cap prints `no guaranteed KO in 10 hits` (no empty parens),
-  matching the combo `Result` wording. Documented in `OUTPUT-FORMAT.md` "KO row".
-- **Error-message consolidation** — DONE 2026-09-10 (`DESIGN-RECORDS.md` §8):
-  taxonomy collapsed to `missing <var>` + `conflict on <slot>` + `unbound EV`;
-  `too many moves` / EV-cap (252 & 510) / `no Mega forme` kept bespoke. The
-  echo-on-error half shipped in step 7 (`err.sideLogs` → "scanned so far").
-- **`no item` attacker-side semantics** (`DESIGN-RECORDS.md` §9) — DONE
-  2026-09-10: attacker itemlessness is not display-only. `calc.mjs` derives
-  `attackerHoldsItem = !attacker.noItem` and Acrobatics doubles only when it is
-  false (the default inert held item suppresses the double). Auto-ability picks
-  stay item-blind. `no item` echoes as `item` (step 7).
-- **Alias-list hyphen cleanup** (idea note 3 tail) — CLOSED 2026-09-10:
-  `aliases.md` has zero hyphenated alias KEYS, and the master hyphen rule
-  (`hyphenToSpace`) folds every typed hyphen to a space, so a hyphenated key
-  would be unreachable anyway. Nothing to prune.
-- **Payback flat-50** (`DESIGN-RECORDS.md` §10) — DONE 2026-09-10: the
-  speed-based doubling branch is gone (flat 50 BP) and the move is documented
-  as out of scope, same class as Avalanche. `@smogon/calc` still doubles from
-  Speed, so the slower-user case is intentionally absent from `verify-smogon`
-  (64/64 now includes two Acrobatics item-presence rows, §9).
-- **Boost-signal recognition on the free-order attacker side** — CLOSED by
-  step 1 (move/boost claims ride `spec._claim` in the sweep). No further work
-  beyond step 7's echo spans for converted signals.
-- **Conditional-power clause table** — DONE 2026-09-10 (`DESIGN-RECORDS.md`
-  §10): one `CONDITIONAL_POWER` table (`src/damage-calc.ts`) replaces the
-  per-move inline `if` branches; Wake-Up Slap / Smelling Salts folded in.
-- **Card (Block 2) wrap** — DONE 2026-09-10: `output.mjs` wraps through the
-  echo's exported `wrapBlock` (default 100, `--width N`, `<= 0` never);
-  `damage.mjs` and `output.mjs` agree byte-for-byte (`OUTPUT-FORMAT.md`).
-- **Facade vs burn** — DONE 2026-09-10: `isBurned` exempts Facade (with Guts),
-  mirroring `@smogon/calc` gen56 `applyBurn`; oracle row added.
-- **Explicit item on a Mega** — DONE 2026-09-10: `fill.mjs` throws
-  `conflict on item: <item> vs Mega Stone` for a typed item or `plate`; a
-  stray `no item` is silently cleared (§9).
-- **`powerOverride` removal** — DONE 2026-09-10: deleted from `DamageParams`
-  and `resolveTypeAndPower` (no caller used it).
+### 3a. Rule-table home
+- **Change:** game-rule constants live in three files — `calc.mjs`
+  `MULTIHIT_MOVES`; `fill.mjs` `RECOIL_MOVES`, `BOOST_PREDS`, `MB_RELEVANCE`,
+  `PRIMAL_WEATHER`, `HP_ILLEGAL_TYPES`, `FIXED_ABILITY`, `DEFENDER_FIXED`;
+  `input-converter.mjs` `HP_ILLEGAL`, `ITEM_NAMES`, `STEALTH_ROCK_PHRASES`,
+  `NO_ITEM_PHRASES`. Collect them.
+- **The real decision — two species of table:**
+  - **Data lists** (`RECOIL_MOVES`, `PRIMAL_WEATHER`, `HP_ILLEGAL`,
+    `ITEM_NAMES`, `STEALTH_ROCK_PHRASES`, `NO_ITEM_PHRASES`, `MULTIHIT_MOVES`)
+    could move into `aliases.md` / `auto-fill-defaults.md` with code fallbacks,
+    like the plate and boost tables.
+  - **Predicate maps** (`BOOST_PREDS`, `MB_RELEVANCE`) are LOGIC (they take a
+    move/entry and return a decision), so they cannot be markdown rows — the
+    `CONDITIONAL_POWER` design note already makes this argument. They stay in
+    code, ideally one `scripts/rules.mjs`.
+  - Low-risk half: consolidate into `scripts/rules.mjs`. Higher-risk half: move
+    the data lists to doc-as-code.
+- **Why good:** discoverability ("where do I add a recoil move?"), one edit to
+  add a rule, consistency with the doc-as-code idiom.
+- **Risk:** medium — markdown parsing is more fragile; code consolidation is
+  the safe option.
 
-## New idea notes (user 2026-09-06; still TO DISCUSS — do not implement from these alone)
+### 3b. Derive `MULTIHIT_MOVES` from dex data (optional)
+- **Change:** replace the hand-maintained 14-name Set (`calc.mjs:28`) with a
+  structured `multihit` field emitted by `scripts/gen-move-ability-data.mjs`.
+- **Why good:** the list is derivable game data and could never go stale; it is
+  also the natural home for the fixed-count multi-hit moves the engine
+  documents as unmodeled.
+- **The catch:** the dex has no such field today — only the prose
+  `"Hits 2-5 times in one turn."` — so the generator must encode that rule, and
+  mis-marking a move is the risk. If the derivation isn't airtight, keep the
+  explicit list.
+- **Risk:** medium — data regen must leave `verify:damage` and
+  `verify:multihit` untouched.
 
-1. **Agent skill optimization** (ties into step 8 / §11): the agent route
-   simply calls `damage.mjs` — recognize a calc ask, pull the one-liner out of
-   the message, and hand it to the tool; the agent authors NO spec JSON and NO
-   echo spans. Revisit only if the route work stalls.
-2. **`max` vs explicit-EV collision** — RESOLVED 2026-09-06 (user):
-   same-stat `max <stat>` + explicit EV error (`max atk` then `120 atk` → hard
-   error, both claims named); duplicate `max atk max atk` collapses; max on
-   different stats coexist; the `max` auto-nature is only a default — an
-   explicit nature wins, never collides.
-3. **Master hyphen rule** — IMPLEMENTED 2026-09-07 (`hyphenToSpace`); minus
-   glued to a boost/stage number is the only exception. See the alias-cleanup
-   thread above for the leftover tail.
+### 3c. `scripts/errors.mjs` — one builder per error shape
+- **Change:** 27 hand-written `throw new Error(...)` strings (17 in
+  `input-converter.mjs`, 10 in `fill.mjs`) become builders: `missing(var,
+  quote)`, `conflict(slot, values)`, `unboundEv(tokens)`, plus the kept
+  bespoke ones (`too many moves`, EV caps, `no Mega forme`).
+- **Why good:** §8 defines a deliberate three-shape taxonomy; builders make it
+  enforceable instead of convention, and give one place to change wording.
+- **Constraint:** throw TIMING matters — `claimSlot` throws before logging so
+  the "scanned so far" echo stops correctly — so builders must be pure string
+  functions called at the same points, not a control-flow change.
+- **Risk:** medium — message bytes are pinned by the echo fixtures.
 
----
+## Out of scope (decided 2026-09-13)
 
-## Done — quick pointers (full detail in each session note)
-
-| When | What | Record |
-| --- | --- | --- |
-| 2026-09-12 | Help redesign: `-tokens` → **`-grammar`** (authored human-readable GRAMMAR + one auto-derived lexeme example per type); `-help` auto-derived defaults block; held-item default cell reworded to "has item, no effect"; `verify:help` 57/57 | OUTPUT-FORMAT.md "Help topics" · `scripts/help.mjs` · `scripts/verify-help.mjs` · AGENTS.md rule 5 · this file |
-| 2026-09-12 | Fairy/Dark Aura + Aura Break as a field condition (`fill.mjs` resolves `auras`/`auraBreak` like a setter, stacking with weather/each other; engine 4/3 (`5448`) / Aura Break 3/4; Arena row names active aura(s); `verify-smogon` rows) | DESIGN-RECORDS.md §10 Abilities · `auto-fill-defaults.md` "Aura setters" · this file |
-| 2026-09-11 | Hidden Power (`hidden power <type>` / `hp <type>`, 16 types, Normal/Fairy rejected, no-type error) + forced IVs (HP Fire → attacker SpA 30; Foul Play → defender Atk 0 shown on card); Foul Play uses defender's Atk | DESIGN-RECORDS.md §10 Moves · "### IVs" · this file |
-| 2026-09-11 | Multi-hit 2-5 model: exact weighted convolution, Technician per hit, berry first-hit only, Sash/Sturdy never save; card total range `[2-5 hits]`; `verify:multihit` | DESIGN-RECORDS.md §10 · this file |
-| 2026-09-10 | Converter-side echo (step 7): shared tokenizer, `_sideLog` labels, "scanned so far" `err.sideLogs`, `damage.mjs` `runQuery` | `SESSION-NOTES-20260910-CONVERTER-ECHO.md` |
-| 2026-09-09 | Mega exact-shape upgrade: prefix/suffix `mega`, no-forme hard error, `Mega X` move + `Mega Launcher` guards | `SESSION-NOTES-20260909-MEGA-EXACT-SHAPE.md` |
-| 2026-09-09 | Species claim IN the sweep; residue resolver deleted (step 3) | `SESSION-NOTES-20260909-SPECIES-AS-CLAIMS.md` |
-| 2026-09-09 | Tokenizer step-1 unified sweep + step 2 closed | `SESSION-NOTES-20260909-TOKENIZER-STEP1-SWEEP.md` |
-| 2026-09-08 | Free-order `vs` frame (uses inert), junk silent-drop, max-flag expansion | `SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md` |
-| 2026-09-08 | Boost moves → boost signals (## 5 first slice) | `SESSION-NOTES-20260908-BOOST-SIGNALS.md` |
-| 2026-09-08 | Seam F R1–R4 (stat-less `±N` dynamic; stray stat/number errors) | `SESSION-NOTES-20260908-SEAM-F.md` |
-| 2026-09-07 | Seams A–C review (3-word sweep, guard, 1-word ties, spikes, comma) | `SESSION-NOTES-20260907-SWEEP-REVIEW-AI.md` |
-| 2026-09-07 | Master hyphen rule | `SESSION-NOTES-20260907-HYPHEN-RULE.md` |
-| 2026-09-06 | Echo renderer + wrap; `max`/EV collision rule | DESIGN-RECORDS.md §4 · TODO notes 1–2 above |
-| 2026-09-06 | Type+Plate spellings → real plate items (was `## 1`) | `SESSION-NOTES-20260906-PLATE-ALIASES.md` |
-| 2026-09-06 | No-"uses" declaration (grammar contract, docs) | AGENTS.md rule 2/3 · DESIGN-RECORDS.md §2 |
-| 2026-09-05 | Front split: `input-converter.mjs` + `fill.mjs` | `SESSION-NOTES-20260905-FRONT-SPLIT.md` |
-| 2026-09-05 | Converter redesign design session (grammar, arenas, tokenizer) | `SESSION-NOTES-20260905-CONVERTER-REDESIGN.md` · `SESSION-NOTES-20260905-FUZZY-TOKENIZER.md` |
-| earlier | Engine, defaults, accuracy sessions | `SESSION-NOTES.md`, `SESSION-NOTES-FILLER-DEFAULTS.md`, `SESSION-NOTES-FUZZY-RULES-ALIASES.md`, `SESSION-NOTES-ACCURACY-WEATHER.md`, `SESSION-NOTES-PIPELINE-OVERHAUL.md` |
+- **No** splitting `input-converter.mjs` / `fill.mjs` into submodules
+  (the dropped "Phase 4").
+- **No** merging the two move-claim implementations (the sweep's
+  `literalClaimAt` vs the standalone `scanMoveWords`).
+- **No** trimming of the verify suites.

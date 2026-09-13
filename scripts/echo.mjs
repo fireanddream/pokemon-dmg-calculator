@@ -33,8 +33,8 @@
 // producer could not place is labeled "???" (feedback, not a blocker).
 // --width sets the wrap width in columns (default 100; rows that fit stay on
 // one line).
-import { pathToFileURL } from "node:url";
 import { tokenizeLine } from "./tokenize.mjs";
+import { isMain } from "./cli.mjs";
 
 /** Display atoms for the echo top line, from the ONE shared tokenizer: the
  *  normalize-once words the scanner saw (hyphen rule + punctuation/@ handling
@@ -234,6 +234,6 @@ function cli(argv) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url)) {
   cli(process.argv);
 }

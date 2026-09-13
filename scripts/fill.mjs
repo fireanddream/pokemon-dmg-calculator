@@ -22,6 +22,8 @@ import {
   norm, chart, natureByName, moveByName, monByName,
   resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES,
 } from "./input-converter.mjs";
+import { mdSection, mdTableRows, stripMdCell, firstInt } from "./md.mjs";
+import { isMain, readInput } from "./cli.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,33 +34,6 @@ let DEFAULT_DOC = "";
 try {
   DEFAULT_DOC = await readFile(path.join(here, "..", "auto-fill-defaults.md"), "utf8");
 } catch { /* missing/unreadable: fall back to the built-in tables */ }
-
-/** A section is the text from a `## <heading>` line to the next `## ` heading.
- *  The heading match is anchored to the start of a line so prose references
- *  like "(see ## X below)" elsewhere in the doc cannot hijack the lookup. */
-function mdSection(doc, heading) {
-  if (!doc) return "";
-  const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`(^|\\n)## ${esc}(?=\\s|$)`);
-  const m = re.exec(doc);
-  if (!m) return "";
-  const i = m.index + (m[0].startsWith("\n") ? 1 : 0);
-  const j = doc.indexOf("\n## ", i + 2);
-  return doc.slice(i, j === -1 ? doc.length : j);
-}
-
-function mdTableRows(section) {
-  return section
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith("|"))
-    .slice(2) // skip the column header and the |---|---| separator
-    .map((l) => l.split("|").slice(1, -1).map((c) => c.trim()))
-    .filter((cells) => cells.length >= 2);
-}
-
-const stripMdCell = (s) => s.replace(/\*\*/g, "").replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
-const firstInt = (s) => { const m = /\d+/.exec(s ?? ""); return m ? Number(m[0]) : null; };
 
 // Built-in fallbacks, identical to the current engine defaults.
 // auto-fill-defaults.md tables override these when present.
@@ -974,17 +949,7 @@ export function resolveMatchup(matchup) {
 // --- standalone CLI (only when run directly) ---
 // Reads a spec JSON (file arg, or stdin when "-" / no arg) and writes the
 // resolved calc-input JSON that calc.mjs consumes.
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
-  const inputArg = process.argv[2];
-  let raw;
-  if (inputArg && inputArg !== "-") {
-    raw = await readFile(path.resolve(inputArg), "utf8");
-  } else {
-    raw = "";
-    process.stdin.setEncoding("utf8");
-    for await (const chunk of process.stdin) raw += chunk;
-  }
-  const spec = JSON.parse(raw);
+if (isMain(import.meta.url)) {
+  const spec = JSON.parse(await readInput(process.argv[2]));
   process.stdout.write(JSON.stringify(resolveMatchup(spec), null, 2) + "\n");
 }

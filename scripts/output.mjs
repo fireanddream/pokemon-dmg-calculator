@@ -5,10 +5,8 @@
 //
 // Row contract (see OUTPUT-FORMAT.md): 2-space indent + label padded to 8 chars
 // + 2 spaces (value starts at column 12). Continuations indent 12 spaces.
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { wrapBlock } from "./echo.mjs";
+import { isMain, readInput } from "./cli.mjs";
 
 const fmtStages = (c) => {
   const parts = [];
@@ -327,8 +325,7 @@ export function render(bag, { width = 100 } = {}) {
 // the OUTPUT-FORMAT card. Default = terminal text; --chat = the identical card
 // wrapped in a fenced code block so fixed-width alignment survives markdown;
 // --width N sets the card wrap width (default 100; N <= 0 = never).
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMain(import.meta.url)) {
   const argv = process.argv.slice(2);
   const isChat = argv.includes("--chat") || argv.includes("-c");
   const wIdx = argv.indexOf("--width");
@@ -341,16 +338,7 @@ if (isMain) {
   const inputArg = argv.find(
     (a, i) => a !== "--chat" && a !== "-c" && a !== "--width" && (wIdx < 0 || i !== wIdx + 1),
   );
-
-  let raw;
-  if (inputArg && inputArg !== "-") {
-    raw = await readFile(path.resolve(inputArg), "utf8");
-  } else {
-    raw = "";
-    process.stdin.setEncoding("utf8");
-    for await (const chunk of process.stdin) raw += chunk;
-  }
-  const bag = JSON.parse(raw);
+  const bag = JSON.parse(await readInput(inputArg));
   const text = render(bag, { width });
   process.stdout.write(isChat ? `\`\`\`\n${text}\`\`\`\n` : text);
 }

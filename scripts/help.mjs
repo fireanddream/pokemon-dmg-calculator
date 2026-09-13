@@ -125,7 +125,7 @@ function shortStatus(status) {
 
 /** Every §10 table row whose Status is not `done`, in document order. */
 function parseLimits(md) {
-  const lines = md.split("\n");
+  const lines = md.split(/\r?\n/); // CRLF-safe (Windows checkout)
   const out = [];
   let inSec = false;
   let area = "";
