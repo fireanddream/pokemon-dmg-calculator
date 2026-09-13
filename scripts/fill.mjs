@@ -20,10 +20,11 @@ import { fileURLToPath } from "node:url";
 import { calcStats, SHEER_FORCE_MOVES, remapMoveType, resolveWeatherBall } from "../dist/index.js";
 import {
   norm, chart, natureByName, moveByName, monByName,
-  resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES,
+  resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES, HP_ILLEGAL,
 } from "./input-converter.mjs";
 import { mdSection, mdTableRows, stripMdCell, firstInt } from "./md.mjs";
 import { isMain, readInput } from "./cli.mjs";
+import * as err from "./errors.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -555,11 +556,11 @@ function applyMaxFlags(spec, move, side) {
     const val = def.evs[named];
     const explicit = spec.evs?.[named];
     if (explicit != null && explicit !== val) {
-      throw new Error(`conflict on ev:${named}: ${val} vs ${explicit}`);
+      throw new Error(err.conflict(`ev:${named}`, [val, explicit]));
     }
     for (const [st, v] of Object.entries(def.evs)) {
       if (merged[st] != null && merged[st] !== v) {
-        throw new Error(`conflict on ev:${st}: ${merged[st]} vs ${v}`);
+        throw new Error(err.conflict(`ev:${st}`, [merged[st], v]));
       }
       merged[st] = v;
     }
@@ -569,7 +570,7 @@ function applyMaxFlags(spec, move, side) {
   spec.evs = { ...merged, ...(spec.evs ?? {}) };
   const total = Object.values(spec.evs).reduce((a, b) => a + b, 0);
   if (total > 510) {
-    throw new Error(`too many EVs: ${total} (> 510 cap)`);
+    throw new Error(err.tooManyEvs(total));
   }
 
   // auto-nature: first-typed max wins (spec._maxOrder from the converter);
@@ -685,14 +686,14 @@ function fillAura(matchup) {
  *  come from auto-fill-defaults.md's Defaults-at-a-glance table (FILL_DEFAULTS). */
 function resolve(spec) {
   const entry = monByName.get(norm(spec.name));
-  if (!entry) throw new Error(`missing species: "${spec.name}"`);
+  if (!entry) throw new Error(err.missing("species", `"${spec.name}"`));
   const { nature, ivs, evs, stats } = buildStats(spec, entry);
   const isMega = entry.name.endsWith("-Mega");
   // A Mega must hold its Mega Stone, so an explicitly typed item (or the
   // `plate` keyword) contradicts it — fail loud instead of silently dropping
   // it (DESIGN-RECORDS §9).
   if (isMega && (spec.item || spec.plate)) {
-    throw new Error(`conflict on item: ${spec.item ?? "plate"} vs Mega Stone`);
+    throw new Error(err.conflict("item", [spec.item ?? "plate", "Mega Stone"]));
   }
   return {
     name: entry.name,
@@ -758,7 +759,6 @@ function cardFlags(matchup, spec, plateNote) {
 }
 
 // --- Hidden Power (gen 6): explicit type only, no derive-from-IVs ---
-const HP_ILLEGAL_TYPES = new Set(["Normal", "Fairy"]);
 
 /** Override the dex `Hidden Power` (stored Normal) with the type the query
  *  named. Clone — never mutate the shared dex entry — so STAB, effectiveness,
@@ -769,8 +769,8 @@ const HP_ILLEGAL_TYPES = new Set(["Normal", "Fairy"]);
 function hiddenPowerMove(move, matchup) {
   if (move.name !== "Hidden Power") return move;
   const t = matchup.hpType;
-  if (!t) throw new Error(`missing hidden power type: "${matchup._query ?? move.name}"`);
-  if (HP_ILLEGAL_TYPES.has(t)) throw new Error(`"hidden power ${t.toLowerCase()}" is not a legal Hidden Power type`);
+  if (!t) throw new Error(err.missing("hidden power type", `"${matchup._query ?? move.name}"`));
+  if (HP_ILLEGAL.has(t)) throw new Error(err.illegalHpType(t.toLowerCase()));
   return { ...move, type: t };
 }
 
@@ -843,7 +843,7 @@ function resolveAfterMoves(matchup, moveEntries, kind) {
 function resolveSingleInput(matchup) {
   const canonical = resolveMoveName(matchup.move);
   const dexMove = moveByName.get(norm(canonical ?? matchup.move));
-  if (!dexMove) throw new Error(`missing move: "${matchup.move}"`);
+  if (!dexMove) throw new Error(err.missing("move", `"${matchup.move}"`));
   matchup.move = dexMove.name;
   applyHiddenPowerIV(matchup);
   const move = hiddenPowerMove(dexMove, matchup);
@@ -856,7 +856,7 @@ function resolveSingleInput(matchup) {
 function resolveComboInput(matchup) {
   const dexMoves = matchup.moves.map((nm) => {
     const m = moveByName.get(norm(nm));
-    if (!m) throw new Error(`missing move: "${nm}"`);
+    if (!m) throw new Error(err.missing("move", `"${nm}"`));
     return m;
   });
   applyHiddenPowerIV(matchup);
@@ -885,7 +885,7 @@ function classifyMatchup(matchup) {
     if (parsed?.hpType) matchup.hpType = parsed.hpType;
   }
   if (Array.isArray(matchup.moves) && matchup.moves.length >= 2) {
-    if (matchup.moves.length > 2) throw new Error(`too many moves in a combo — capped at 2 (${matchup.moves.join(" then ")})`);
+    if (matchup.moves.length > 2) throw new Error(err.tooManyMoves(matchup.moves.join(" then ")));
     return "combo";
   }
   return "single";

@@ -20,6 +20,7 @@ import { RESIST_BERRIES } from "../dist/index.js";
 import { tokenizeLine, hyphenToSpace } from "./tokenize.mjs";
 import { mdSection, mdTableRows } from "./md.mjs";
 import { isMain } from "./cli.mjs";
+import * as err from "./errors.mjs";
 import {
   dexData, typesData,
   norm, chart, natureByName, moveByName, monByName,
@@ -197,8 +198,8 @@ const ITEM_NAMES = [
   "Black Belt", "Black Glasses", "Hard Stone", "Poison Barb", "Sharp Beak",
   "Silver Powder", "Soft Sand", "Spell Tag", "Twisted Spoon", "Metal Coat",
   "Dragon Fang", "Silk Scarf", "Muscle Band", "Wise Glasses", "Scope Lens",
-  "Razor Claw", "Kings Rock", "Metronome", "Life Orb", "Focus Band", "BrightPowder",
-  "Leftovers", "Heat Rock", "Damp Rock", "Smooth Rock", "Icy Rock", "Light Clay",
+  "Razor Claw", "Kings Rock", "Metronome", "Focus Band", "BrightPowder",
+  "Heat Rock", "Damp Rock", "Smooth Rock", "Icy Rock", "Light Clay",
   ...Object.values(PLATE_BY_TYPE),
   ...Object.keys(RESIST_BERRIES),
 ].sort((a, b) => b.length - a.length);
@@ -230,15 +231,6 @@ const USAGE = `usage:
     scripts/calc.mjs - | node scripts/output.mjs -
 
   specs: "Species [Item] [Nature] [N Stat EVs] [Ability] [L50]"`;
-
-
-
-/** Hard error for an EV token nothing claimed: a stat word with no adjacent
- *  number, or a number with no adjacent stat word. One shape for both; the
- *  echo shows the offending token in place. */
-function unboundEvError(tokens) {
-  return `unbound EV: ${tokens.map((t) => `"${t}"`).join(", ")}`;
-}
 
 
 // ===========================================================================
@@ -372,7 +364,7 @@ if (dualClass.length) {
  *  when different (dedupe-vs-conflict). Attacker move claims are validated
  *  (1 or 2 distinct) and ride back on spec._claim for parseQuery to lift. */
 function parseCombatant(raw, side = "attacker", opts = {}) {
-  if (typeof raw !== "string" || !raw.trim()) throw new Error(`missing side: empty ${side}`);
+  if (typeof raw !== "string" || !raw.trim()) throw new Error(err.missing("side", `empty ${side}`));
   // Tokenized by the shared tokenizer. parseQuery hands the whole-line atoms
   // (sliced per side) so `gi` is the GLOBAL echo atom index; a bare string is
   // tokenized locally for the explicit-args path. `opts.capture` receives the
@@ -396,7 +388,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     const list = seen.get(slot);
     if (list) {
       if (list.includes(value)) return false;
-      throw new Error(`conflict on ${labelOf(slot)}: ${[...list, value].join(" vs ")}`);
+      throw new Error(err.conflict(labelOf(slot), [...list, value]));
     }
     seen.set(slot, [value]);
     return true;
@@ -472,7 +464,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   };
   const takeEv = (word, amount) => {
     const v = Number(amount);
-    if (v > 252) throw new Error(`"${word} ${v}" is not an EV: gen 6 caps EVs at 252`);
+    if (v > 252) throw new Error(err.evOverMax(word, v));
     const st = EV_ALIAS[word];
     if (claimSlot("ev:" + st, v)) evs[st] = v;
   };
@@ -547,7 +539,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
         log("species", i, len);
         return len;
       }
-      throw new Error(`"${sp}" has no Mega forme`);
+      throw new Error(err.missingSpeciesMega(sp));
     }
     if (isMegaForme(sp)) {
       const base = speciesKeyAt(i, len - 1);
@@ -572,8 +564,8 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     const j = i + len;
     const typeWord = adjacent(j - 1) && atoms[j] ? atoms[j].t : null;
     const canon = hpTypeOf(typeWord);
-    if (!canon) throw new Error(`missing hidden power type: "${raw}"`);
-    if (HP_ILLEGAL.has(canon)) throw new Error(`"hidden power ${typeWord}" is not a legal Hidden Power type`);
+    if (!canon) throw new Error(err.missing("hidden power type", `"${raw}"`));
+    if (HP_ILLEGAL.has(canon)) throw new Error(err.illegalHpType(typeWord));
     moveNames.push("Hidden Power");
     hpType = canon;
     log("move", i, len + 1);
@@ -700,7 +692,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   spec._sideLog = sideLog;
   const words = atoms.filter((_, k) => !used[k]).map((x) => x.t);
   if (!spec.name) {
-    throw new Error(`missing species: "${raw}"`);
+    throw new Error(err.missing("species", `"${raw}"`));
   }
   // T2 junk ruling (2026-09-08): R4 hard errors stand for a digit/stat token no
   // claim bound (fail loud). PLAIN junk words are SILENTLY DROPPED — no
@@ -709,7 +701,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
   const strayStats = words.filter((w) => STAT_WORD.has(w));
   const strayNumbers = words.filter((t) => /\d/.test(t) && !STAT_WORD.has(t));
   if (strayStats.length || strayNumbers.length) {
-    throw new Error(unboundEvError([...strayStats, ...strayNumbers]));
+    throw new Error(err.unboundEv([...strayStats, ...strayNumbers]));
   }
   return spec;
 }
@@ -737,11 +729,11 @@ function mergeArena(matchup) {
     delete s.terrain;
   }
   const tCodes = [...new Set(terrain)];
-  if (tCodes.length > 1) throw new Error(`conflict on terrain: ${tCodes.join(" vs ")}`);
+  if (tCodes.length > 1) throw new Error(err.conflict("terrain", tCodes));
   if (tCodes.length === 1) matchup.terrain = tCodes[0];
 
   const wCodes = [...new Set(weather)];
-  if (wCodes.length > 1) throw new Error(`conflict on weather: ${wCodes.join(" vs ")}`);
+  if (wCodes.length > 1) throw new Error(err.conflict("weather", wCodes));
   if (wCodes.length === 1) matchup.weather = wCodes[0];
   // hazards sit on the field the defender switches into; either side may
   // declare them (a typed hazard is a statement about the field, not the mon)
@@ -751,7 +743,7 @@ function mergeArena(matchup) {
     const s = matchup[side];
     if (!s) continue;
     if (s.spikes != null) {
-      if (spikes != null && s.spikes !== spikes) throw new Error(`conflict on spikes layers: ${spikes} vs ${s.spikes}`);
+      if (spikes != null && s.spikes !== spikes) throw new Error(err.conflict("spikes layers", [spikes, s.spikes]));
       spikes = s.spikes;
     }
     if (s.stealthRock) stealthRock = true;
@@ -812,7 +804,7 @@ function scanMoveWords(words, opts = {}) {
     // `hp <type>` alias — `hp` is not a dex move name on its own.
     if (words[i] === "hp" && hpTypeOf(words[i + 1])) {
       const canon = hpTypeOf(words[i + 1]);
-      if (HP_ILLEGAL.has(canon)) throw new Error(`"hidden power ${words[i + 1]}" is not a legal Hidden Power type`);
+      if (HP_ILLEGAL.has(canon)) throw new Error(err.illegalHpType(words[i + 1]));
       claimed.push("Hidden Power");
       hpType = canon;
       usedIdx.push(i, i + 1);
@@ -831,8 +823,8 @@ function scanMoveWords(words, opts = {}) {
         if (name === "Hidden Power") {
           const typeWord = words[i + len];
           const canon = hpTypeOf(typeWord) ?? opts.hpType;
-          if (!canon) throw new Error(`missing hidden power type: "${words.join(" ")}"`);
-          if (HP_ILLEGAL.has(canon)) throw new Error(`"hidden power ${canon.toLowerCase()}" is not a legal Hidden Power type`);
+          if (!canon) throw new Error(err.missing("hidden power type", `"${words.join(" ")}"`));
+          if (HP_ILLEGAL.has(canon)) throw new Error(err.illegalHpType(canon.toLowerCase()));
           claimed.push(name);
           hpType = canon;
           const take = hpTypeOf(typeWord) ? len + 1 : len;
@@ -859,9 +851,9 @@ function finishMoveClaim(claimed, signals, quote) {
   const sseen = new Set();
   const boostSignals = signals.filter((n) => (sseen.has(n) ? false : (sseen.add(n), true)));
   if (distinct.length === 0) {
-    throw new Error(`missing move: "${quote}"`);
+    throw new Error(err.missing("move", `"${quote}"`));
   }
-  if (distinct.length > 2) throw new Error(`too many moves in a combo — capped at 2 ("${quote}")`);
+  if (distinct.length > 2) throw new Error(err.tooManyMoves(`"${quote}"`));
   const result = distinct.length === 2 ? { chain: distinct } : { single: distinct[0] };
   if (boostSignals.length) result.signals = boostSignals;
   return result;
@@ -892,7 +884,7 @@ function parseQuery(line) {
   const vsAt = [];
   for (let i = 0; i < atoms.length; i++) if (atoms[i].t === "vs") vsAt.push(i);
   if (vsAt.length !== 1) {
-    throw new Error('missing split: a query needs one "vs" between the attacker and the defender');
+    throw new Error(err.missingSplit());
   }
   const v = vsAt[0];
   const aAtoms = atoms.slice(0, v);
@@ -926,7 +918,7 @@ function parseQuery(line) {
 
 export {
   norm, hyphenToSpace, chart, natureByName, moveByName, monByName,
-  resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES,
+  resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES, HP_ILLEGAL,
   parseCombatant, mergeArena, parseQuery,
 };
 

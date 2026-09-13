@@ -102,6 +102,12 @@ Objective: one home for game-rule tables and one builder per error shape.
 Rationale archived here so the work can be pulled later.
 
 ### 3a. Rule-table home
+**Status: NOT IMPLEMENTED (decided 2026-09-13).** Only the two side-finds were
+fixed: the duplicate Hidden Power illegal-type set is gone (`fill.mjs` now
+imports `HP_ILLEGAL` from `input-converter.mjs`) and the duplicate
+`Leftovers` / `Life Orb` rows were dropped from `ITEM_NAMES`. The `rules.mjs`
+consolidation and the doc-as-code migration are deliberately not done.
+
 - **Change:** game-rule constants live in three files — `calc.mjs`
   `MULTIHIT_MOVES`; `fill.mjs` `RECOIL_MOVES`, `BOOST_PREDS`, `MB_RELEVANCE`,
   `PRIMAL_WEATHER`, `HP_ILLEGAL_TYPES`, `FIXED_ABILITY`, `DEFENDER_FIXED`;
@@ -124,6 +130,9 @@ Rationale archived here so the work can be pulled later.
   the safe option.
 
 ### 3b. Derive `MULTIHIT_MOVES` from dex data (optional)
+**Status: DEFERRED (decided 2026-09-13).** The 2-5 multi-hit moves do not
+change; the hand-maintained list stays.
+
 - **Change:** replace the hand-maintained 14-name Set (`calc.mjs:28`) with a
   structured `multihit` field emitted by `scripts/gen-move-ability-data.mjs`.
 - **Why good:** the list is derivable game data and could never go stale; it is
@@ -137,6 +146,18 @@ Rationale archived here so the work can be pulled later.
   `verify:multihit` untouched.
 
 ### 3c. `scripts/errors.mjs` — one builder per error shape
+**Status: DONE (2026-09-13).** Implemented `scripts/errors.mjs` with nine pure
+string builders — `missing`, `missingSpeciesMega`, `missingSplit`, `conflict`,
+`unboundEv`, `illegalHpType`, `evOverMax`, `tooManyMoves`, `tooManyEvs`. All 27
+throw sites (17 `input-converter.mjs` + 10 `fill.mjs`) route through a builder;
+the old `unboundEvError` moved out of `input-converter.mjs`. Decisions: strings
+(not Error objects) with the literal `throw` kept at each site; messages only,
+no shape metadata. Hints added — `-search` on the whole missing-variable group,
+`-help`/`-grammar` on `missing split`; mega folded into the missing group as
+`missing species mega "<name>"`. `DESIGN-RECORDS.md` §8 rewritten. Byte-safe:
+build + verify:damage 78/78, acc 44/44, multihit 34/34, echo 7/7, lookup 48/48,
+help 59/59, corpus chaincheck `all identical`.
+
 - **Change:** 27 hand-written `throw new Error(...)` strings (17 in
   `input-converter.mjs`, 10 in `fill.mjs`) become builders: `missing(var,
   quote)`, `conflict(slot, values)`, `unboundEv(tokens)`, plus the kept
@@ -155,3 +176,31 @@ Rationale archived here so the work can be pulled later.
 - **No** merging the two move-claim implementations (the sweep's
   `literalClaimAt` vs the standalone `scanMoveWords`).
 - **No** trimming of the verify suites.
+
+## Untouched scripts (inventory 2026-09-13)
+
+Scripts the phases 1–3 optimization did **not** examine. Recorded so the
+remaining surface is visible; none is a known problem today.
+
+In the declared pipeline but unexamined:
+
+- `tokenize.mjs` — shared line tokenizer (2.5 KB). Small and self-contained;
+  no obvious duplication seen, but never opened.
+- `route.mjs` — 22-line thin alias of `damage.mjs`'s `runQuery`; no logic.
+- `output.mjs` — **intentionally frozen**: the card layout is owned by
+  `output.mjs` and pinned by `OUTPUT-FORMAT.md`.
+
+Outside the pipeline, never in scope:
+
+- Data-gen / dev tools: `fetch-xy-dex.mjs`, `gen-move-ability-data.mjs`
+  (only referenced by 3b), `audit-abilities.mjs`, `_derive-sf.mjs`,
+  `random-stats.mjs`.
+- `lookup.mjs` — the `-search` CLI; deliberately kept out of the damage path
+  (AGENTS.md rule 6).
+- `help.mjs` — **frozen** (AGENTS.md rule 5), with `verify-help.mjs`.
+- Verify harness: `verify-smogon.mjs`, `verify-accuracy.mjs`,
+  `verify-multihit.mjs`, `verify-echo.mjs`, `verify-lookup.mjs`.
+- `src/` — the TypeScript engine, explicitly out of scope from the start.
+
+Possible follow-up (not scheduled): scan `tokenize.mjs` and the dev/data-gen
+scripts for duplication; the verify scripts each set up their own runners.

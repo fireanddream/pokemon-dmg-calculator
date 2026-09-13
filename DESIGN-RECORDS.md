@@ -394,20 +394,31 @@ Design decisions (verified against the current lexicons):
   `uses` / misspellings: no error, no `_ignored`, no `ignored:` flag, no
   label, no `???`. The `???` echo class is RETIRED for junk (reserved for
   honest cannot-place feedback).
-- **Error taxonomy (2026-09-10, replaces the former bespoke-error "zoo").**
-  Every converter/fill failure collapses to THREE shapes plus three KEPT
-  limits:
-    - `missing <var>: "<detail>"` — `missing side` (empty combatant),
-      `missing species` (nothing recognizable), `missing move` (no damaging
-      move — the old "only boosting moves" lecture is gone), `missing split`
-      (no `vs`; the worked example is gone).
+- **Error taxonomy (2026-09-10; one builder per shape 2026-09-13).**
+  Every converter/fill failure collapses to a few shapes, each produced by ONE
+  pure string builder in `scripts/errors.mjs` — the only way to build a front
+  error, so the shape is fixed by construction and the wording lives in one
+  place. The caller keeps the literal `throw` at the same point, so throw
+  timing (e.g. `claimSlot` throwing before its log) is unchanged:
+    - `missing <var>: "<detail>" — see -search` — a variable could not be
+      resolved: `missing side` (empty combatant), `missing species` (nothing
+      recognizable), `missing move` (no damaging move — the old "only boosting
+      moves" lecture is gone), `missing hidden power type`. `-search` is the
+      lookup hint.
+    - `missing species mega "<name>" — see -search` — a `<species> mega` token
+      whose base has no Mega forme.
+    - `missing split: a query needs one "vs" between the attacker and the
+      defender — see -help and -grammar` — no `vs`; the query frame is
+      documented by `-help`/`-grammar`.
     - `conflict on <slot>: A vs B` — every same-slot dedupe-vs-conflict,
       including terrain, weather, spikes layers, and the max-shorthand EV
       collisions (`conflict on ev:atk: 252 vs 120`).
+    - domain — a resolved value outside its allowed set: `"hidden power <type>"
+      is not a legal Hidden Power type` (Normal/Fairy), `"X 400" is not an EV:
+      gen 6 caps EVs at 252`.
+    - cap — `too many moves in a combo — capped at 2 (...)`,
+      `too many EVs: N (> 510 cap)`.
     - `unbound EV: "<token>"` — the R4 stray.
-    - KEPT bespoke: `too many moves — capped at 2`, `"X 400" is not an EV:
-      gen 6 caps EVs at 252` / `too many EVs: N (> 510 cap)`, `"X" has no
-      Mega forme`.
   Echo-on-error ("scanned so far") is a separate, unbuilt piece — see §4 tail.
 
 ## 9. `no item` semantics
