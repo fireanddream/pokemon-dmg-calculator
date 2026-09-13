@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
-import { chart } from "./data.mjs";
+import { chart } from "./typechart.mjs";
 import { isMain } from "./cli.mjs";
 import { runCalc } from "./calc.mjs";
 import { render } from "./output.mjs";

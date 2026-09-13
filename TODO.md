@@ -31,6 +31,9 @@ input-converter.mjs → fill.mjs → calc.mjs → output.mjs
 
 ## Phase 1 — shared low-level modules
 
+**Status: DONE.** Implemented as `scripts/md.mjs`, `scripts/cli.mjs`, and
+`scripts/data.mjs`; existing importers untouched.
+
 Objective: remove copy-pasted plumbing. No logic changes.
 
 1. **`scripts/md.mjs`** — one home for the doc-as-code markdown helpers:
@@ -177,30 +180,50 @@ help 59/59, corpus chaincheck `all identical`.
   `literalClaimAt` vs the standalone `scanMoveWords`).
 - **No** trimming of the verify suites.
 
-## Untouched scripts (inventory 2026-09-13)
+## Untouched-scripts pass (2026-09-13)
 
-Scripts the phases 1–3 optimization did **not** examine. Recorded so the
-remaining surface is visible; none is a known problem today.
+The scripts phases 1–3 left unexamined got a follow-up pass for the same goal
+(fewer hard exceptions, more modular, easier to expand). Byte-identical where
+the output is pinned; the gate was the full verify suite + corpus chaincheck
+(every suite `IDENTICAL`, chaincheck `all identical`).
 
-In the declared pipeline but unexamined:
+**Done:**
 
-- `tokenize.mjs` — shared line tokenizer (2.5 KB). Small and self-contained;
-  no obvious duplication seen, but never opened.
-- `route.mjs` — 22-line thin alias of `damage.mjs`'s `runQuery`; no logic.
-- `output.mjs` — **intentionally frozen**: the card layout is owned by
-  `output.mjs` and pinned by `OUTPUT-FORMAT.md`.
+- **One dist-free loader.** `scripts/data.mjs` no longer imports `dist/`; it
+  reads only the datasets + maps and re-exports `DATA_DIR`. The built type chart
+  moved to `scripts/typechart.mjs`, and the on-disk root to
+  `scripts/paths.mjs` (so generators can import the path without triggering
+  eager reads). `lookup.mjs`, all five `verify-*`, `random-stats.mjs`,
+  `audit-abilities.mjs` now import the shared data instead of re-rolling
+  `DATA_DIR` + `readFile` + `JSON.parse`. `lookup.mjs`/`verify:lookup` stay
+  engine-free (no build needed).
+- **One rule-table home.** `scripts/rules.mjs` owns `RECOIL_MOVES`,
+  `BOOST_PREDS`, `MB_RELEVANCE`, `typeEffVs` (moved verbatim out of `fill.mjs`)
+  plus the human-readable `BOOST_ABILITY_NOTES` / `BOOST_ABILITY_NAMES` /
+  `MITIGATION_ABILITY_NAMES` catalogs. `fill.mjs` imports the predicates;
+  `audit-abilities.mjs` imports the catalogs (its hand-copied `BOOST`/`DEF`
+  mirrors are gone) and warns if a `BOOST_PREDS` key lacks a catalog note.
+- **Shared verify helpers.** `scripts/verify-util.mjs` holds `mon`/`mv` and the
+  two tally printers (`reportCounts`, `reportChecks`); `byName` moved into
+  `data.mjs`. Removed the duplicated runners/comparators/lookups.
+- **CLI guard applied.** `fetch-xy-dex.mjs` and `gen-move-ability-data.mjs` use
+  `cli.mjs`'s `isMain` (the latter had no guard at all).
+- **Archived.** `_derive-sf.mjs` (one-off oracle derivation) moved to
+  `session-tools-archive/20260913-derive-sf.mjs`.
 
-Outside the pipeline, never in scope:
+**Remaining surface (still no known problem):**
 
-- Data-gen / dev tools: `fetch-xy-dex.mjs`, `gen-move-ability-data.mjs`
-  (only referenced by 3b), `audit-abilities.mjs`, `_derive-sf.mjs`,
-  `random-stats.mjs`.
-- `lookup.mjs` — the `-search` CLI; deliberately kept out of the damage path
-  (AGENTS.md rule 6).
-- `help.mjs` — **frozen** (AGENTS.md rule 5), with `verify-help.mjs`.
-- Verify harness: `verify-smogon.mjs`, `verify-accuracy.mjs`,
-  `verify-multihit.mjs`, `verify-echo.mjs`, `verify-lookup.mjs`.
-- `src/` — the TypeScript engine, explicitly out of scope from the start.
+- `tokenize.mjs` — small and self-contained; nothing found.
+- `route.mjs` — thin `runQuery` alias; no logic.
+- `output.mjs` — **frozen** (layout owned here, pinned by `OUTPUT-FORMAT.md`).
+- `help.mjs` + `verify-help.mjs` — **frozen** (AGENTS.md rule 5).
+- `lookup.mjs` — `-search` CLI; deliberately off the damage path (rule 6).
+- `src/` — the TypeScript engine, out of scope.
 
-Possible follow-up (not scheduled): scan `tokenize.mjs` and the dev/data-gen
-scripts for duplication; the verify scripts each set up their own runners.
+## Untouched scripts (original inventory 2026-09-13)
+
+Kept for history; superseded by the pass above. The original list named the
+data-gen / dev tools (`fetch-xy-dex.mjs`, `gen-move-ability-data.mjs`,
+`audit-abilities.mjs`, `_derive-sf.mjs`, `random-stats.mjs`), `lookup.mjs`, the
+frozen `help.mjs`, the five `verify-*` suites, and `tokenize.mjs` / `route.mjs`
+/ `output.mjs` / `src/`.

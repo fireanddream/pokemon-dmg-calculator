@@ -3,27 +3,16 @@
 //   B. per-hit damage and each n-hit TOTAL against @smogon/calc driven with an
 //      explicit hit count (`new Move(gen, name, { hits: n })`).
 // Dev tool only: npm run verify:multihit
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { calcDamage, calcStats, buildTypeChart, koAnalysis } from "../dist/index.js";
+import { calcDamage, calcStats, koAnalysis } from "../dist/index.js";
+import { naturesData } from "./data.mjs";
+import { chart } from "./typechart.mjs";
+import { mon, mv, reportCounts } from "./verify-util.mjs";
 import { multiHitDistribution, calcSingle, calcCombo } from "./calc.mjs";
 import pkg from "@smogon/calc";
 const { calculate, Pokemon: OPokemon, Move: OMove, Field: OField } = pkg;
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const read = (f) => readFile(path.join(here, "..", "data", f), "utf8").then(JSON.parse);
-
-const { pokemon: dexPokemon } = await read("xy-pokemon.json");
-const { moves: dexMoves } = await read("moves-xy.json");
-const { natures } = await read("natures-xy.json");
-const { types: typeEntries } = await read("types-xy.json");
-const chart = buildTypeChart(typeEntries);
-const neutral = natures.find((n) => n.summary === "");
+const neutral = naturesData.natures.find((n) => n.summary === "");
 const IVS31 = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 };
-
-const mon = (name) => dexPokemon.find((p) => p.name.toLowerCase() === name.toLowerCase());
-const mv = (name) => dexMoves.find((m) => m.name.toLowerCase() === name.toLowerCase());
 
 let pass = 0;
 let fail = 0;
@@ -128,5 +117,4 @@ for (const t of CASES) {
     `shift ${minSurv(comboDry) - minSurv(comboSand)} chip ${chip}`);
 }
 
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail) process.exitCode = 1;
+reportCounts(pass, fail);

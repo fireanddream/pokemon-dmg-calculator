@@ -17,11 +17,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { calcStats, SHEER_FORCE_MOVES, remapMoveType, resolveWeatherBall } from "../dist/index.js";
+import { calcStats, remapMoveType, resolveWeatherBall } from "../dist/index.js";
 import {
-  norm, chart, natureByName, moveByName, monByName,
+  norm, natureByName, moveByName, monByName,
   resolveMoveName, claimMoves, PLATE_BY_TYPE, BOOST_MOVES, HP_ILLEGAL,
 } from "./input-converter.mjs";
+import { BOOST_PREDS, MB_RELEVANCE, typeEffVs } from "./rules.mjs";
 import { mdSection, mdTableRows, stripMdCell, firstInt } from "./md.mjs";
 import { isMain, readInput } from "./cli.mjs";
 import * as err from "./errors.mjs";
@@ -232,67 +233,8 @@ const ORB = parseOrbs(DEFAULT_DOC);
 // regular setters) the slower pokemon's weather wins.
 const PRIMAL_WEATHER = new Set(["desolate", "primordial", "delta"]);
 
-const RECOIL_MOVES = new Set([
-  "Brave Bird", "Double-Edge", "Flare Blitz", "Head Charge", "Head Smash",
-  "Light of Ruin", "Submission", "Take Down", "Volt Tackle", "Wild Charge",
-  "Wood Hammer", "Struggle",
-]);
-
-// Damage-boosting ability predicates used for the auto default on the ATTACKER.
-// ctx = { move, entry (the mon), spec, weather, crit }
-const BOOST_PREDS = {
-  "Huge Power": (c) => c.move.category === "Physical",
-  "Pure Power": (c) => c.move.category === "Physical",
-  Adaptability: (c) => c.entry.types.includes(c.move.type),
-  Technician: (c) => c.move.power > 0 && c.move.power <= 60,
-  "Tough Claws": (c) => c.move.flags.includes("Contact"),
-  "Iron Fist": (c) => c.move.flags.includes("Punch"),
-  "Strong Jaw": (c) => c.move.flags.includes("Bite"),
-  "Mega Launcher": (c) => c.move.flags.includes("Pulse"),
-  Reckless: (c) => RECOIL_MOVES.has(c.move.name),
-  Guts: (c) => !!c.spec.status && c.move.category === "Physical",
-  "Flare Boost": (c) => c.spec.status === "brn" && c.move.category === "Special",
-  "Toxic Boost": (c) => (c.spec.status === "psn" || c.spec.status === "tox") && c.move.category === "Physical",
-  "Sheer Force": (c) => SHEER_FORCE_MOVES.has(c.move.name),
-  Blaze: (c) => c.move.type === "Fire" && (c.spec.hpFraction ?? 1) <= 1 / 3,
-  Overgrow: (c) => c.move.type === "Grass" && (c.spec.hpFraction ?? 1) <= 1 / 3,
-  Torrent: (c) => c.move.type === "Water" && (c.spec.hpFraction ?? 1) <= 1 / 3,
-  Swarm: (c) => c.move.type === "Bug" && (c.spec.hpFraction ?? 1) <= 1 / 3,
-  "Solar Power": (c) => c.weather === "sun" && c.move.category === "Special",
-  "Sand Force": (c) => c.weather === "sand" && ["Rock", "Ground", "Steel"].includes(c.move.type),
-  Sniper: (c) => !!c.crit,
-  Aerilate: (c) => c.move.type === "Normal",
-  Pixilate: (c) => c.move.type === "Normal",
-  Refrigerate: (c) => c.move.type === "Normal",
-};
-
-// Defensive/blocking abilities Mold Breaker would remove, keyed by "would it
-// reduce or stop THIS move". Returns true when Mold Breaker deals more damage.
-const MB_RELEVANCE = {
-  Levitate: (m) => m.type === "Ground",
-  "Sap Sipper": (m) => m.type === "Grass",
-  "Flash Fire": (m) => m.type === "Fire",
-  "Dry Skin": (m) => m.type === "Water", "Storm Drain": (m) => m.type === "Water",
-  "Water Absorb": (m) => m.type === "Water",
-  "Lightning Rod": (m) => m.type === "Electric", "Motor Drive": (m) => m.type === "Electric",
-  "Volt Absorb": (m) => m.type === "Electric",
-  "Thick Fat": (m) => m.type === "Fire" || m.type === "Ice",
-  Heatproof: (m) => m.type === "Fire",
-  "Fur Coat": (m) => m.category === "Physical",
-  "Marvel Scale": (m) => m.category === "Physical",
-  "Grass Pelt": (m) => m.category === "Physical",
-  Multiscale: () => true,
-  "Wonder Guard": () => true,
-  Bulletproof: (m) => m.flags.includes("Bullet"),
-  Soundproof: (m) => m.flags.includes("Sound"),
-  Filter: (m, defEntry) => typeEffVs(defEntry, m.type) > 1,
-  "Solid Rock": (m, defEntry) => typeEffVs(defEntry, m.type) > 1,
-};
-
-function typeEffVs(defEntry, atkType) {
-  const row = chart.get(atkType);
-  return defEntry.types.reduce((a, t) => a * (row?.get(t) ?? 1), 1);
-}
+// Ability rule tables (RECOIL_MOVES / BOOST_PREDS / MB_RELEVANCE / typeEffVs)
+// live in rules.mjs — the one home for every damage-rule table.
 
 /** Which of the defender's abilities mitigates this matchup? Groups inside run
  * 1. reduce damage (immediate + indirect) -> 2. evasion -> 3. healing. */

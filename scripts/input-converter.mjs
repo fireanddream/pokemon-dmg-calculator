@@ -23,8 +23,9 @@ import { isMain } from "./cli.mjs";
 import * as err from "./errors.mjs";
 import {
   dexData, typesData,
-  norm, chart, natureByName, moveByName, monByName,
+  norm, natureByName, moveByName, monByName,
 } from "./data.mjs";
+import { chart } from "./typechart.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 

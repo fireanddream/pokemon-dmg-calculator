@@ -1,9 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { DATA_DIR } from "./paths.mjs";
+import { isMain } from "./cli.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, "..", "data");
 const RAW = path.join(DATA_DIR, "_raw-xy-basics.json");
 
 const NO_EFFECT = "No direct effect on damage calculation.";
@@ -308,7 +307,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (isMain(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

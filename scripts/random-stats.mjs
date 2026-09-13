@@ -1,12 +1,5 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { calcStats, STAT_NAMES } from "../dist/index.js";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, "..", "data");
-const dexData = JSON.parse(await readFile(path.join(DATA_DIR, "xy-pokemon.json"), "utf8"));
-const naturesData = JSON.parse(await readFile(path.join(DATA_DIR, "natures-xy.json"), "utf8"));
+import { dexData, naturesData } from "./data.mjs";
 
 const natures = naturesData.natures;
 

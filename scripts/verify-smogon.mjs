@@ -1,25 +1,13 @@
 // Compare our engine vs @smogon/calc (gen 6) across a broad modifier matrix.
 // Only a dev/diagnostic tool: npm run verify:smogon
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { calcStats, buildTypeChart } from "../dist/index.js";
+import { calcStats } from "../dist/index.js";
+import { naturesData } from "./data.mjs";
+import { chart } from "./typechart.mjs";
+import { mon, mv, reportCounts } from "./verify-util.mjs";
 import pkg from "@smogon/calc";
 const { calculate, Pokemon: OPokemon, Move: OMove, Field: OField } = pkg;
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, "..", "data");
-const read = (f) => readFile(path.join(DATA_DIR, f), "utf8").then(JSON.parse);
-
-const { pokemon: dexPokemon } = await read("xy-pokemon.json");
-const { moves: dexMoves } = await read("moves-xy.json");
-const { natures } = await read("natures-xy.json");
-const { types: typeEntries } = await read("types-xy.json");
-const chart = buildTypeChart(typeEntries);
-const neutralNature = natures.find((n) => n.summary === "");
-
-const mon = (name) => dexPokemon.find((p) => p.name.toLowerCase() === name.toLowerCase());
-const mv = (name) => dexMoves.find((m) => m.name.toLowerCase() === name.toLowerCase());
+const neutralNature = naturesData.natures.find((n) => n.summary === "");
 
 // All cases are L100, 31 IV, 0 EV, neutral nature unless overridden.
 const CASES = [];
@@ -605,4 +593,4 @@ for (const t of CASES) {
     console.log(`MISMATCH: ${t.label}\n  oracle: ${oracle.join("-")}  ours: ${ours.min}-${ours.max}`);
   }
 }
-console.log(`\n${pass} passed, ${fail} failed`);
+reportCounts(pass, fail, { exitOnFail: false });

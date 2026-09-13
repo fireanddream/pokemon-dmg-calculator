@@ -3,17 +3,12 @@
 // attack-move lookup (type + exact power + category aliases, attack-only), plus
 // command recognition and the usage fallback.
 //   npm run verify:lookup
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { findPokemon, findMoves, isSearchCommand, searchCommand } from "./lookup.mjs";
+import { dexData, movesData, byName } from "./data.mjs";
+import { reportChecks } from "./verify-util.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.join(here, "..", "data");
-const POKEMON = JSON.parse(readFileSync(path.join(DATA, "xy-pokemon.json"), "utf8")).pokemon;
-const MOVES = Object.values(
-  JSON.parse(readFileSync(path.join(DATA, "moves-xy.json"), "utf8")).moves,
-);
+const POKEMON = dexData.pokemon;
+const MOVES = movesData.moves;
 const monByName = new Map(POKEMON.map((p) => [p.name, p]));
 const moveByName = new Map(MOVES.map((m) => [m.name, m]));
 
@@ -25,7 +20,6 @@ const check = (name, ok, detail = "") => {
   else failures.push(name);
 };
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const sorted = (arr) => [...arr].sort(byName);
 
 console.log("-search command");
@@ -146,9 +140,6 @@ check(
 check("move output ends in a newline", moveLine.endsWith("\n"));
 check("move output is one line", moveLine.split("\n").filter((l) => l !== "").length === 1);
 
-console.log("");
-console.log(`${pass}/${pass + failures.length} lookup checks passed`);
-if (failures.length > 0) {
-  console.log(`FAIL: ${failures.join("; ")}`);
-  process.exit(1);
-}
+reportChecks("lookup", pass, failures, {
+  onFail: (fs) => console.log(`FAIL: ${fs.join("; ")}`),
+});

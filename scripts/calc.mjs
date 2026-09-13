@@ -335,7 +335,7 @@ export function runCalc(input) {
 // import keeps it out of the library-import path.
 if (isMain(import.meta.url)) {
   const matchup = JSON.parse(await readInput(process.argv[2]));
-  const { chart } = await import("./data.mjs");
+  const { chart } = await import("./typechart.mjs");
   const bag = runCalc({ ...matchup, chart });
   process.stdout.write(JSON.stringify(bag, null, 2) + "\n");
 }

@@ -20,18 +20,11 @@
 // Output is names only, comma-separated, sorted by name; an empty result is
 // the literal "none found". Everything here is CLI-only: it never touches the
 // damage-query converter / route / card path.
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { dexData, movesData, typesData, byName } from "./data.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, "..", "data");
-
-const POKEMON = JSON.parse(readFileSync(path.join(DATA_DIR, "xy-pokemon.json"), "utf8")).pokemon;
-const MOVES = Object.values(
-  JSON.parse(readFileSync(path.join(DATA_DIR, "moves-xy.json"), "utf8")).moves,
-);
-const TYPES = JSON.parse(readFileSync(path.join(DATA_DIR, "types-xy.json"), "utf8")).types;
+const POKEMON = dexData.pokemon;
+const MOVES = movesData.moves;
+const TYPES = typesData.types;
 
 const TYPE_NAMES = new Set(TYPES.map((t) => t.name.toLowerCase()));
 const ATTACK_CATEGORIES = new Set(["Physical", "Special"]);
@@ -45,9 +38,6 @@ const CATEGORY_ALIASES = new Map([
   ["spe", "Special"],
   ["spa", "Special"],
 ]);
-
-/** Deterministic name sort (all shipped names start uppercase). */
-const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 const normType = (s) => String(s).trim().toLowerCase();
 const isTypeName = (s) => TYPE_NAMES.has(normType(s));

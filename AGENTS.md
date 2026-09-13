@@ -115,6 +115,10 @@ Read the section you need from the file that owns it; never memorize these.
   echo+card), `damage.mjs` (compat card CLI, also hosting the CLI-only
   `-search` lookup), `lookup.mjs` (`-search` name/move lookup), data-gen and
   verify scripts (`verify:echo`, `verify:damage`, `verify:acc`, `verify:lookup`).
+  Shared modules: `data.mjs` (dist-free dataset loader + name maps) ·
+  `typechart.mjs` (built chart) · `paths.mjs` (DATA_DIR) · `rules.mjs` (engine
+  damage-rule tables + ability catalogs) · `md.mjs` / `cli.mjs` ·
+  `verify-util.mjs` (verify lookups + tallies).
 - `auto-fill-defaults.md` · `aliases.md` · `OUTPUT-FORMAT.md` — doc-as-code rule
   stores parsed at startup / by the parser; edit these, not the scripts.
 - `DESIGN-RECORDS.md` — binding design contracts (grammar/tokenizer/echo/

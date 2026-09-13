@@ -1,9 +1,7 @@
 import { writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "data");
+import { DATA_DIR } from "./paths.mjs";
+import { isMain } from "./cli.mjs";
 
 const RPC_URL = "https://www.smogon.com/dex/_rpc/dump-basics";
 const GEN = "xy";
@@ -164,11 +162,7 @@ async function main() {
   console.log(`Wrote ${curated.pokemon.length} Pokemon -> ${outPath}`);
 }
 
-const isMain =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isMain) {
+if (isMain(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);

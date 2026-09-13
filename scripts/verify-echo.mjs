@@ -4,6 +4,7 @@
 // between label texts (top-line spacing widens, never drifts a label).
 //   npm run verify:echo
 import { renderEcho } from "./echo.mjs";
+import { reportChecks } from "./verify-util.mjs";
 
 const CASES = [
   {
@@ -144,9 +145,6 @@ for (const c of CASES) {
   }
 }
 
-console.log("");
-console.log(`${pass}/${CASES.length} echo checks passed`);
-if (failures.length > 0) {
-  console.log(`FAIL: ${failures.join("; ")}`);
-  process.exit(1);
-}
+reportChecks("echo", pass, failures, {
+  onFail: (fs) => console.log(`FAIL: ${fs.join("; ")}`),
+});

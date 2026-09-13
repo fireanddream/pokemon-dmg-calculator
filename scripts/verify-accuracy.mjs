@@ -3,6 +3,7 @@
 // accuracy), so these are the canonical formula values, not a diff oracle.
 //   npm run verify:acc
 import { hitChance } from "../dist/accuracy.js";
+import { reportChecks } from "./verify-util.mjs";
 
 let pass = 0;
 const failures = [];
@@ -96,12 +97,11 @@ TI("fissure fails vs a flying type", { moveName: "Fissure", baseAccuracy: 30, ca
 T("guillotine vs a normal type is 30%", 0.3, { moveName: "Guillotine", baseAccuracy: 30, category: "Physical", attacker: S("", "", 0), defender: S("", "", 0), defenderTypes: ["Normal"] });
 T("no guard horn drill vs a steel target always hits", 1, { moveName: "Horn Drill", baseAccuracy: 30, category: "Physical", attacker: S("No Guard", "", 0), defender: S("", "", 0), defenderTypes: ["Steel"] });
 
-console.log("");
-console.log(`${pass}/${pass + failures.length} accuracy checks passed`);
-if (failures.length > 0) {
-  for (const f of failures) {
-    console.log(`FAIL ${f.name}: wanted ${(f.expected * 100).toFixed(2)}%, got ${(f.got * 100).toFixed(2)}%`);
-    console.log(`     notes: ${f.notes.join("; ")}`);
-  }
-  process.exit(1);
-}
+reportChecks("accuracy", pass, failures, {
+  onFail: (fs) => {
+    for (const f of fs) {
+      console.log(`FAIL ${f.name}: wanted ${(f.expected * 100).toFixed(2)}%, got ${(f.got * 100).toFixed(2)}%`);
+      console.log(`     notes: ${f.notes.join("; ")}`);
+    }
+  },
+});
