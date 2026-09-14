@@ -5,6 +5,8 @@
 //   -search move <type> [power] [phys|special]
 //                                         attack moves of <type>; exact power
 //                                         and category optional, any order
+//   -search stats <name>                  base stats + tier for one pokemon
+//                                         (name folded: spaces/hyphens/punct)
 //
 // Data is the Smogon XY dex this repo already ships. `pokemon` reads the
 // curated `data/xy-pokemon.json` AS THE CALCULAOR SEES IT: one entry per
@@ -20,7 +22,7 @@
 // Output is names only, comma-separated, sorted by name; an empty result is
 // the literal "none found". Everything here is CLI-only: it never touches the
 // damage-query converter / route / card path.
-import { dexData, movesData, typesData, byName } from "./data.mjs";
+import { dexData, movesData, typesData, byName, monByName, norm } from "./data.mjs";
 
 const POKEMON = dexData.pokemon;
 const MOVES = movesData.moves;
@@ -68,6 +70,33 @@ export function findMoves({ type, power, category } = {}) {
     .sort(byName);
 }
 
+/** Stat block order and display labels (full words, never the move-lookup
+ *  category shorthands `spa`/`spe`). */
+const STAT_ORDER = ["hp", "atk", "def", "spa", "spd", "spe"];
+const STAT_LABELS = { hp: "HP", atk: "ATK", def: "DEF", spa: "SPA", spd: "SPD", spe: "SPE" };
+
+/** One `x` per 5 base-stat points, rounded up (max 255 -> 51 blocks). */
+const statBlocks = (value) => "x".repeat(Math.ceil(value / 5));
+
+/** Resolve ONE pokemon by name, folding spaces, hyphens and punctuation the
+ *  same way the name maps do (`norm`), so "Mr. Mime" / "mr mime" / "mrmime"
+ *  and "Rotom-Wash" all hit. Returns the dex entry or null. */
+export function findStats(name) {
+  return monByName.get(norm(String(name))) ?? null;
+}
+
+/** Render a dex entry as a base-stat block: a `Name Type1 [Type2] Tier` header
+ *  then one `LABEL value xxxxx` row per stat, value right-aligned to 3 and the
+ *  bar one `x` per 5 points rounded up. */
+export function formatStats(entry) {
+  const head = [entry.name, ...entry.types, entry.tier].join(" ");
+  const rows = STAT_ORDER.map((stat) => {
+    const value = entry.baseStats[stat];
+    return `${STAT_LABELS[stat].padStart(3)} ${String(value).padStart(3)} ${statBlocks(value)}`;
+  });
+  return [head, ...rows].join("\n") + "\n";
+}
+
 const parsePower = (tok) => {
   if (!/^\d+$/.test(tok)) return null;
   return Number(tok);
@@ -86,10 +115,14 @@ const USAGE = `usage:
       attacking moves of <type>. Power (exact) and category are optional and
       may appear in either order. category: physical / special, or the short
       forms phy / spe / atk / spa.
-  results are names only, comma-separated and sorted by name; an empty result
-  prints "none found".`;
+  -search stats <name>
+      base stats + tier for one pokemon: a header line (name, typing, tier)
+      then one row per stat, "LABEL value xxxx" with one x per 5 points
+      rounded up. Name folds spaces/hyphens/punctuation.
+  pokemon / move results are names only, comma-separated and sorted by name;
+  an empty result prints "none found".`;
 
-/** Search subcommands: `pokemon` and `move` (case-insensitive). */
+/** Search subcommands: `pokemon`, `move` and `stats` (case-insensitive). */
 export function isSearchCommand(token) {
   return /^--?search$/i.test(String(token).trim());
 }
@@ -122,6 +155,12 @@ export function searchCommand(args, { width = 100 } = {}) {
     }
     if (type === null) return format([]);
     return format(findMoves({ type, power, category }));
+  }
+
+  if (sub === "stats") {
+    if (rest.length === 0) return USAGE + "\n";
+    const entry = findStats(rest.join(" "));
+    return entry ? formatStats(entry) : format([]);
   }
 
   return USAGE + "\n";

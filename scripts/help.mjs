@@ -223,11 +223,14 @@ Look up function (CLI only):
         attacking Fighting moves of power 80
     -search move fighting special
         ... by category (physical / special, or phy / spe / atk / spa)
+    -search stats garchomp
+        base stats + tier: a header line, then one "LABEL value xxxx" row
+        per stat (one x per 5 points, rounded up)
 
     full type names, no aliases; results are comma-separated names
     sorted by name, or "none found"
 
-    -search    look up pokemon by typing / attacking moves by type
+    -search    look up typing / moves / base stats
     -help      this quickstart
     -grammar   the token grammar + one example per name type
     -limits    what the calculator does not model, auto-derived from DESIGN-RECORDS.md

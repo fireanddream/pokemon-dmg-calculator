@@ -3,7 +3,7 @@
 // attack-move lookup (type + exact power + category aliases, attack-only), plus
 // command recognition and the usage fallback.
 //   npm run verify:lookup
-import { findPokemon, findMoves, isSearchCommand, searchCommand } from "./lookup.mjs";
+import { findPokemon, findMoves, findStats, formatStats, isSearchCommand, searchCommand } from "./lookup.mjs";
 import { dexData, movesData, byName } from "./data.mjs";
 import { reportChecks } from "./verify-util.mjs";
 
@@ -139,6 +139,35 @@ check(
 );
 check("move output ends in a newline", moveLine.endsWith("\n"));
 check("move output is one line", moveLine.split("\n").filter((l) => l !== "").length === 1);
+
+console.log("\n-search stats");
+
+// --- header + rows / alignment (Garchomp 108/130/95/80/85/102) ---
+check("stats with no name prints usage", /usage:/.test(searchCommand(["stats"])));
+const garchomp = searchCommand(["stats", "garchomp"]);
+check("stats header is name/typing/tier", garchomp.split("\n")[0] === "Garchomp Dragon Ground OU");
+check("stats block is header + six rows", garchomp.trim().split("\n").length === 7);
+check("stats HP row: value right-3, 22 blocks", /^ HP 108 x{22}$/m.test(garchomp));
+check("stats ATK row: 26 blocks", /^ATK 130 x{26}$/m.test(garchomp));
+check("stats DEF row: 19 blocks", /^DEF  95 x{19}$/m.test(garchomp));
+check("stats SPA row: 16 blocks", /^SPA  80 x{16}$/m.test(garchomp));
+check("stats SPD row: 17 blocks", /^SPD  85 x{17}$/m.test(garchomp));
+check("stats SPE row: 21 blocks", /^SPE 102 x{21}$/m.test(garchomp));
+check("stats output ends in a newline", garchomp.endsWith("\n"));
+const blissey = searchCommand(["stats", "blissey"]);
+check("stats uncapped at max (HP 255 -> 51 blocks)", /^ HP 255 x{51}$/m.test(blissey));
+
+// --- folded names (spaces / hyphens / punctuation) ---
+check("stats folds Mr. Mime across words", searchCommand(["stats", "Mr.", "Mime"]).startsWith("Mr. Mime"));
+check("stats folds mrmime", searchCommand(["stats", "mrmime"]).startsWith("Mr. Mime"));
+check("stats folds a hyphenated forme", searchCommand(["stats", "Rotom-Wash"]).startsWith("Rotom-Wash"));
+check("stats casing is ignored", eq(searchCommand(["stats", "GARCHOMP"]), garchomp));
+
+// --- helpers / misses ---
+check("findStats resolves a folded name", findStats("garchomp")?.name === "Garchomp");
+check("findStats misses cleanly", findStats("definitely-not-a-mon") === null);
+check("formatStats returns the block for a miss-free entry", formatStats(findStats("Garchomp")).startsWith("Garchomp"));
+check("stats unknown name prints none found", /none found/.test(searchCommand(["stats", "definitely-not-a-mon"])));
 
 reportChecks("lookup", pass, failures, {
   onFail: (fs) => console.log(`FAIL: ${fs.join("; ")}`),

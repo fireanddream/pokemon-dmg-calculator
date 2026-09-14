@@ -741,6 +741,14 @@ and its output is a single unwrapped, comma-separated line sorted by name
   accepts `physical` / `special` plus `phy` / `spe` / `atk` / `spa`; `attack`
   and `special attack` are rejected. Non-attacking moves (source category
   `Non-Damaging`) are never returned.
+- `-search stats <name>` — base stats + tier for one pokemon from the curated
+  `data/xy-pokemon.json`. The name folds spaces / hyphens / punctuation through
+  the shared `norm()` map (so "Mr. Mime" / "mr mime" / "mrmime" and
+  "Rotom-Wash" all hit). Output is a header line `Name Type1 [Type2] Tier` then
+  one `LABEL value xxxx` row per stat in the order HP / Atk / Def / SpA / SpD /
+  Spe: the value is right-aligned to width 3 and the bar is one `x` per 5 base
+  points rounded up, uncapped (HP 255 → 51 blocks, a 59-column line). A miss
+  prints `none found`.
 
 `npm run verify:lookup` pins all of the above, and `-help` advertises the
 command.
