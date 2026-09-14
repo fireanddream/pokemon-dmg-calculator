@@ -99,9 +99,7 @@ const USAGE = `usage:
                       (physical/special, or phy/spe/atk/spa) are optional and
                       may appear in either order
   -search stats <name>
-                      base stats + tier for one pokemon: a header line (name,
-                      typing, tier) then one row per stat, "LABEL value xxxx",
-                      one x per 5 points rounded up
+                      show base stats, abilities, tier and speed at lv50
 
   tokens can go in ANY order on a side (item, nature, EVs, ability and the move
   may come before or after the species); only "vs" is fixed — it splits the
@@ -128,7 +126,7 @@ Helpers
   -limits                                what the calculator does not model
   -search pokemon <type> [type2]         list pokemon whose exact typing matches
   -search move <type> [power] [phy/spe]  list attacking moves of a type
-  -search stats <name>                   base stats + tier for one pokemon`;
+  -search stats <name>                   base stats, abilities, tier, Lv50 Speed`;
 
 /** Parse argv into a run plan: flags plus the remaining source words. */
 function parseArgs(argv) {

@@ -5,8 +5,8 @@
 //   -search move <type> [power] [phys|special]
 //                                         attack moves of <type>; exact power
 //                                         and category optional, any order
-//   -search stats <name>                  base stats + tier + Lv50 Speed
-//                                         (name folded: spaces/hyphens/punct)
+//   -search stats <name>                  base stats + abilities + tier +
+//                                         Lv50 Speed (name folded)
 //
 // Data is the Smogon XY dex this repo already ships. `pokemon` reads the
 // curated `data/xy-pokemon.json` AS THE CALCULAOR SEES IT: one entry per
@@ -92,12 +92,13 @@ export function findStats(name) {
   return monByName.get(norm(String(name))) ?? null;
 }
 
-/** Render a dex entry as a base-stat block: a `Name Type1 [Type2] Tier` header,
- *  a blank line, one `LABEL value xxxxx` row per stat (value right-aligned to 3,
- *  bar one `x` per 5 points rounded up), a blank line, then the level-50 Speed
- *  benchmarks (0 EV / 252 EV neutral / 252 EV boosted). */
+/** Render a dex entry as a base-stat block: a
+ *  `Name Type1 [Type2] <abilities> Tier` header (abilities `/`-joined in dex
+ *  order, hidden last), a blank line, one `LABEL value xxxxx` row per stat
+ *  (value right-aligned to 3, bar one `x` per 5 points rounded up), a blank
+ *  line, then the level-50 Speed benchmarks. */
 export function formatStats(entry) {
-  const head = [entry.name, ...entry.types, entry.tier].join(" ");
+  const head = [entry.name, ...entry.types, entry.abilities.join("/"), entry.tier].join(" ");
   const rows = STAT_ORDER.map((stat) => {
     const value = entry.baseStats[stat];
     return `${STAT_LABELS[stat].padStart(3)} ${String(value).padStart(3)} ${statBlocks(value)}`;
@@ -129,9 +130,7 @@ const USAGE = `usage:
       may appear in either order. category: physical / special, or the short
       forms phy / spe / atk / spa.
   -search stats <name>
-      base stats + tier for one pokemon: a header line (name, typing, tier)
-      then one row per stat, "LABEL value xxxx" with one x per 5 points
-      rounded up, then the level-50 Speed line. Name folds
+      show base stats, abilities, tier and speed at lv50. Name folds
       case/spaces/hyphens/punctuation.
   pokemon / move results are names only, comma-separated and sorted by name;
   an empty result prints "none found".`;

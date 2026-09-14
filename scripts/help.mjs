@@ -224,8 +224,7 @@ Look up function (CLI only):
     -search move fighting special
         ... by category (physical / special, or phy / spe / atk / spa)
     -search stats garchomp
-        base stats + tier: a header line, then one "LABEL value xxxx" row
-        per stat (one x per 5 points, rounded up)
+        show base stats, abilities, tier and speed at lv50
 
     full type names, no aliases; results are comma-separated names
     sorted by name, or "none found"

@@ -746,7 +746,12 @@ and its output is a single unwrapped, comma-separated line sorted by name
   through the shared `norm()` map (so "Mr. Mime" / "mr mime" / "mrmime" and
   "Rotom-Wash" all hit); no species aliases, no mega reordering, no fuzzy
   matching. Output is:
-  1. a header line `Name Type1 [Type2] Tier`,
+  1. a header line `Name Type1 [Type2] <abilities> Tier`, where `<abilities>`
+     is the dex `abilities` array `/`-joined in order. That array carries no
+     hidden-ability flag (the Smogon `dump-basics` source flattens it), but the
+     order is slot 0, slot 1, then the hidden ability last — so a length-1
+     array has no HA, and a length≥2 array's last entry is the HA. It is shown
+     plainly (no `(HA)` tag),
   2. a blank line,
   3. one `LABEL value xxxx` row per stat in the order HP / Atk / Def / SpA /
      SpD / Spe: the value right-aligned to width 3 and the bar one `x` per 5

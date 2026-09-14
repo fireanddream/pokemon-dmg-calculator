@@ -147,7 +147,7 @@ console.log("\n-search stats");
 check("stats with no name prints usage", /usage:/.test(searchCommand(["stats"])));
 const garchomp = searchCommand(["stats", "garchomp"]);
 const gLines = garchomp.split("\n");
-check("stats header is name/typing/tier", gLines[0] === "Garchomp Dragon Ground OU");
+check("stats header is name/typing/abilities/tier", gLines[0] === "Garchomp Dragon Ground Sand Veil/Rough Skin OU");
 check("stats blank line after the header", gLines[1] === "");
 check("stats HP row: value right-3, 22 blocks", /^ HP 108 x{22}$/m.test(garchomp));
 check("stats ATK row: 26 blocks", /^ATK 130 x{26}$/m.test(garchomp));
@@ -166,6 +166,16 @@ check("stats uncapped at max (HP 255 -> 51 blocks)", /^ HP 255 x{51}$/m.test(bli
 check(
   "stats Lv50 Speed tracks the base stat (Blissey 55 -> 75 / 107 / 117)",
   /^Lv50 Speed: 0 EV 75  ·  252 EV neutral 107  ·  252 EV boosted 117$/m.test(blissey),
+);
+
+// --- abilities in the header (`/`-joined in dex order, hidden last) ---
+check(
+  "stats lists all three abilities (2 standard + HA)",
+  searchCommand(["stats", "gliscor"]).startsWith("Gliscor Ground Flying Hyper Cutter/Sand Veil/Poison Heal OU"),
+);
+check(
+  "stats lists a single ability",
+  searchCommand(["stats", "rotom-wash"]).startsWith("Rotom-Wash Electric Water Levitate OU"),
 );
 
 // --- Lv50 Speed formula pinned to myteam/speed.tsv values ---
