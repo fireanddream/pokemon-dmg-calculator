@@ -742,13 +742,23 @@ and its output is a single unwrapped, comma-separated line sorted by name
   and `special attack` are rejected. Non-attacking moves (source category
   `Non-Damaging`) are never returned.
 - `-search stats <name>` — base stats + tier for one pokemon from the curated
-  `data/xy-pokemon.json`. The name folds spaces / hyphens / punctuation through
-  the shared `norm()` map (so "Mr. Mime" / "mr mime" / "mrmime" and
-  "Rotom-Wash" all hit). Output is a header line `Name Type1 [Type2] Tier` then
-  one `LABEL value xxxx` row per stat in the order HP / Atk / Def / SpA / SpD /
-  Spe: the value is right-aligned to width 3 and the bar is one `x` per 5 base
-  points rounded up, uncapped (HP 255 → 51 blocks, a 59-column line). A miss
-  prints `none found`.
+  `data/xy-pokemon.json`. The name folds case / spaces / hyphens / punctuation
+  through the shared `norm()` map (so "Mr. Mime" / "mr mime" / "mrmime" and
+  "Rotom-Wash" all hit); no species aliases, no mega reordering, no fuzzy
+  matching. Output is:
+  1. a header line `Name Type1 [Type2] Tier`,
+  2. a blank line,
+  3. one `LABEL value xxxx` row per stat in the order HP / Atk / Def / SpA /
+     SpD / Spe: the value right-aligned to width 3 and the bar one `x` per 5
+     base points rounded up, uncapped (HP 255 → 51 blocks, a 59-column line),
+  4. a blank line,
+  5. a `Lv50 Speed:` line with the gen-6 level-50, IV 31 Speed for the three
+     benchmark spreads the team speed sheet uses — `0 EV`, `252 EV neutral`,
+     `252 EV +Spe` (the values match `myteam/speed.tsv`, e.g. base 102 →
+     122 / 154 / 169).
+
+  A miss prints `none found`. The three speed scenarios are a design detail and
+  are deliberately NOT spelled out in `-help` / `-grammar` / the banner.
 
 `npm run verify:lookup` pins all of the above, and `-help` advertises the
 command.

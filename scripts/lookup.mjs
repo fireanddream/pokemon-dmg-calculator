@@ -5,7 +5,7 @@
 //   -search move <type> [power] [phys|special]
 //                                         attack moves of <type>; exact power
 //                                         and category optional, any order
-//   -search stats <name>                  base stats + tier for one pokemon
+//   -search stats <name>                  base stats + tier + Lv50 Speed
 //                                         (name folded: spaces/hyphens/punct)
 //
 // Data is the Smogon XY dex this repo already ships. `pokemon` reads the
@@ -78,23 +78,36 @@ const STAT_LABELS = { hp: "HP", atk: "ATK", def: "DEF", spa: "SPA", spd: "SPD", 
 /** One `x` per 5 base-stat points, rounded up (max 255 -> 51 blocks). */
 const statBlocks = (value) => "x".repeat(Math.ceil(value / 5));
 
-/** Resolve ONE pokemon by name, folding spaces, hyphens and punctuation the
- *  same way the name maps do (`norm`), so "Mr. Mime" / "mr mime" / "mrmime"
- *  and "Rotom-Wash" all hit. Returns the dex entry or null. */
+/** Level-50 Speed (IV 31, gen-6 formula) — the three benchmark spreads the
+ *  team speed sheet uses: 0 EVs, 252 EVs neutral, 252 EVs +Speed nature. */
+export function benchmarkSpeed(base, ev, boosted = false) {
+  const neutral = Math.floor(((2 * base + 31 + Math.floor(ev / 4)) * 50) / 100) + 5;
+  return Math.floor(neutral * (boosted ? 1.1 : 1));
+}
+
+/** Resolve ONE pokemon by name, folding case, hyphens and punctuation the same
+ *  way the name maps do (`norm`), so "Mr. Mime" / "mr mime" / "mrmime" and
+ *  "Rotom-Wash" all hit. Returns the dex entry or null. */
 export function findStats(name) {
   return monByName.get(norm(String(name))) ?? null;
 }
 
-/** Render a dex entry as a base-stat block: a `Name Type1 [Type2] Tier` header
- *  then one `LABEL value xxxxx` row per stat, value right-aligned to 3 and the
- *  bar one `x` per 5 points rounded up. */
+/** Render a dex entry as a base-stat block: a `Name Type1 [Type2] Tier` header,
+ *  a blank line, one `LABEL value xxxxx` row per stat (value right-aligned to 3,
+ *  bar one `x` per 5 points rounded up), a blank line, then the level-50 Speed
+ *  benchmarks (0 EV / 252 EV neutral / 252 EV boosted). */
 export function formatStats(entry) {
   const head = [entry.name, ...entry.types, entry.tier].join(" ");
   const rows = STAT_ORDER.map((stat) => {
     const value = entry.baseStats[stat];
     return `${STAT_LABELS[stat].padStart(3)} ${String(value).padStart(3)} ${statBlocks(value)}`;
   });
-  return [head, ...rows].join("\n") + "\n";
+  const spe = entry.baseStats.spe;
+  const speed =
+    `Lv50 Speed: 0 EV ${benchmarkSpeed(spe, 0)}` +
+    `  ·  252 EV neutral ${benchmarkSpeed(spe, 252)}` +
+    `  ·  252 EV boosted ${benchmarkSpeed(spe, 252, true)}`;
+  return [head, "", ...rows, "", speed].join("\n") + "\n";
 }
 
 const parsePower = (tok) => {
@@ -118,7 +131,8 @@ const USAGE = `usage:
   -search stats <name>
       base stats + tier for one pokemon: a header line (name, typing, tier)
       then one row per stat, "LABEL value xxxx" with one x per 5 points
-      rounded up. Name folds spaces/hyphens/punctuation.
+      rounded up, then the level-50 Speed line. Name folds
+      case/spaces/hyphens/punctuation.
   pokemon / move results are names only, comma-separated and sorted by name;
   an empty result prints "none found".`;
 

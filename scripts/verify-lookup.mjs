@@ -3,7 +3,7 @@
 // attack-move lookup (type + exact power + category aliases, attack-only), plus
 // command recognition and the usage fallback.
 //   npm run verify:lookup
-import { findPokemon, findMoves, findStats, formatStats, isSearchCommand, searchCommand } from "./lookup.mjs";
+import { findPokemon, findMoves, findStats, formatStats, benchmarkSpeed, isSearchCommand, searchCommand } from "./lookup.mjs";
 import { dexData, movesData, byName } from "./data.mjs";
 import { reportChecks } from "./verify-util.mjs";
 
@@ -142,20 +142,42 @@ check("move output is one line", moveLine.split("\n").filter((l) => l !== "").le
 
 console.log("\n-search stats");
 
-// --- header + rows / alignment (Garchomp 108/130/95/80/85/102) ---
+// --- layout: header / blank / six rows / blank / Lv50 Speed ---
+// (Garchomp 108/130/95/80/85/102; Speed 102 -> 122 / 154 / 169)
 check("stats with no name prints usage", /usage:/.test(searchCommand(["stats"])));
 const garchomp = searchCommand(["stats", "garchomp"]);
-check("stats header is name/typing/tier", garchomp.split("\n")[0] === "Garchomp Dragon Ground OU");
-check("stats block is header + six rows", garchomp.trim().split("\n").length === 7);
+const gLines = garchomp.split("\n");
+check("stats header is name/typing/tier", gLines[0] === "Garchomp Dragon Ground OU");
+check("stats blank line after the header", gLines[1] === "");
 check("stats HP row: value right-3, 22 blocks", /^ HP 108 x{22}$/m.test(garchomp));
 check("stats ATK row: 26 blocks", /^ATK 130 x{26}$/m.test(garchomp));
 check("stats DEF row: 19 blocks", /^DEF  95 x{19}$/m.test(garchomp));
 check("stats SPA row: 16 blocks", /^SPA  80 x{16}$/m.test(garchomp));
 check("stats SPD row: 17 blocks", /^SPD  85 x{17}$/m.test(garchomp));
 check("stats SPE row: 21 blocks", /^SPE 102 x{21}$/m.test(garchomp));
+check("stats blank line after the six rows", gLines[8] === "");
+check(
+  "stats ends with the Lv50 Speed line",
+  gLines[9] === "Lv50 Speed: 0 EV 122  ·  252 EV neutral 154  ·  252 EV boosted 169",
+);
 check("stats output ends in a newline", garchomp.endsWith("\n"));
 const blissey = searchCommand(["stats", "blissey"]);
 check("stats uncapped at max (HP 255 -> 51 blocks)", /^ HP 255 x{51}$/m.test(blissey));
+check(
+  "stats Lv50 Speed tracks the base stat (Blissey 55 -> 75 / 107 / 117)",
+  /^Lv50 Speed: 0 EV 75  ·  252 EV neutral 107  ·  252 EV boosted 117$/m.test(blissey),
+);
+
+// --- Lv50 Speed formula pinned to myteam/speed.tsv values ---
+check("speed 102 no EV = 122", benchmarkSpeed(102, 0) === 122);
+check("speed 102 neutral = 154", benchmarkSpeed(102, 252) === 154);
+check("speed 102 boosted = 169", benchmarkSpeed(102, 252, true) === 169);
+check("speed 61 no EV = 81", benchmarkSpeed(61, 0) === 81);
+check("speed 70 neutral = 122", benchmarkSpeed(70, 252) === 122);
+check("speed 70 boosted = 134", benchmarkSpeed(70, 252, true) === 134);
+check("speed 130 boosted = 200", benchmarkSpeed(130, 252, true) === 200);
+check("speed 150 neutral = 202", benchmarkSpeed(150, 252) === 202);
+check("speed 150 boosted = 222", benchmarkSpeed(150, 252, true) === 222);
 
 // --- folded names (spaces / hyphens / punctuation) ---
 check("stats folds Mr. Mime across words", searchCommand(["stats", "Mr.", "Mime"]).startsWith("Mr. Mime"));
