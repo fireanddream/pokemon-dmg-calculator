@@ -13,7 +13,6 @@ __pycache__/
 
 # Local-only, not for public release (kept on disk, never synced)
 myteam/
-/teams_tools/
 /AGENTS.md
 /.opencode/
 /TODO.md

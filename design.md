@@ -123,7 +123,8 @@ abilities (`fill.mjs`).
 
 - Arena words bind bare anywhere on either side. There are no
   `in` / `under` / `after` signals; those are junk. Phrase beats single word
-  (`rock` → `rock slide`, `sand` → `sand stream`).
+  (`rock slide` beats bare `rock`, which is Stealth Rock; `sand stream` beats
+  bare `sand`, which is weather).
 - Same-slot values dedupe/conflict through `claimSlot`. Cross-side `mergeArena`
   throws on two different values (weather, terrain, spikes layers), collapses
   equal values; Stealth Rock is a boolean.
