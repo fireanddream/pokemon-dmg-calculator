@@ -20,6 +20,7 @@ Machine-read tables (each in its own `##` section, one table per section):
 |---|---|
 | `## Defaults at a glance` | Pure fill defaults (level, nature, IVs, EVs, ...) |
 | `## EV / nature shorthand` | The `max atk/spa/def/spd` expansions |
+| `## Nature EV defaults` | The `Adamant/Modest/Jolly/Timid` spread a typed nature implies |
 | `## Orb defaults` | Flame Orb / Toxic Orb → status (gen-6 restrictions) |
 | `## Weather setters` | Weather-setting ability → arena weather |
 | `## Status first (top priority)` | Statused mon → interacting ability |
@@ -51,7 +52,7 @@ next time the front runs.
 | Level | 50 | `Lv100` / `level 100` / `Lv 75` (clamped 1–100) |
 | Nature | Serious | any nature word: `Jolly`, `Adamant`, ... |
 | IVs | 31 | no spec token. Only forced values change: **Hidden Power Fire → attacker SpA IV 30**; **Foul Play → defender Atk IV 0** when its base Atk < base SpA (Foul Play is the only move that reads the defender's Atk). Shown on the card. |
-| EVs | 0 | only named `N <stat>` tokens get EVs (cap 252 each) |
+| EVs | 0 | named `N <stat>` tokens and `max <stat>`; a typed offensive nature also fills a spread (see `## Nature EV defaults`) |
 | Held item | has item, no effect | name an item / acronym, or `no item` |
 | Status | none | `burned`, `poisoned`, `toxic`, `paralyzed`, `asleep`, `frozen` |
 | Stat stages | +0 on all five stats | `-1 atk`, `+2 spa`, `-3 def`, `+1 spe` (cap ±6) |
@@ -100,11 +101,18 @@ the orb does nothing on the blocked types (a note is shown, no status is set).
 `max X` tokens expand to a fixed EV spread **plus a default nature**. The
 nature depends on the species' base stats when the EV spread drops one attacking
 stat: if base Atk ≤ base SpA the nature lowers **Atk** (Bold / Calm); if base
-Atk > base SpA it lowers **SpA** (Impish / Careful). A nature the user names
-explicitly always wins over the shorthand default. When several `max` tokens
+Atk > base SpA it lowers **SpA** (Impish / Careful). When several `max` tokens
 are typed, every one expands (different stats coexist); if no explicit nature is
 typed the FIRST-typed `max`'s nature wins, and the merged EVs must not exceed
 the 510 total cap (an over-total is a hard error).
+
+A nature the user **types** is strict against the shorthands: each `max <stat>`
+carries the nature it would auto-pick, and naming any other nature is a **hard
+conflict**, not a silent override. The implied sets are `max atk` → Adamant,
+`max spa` → Modest, `max def` → Bold/Impish, `max spd` → Calm/Careful,
+`max spe` → Jolly/Timid, and `max hp` → none (so any typed nature is allowed
+alongside `max hp`). So `max def Adamant`, `max atk Jolly` and `max spe Adamant`
+all error.
 
 | Token | HP | ATK | DEF | SPA | SPD | SPE | Nature if base Atk ≤ SpA | Nature if base Atk > SpA |
 |---|---|---|---|---|---|---|---|---|
@@ -124,7 +132,35 @@ Shorthands and plain `N <stat>` EV tokens merge (e.g. `max atk` + `252 HP` sets
 Atk 252 and HP 252), except an explicit EV on the stat a `max` NAMES conflicts
 with it when the values differ (same value collapses). An explicit HP EV
 overrides the HP that `max def` / `max spd` imply. Plain nature/EV defaults
-remain in force for every stat not covered by a token.
+remain in force for every stat not covered by a token. A typed offensive
+nature's implied spread (next section) merges the same way: a stat the
+shorthands already set is left alone, and an attempt that would break the 510
+total is dropped rather than erroring.
+
+## Nature EV defaults
+
+A typed offensive nature alone implies a standard EV spread — the inverse of the
+`max` shorthands. Only these four natures do it, and only when the nature is
+**typed by the user** (a Jolly/Timid the `max spe` shorthand auto-picks never
+triggers it). Each row's attempts run in order, and for each attempt:
+
+1. a stat that already has an EV (a typed `N <stat>` or a `max` expansion) is
+   left as-is — the existing value wins;
+2. otherwise the EV is set, but only if it keeps the side's total at or under
+   510;
+3. an attempt that would break 510 is **dropped**, leaving room for later
+   attempts (it is not an error).
+
+| Nature | Attempt 1 | Attempt 2 |
+|---|---|---|
+| Adamant | atk 252 | — |
+| Modest | spa 252 | — |
+| Jolly | spe 252 | atk 252 |
+| Timid | spe 252 | spa 252 |
+
+So `Jolly 100 Spe` → 100 Spe + 252 Atk; `Jolly 252 HP` → 252 HP + 252 Spe (the
+Atk attempt is dropped: 756 > 510); `Jolly 252 HP 252 Def` → no nature EVs at
+all. Any nature not in the table sets no EVs.
 
 ## Weather setters
 

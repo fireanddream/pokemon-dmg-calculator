@@ -13,11 +13,12 @@
       "def": 115,
       "spa": 90,
       "spd": 105,
-      "spe": 134
+      "spe": 169
     },
     "nature": "Jolly",
     "evs": {
-      "atk": 252
+      "atk": 252,
+      "spe": 252
     },
     "ability": "Sand Veil",
     "item": "Life Orb",

@@ -278,7 +278,9 @@ ordinary forme runs do not. Short aliases are the escape hatch (`giratina o`).
 
 ### Intentional simplifications
 
-Neutral nature by default, EVs 0 by default, an inert held item assumed unless
+Neutral nature by default, EVs 0 by default (a typed Adamant / Modest / Jolly /
+Timid instead fills a standard offensive spread, and a `max <stat>` shorthand
+carries a strict implied nature), an inert held item assumed unless
 `no item`, Megas always hold their Mega Stone, no auto stat-stage abilities, and
 status words ignore typing (Fire can be "burned" if typed; Flame Orb / Toxic Orb
 still apply their status with the gen-6 type restriction).
@@ -324,7 +326,7 @@ opencode.
 ## 12. Verification
 
 `verify:damage` 78/78, `verify:acc` 44/44, `verify:echo` 7/7,
-`verify:multihit` 34/34, `verify:lookup` 81/81, `verify:help` 59/59, plus the
+`verify:multihit` 34/34, `verify:lookup` 81/81, `verify:help` 63/63, plus the
 corpus chaincheck "all identical". `@smogon/calc` is a devDependency oracle
 only; the engine never depends on it at runtime.
 

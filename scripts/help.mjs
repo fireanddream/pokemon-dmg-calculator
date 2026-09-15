@@ -73,6 +73,8 @@ const GRAMMAR = [
   "                     hp cannot have stages",
   "  Boost, no stat     +1 / -2            applies to the stat the attack uses",
   "  Max shorthand      max <stat>         assumes 252 ev in category; defaults to boosted natures",
+  "                     a conflicting typed nature is an error (max def + Adamant)",
+  "  Nature EV default  Adamant/Modest/Jolly/Timid alone assume a spread (252 atk/spa; jolly/timid add 252 spe)",
   "  Hidden Power       hidden power ice / hp ice               16 types; Normal & Fairy rejected",
   "  Spikes layers      spike (1 layer) / spikes (3) / 2 spikes / spikes 2 / spikes x2",
   '  Two-move calc      two attack moves on attacker side: "Garchomp EQ Outrage vs Skarmory"',
@@ -201,7 +203,7 @@ Assumed when you leave it out:
   Level        50
   Nature       Serious
   IVs          31
-  EVs          0
+  EVs          0 (a typed offensive nature fills a spread; see below)
   Held item    has item, no effect
   Ability      auto-picked (e.g. Scizor -> Technician; a statused mon -> its
                status ability; a weather setter -> its weather). Card prints the pick.
@@ -209,6 +211,8 @@ Assumed when you leave it out:
 Engine expansions:
   boost moves are auto-converted to stat boosts           sd -> Swords Dance (not an attacking move)
   max <stat> assumes a boosted nature                     max atk -> 252 Atk EVs + Adamant
+  the four offensive natures assume an EV spread          Adamant -> 252 Atk; Jolly -> 252 Spe + Atk
+  max <stat> + a conflicting typed nature errors          max def Adamant -> conflict
   flame orb / toxic orb assumes the corresponding status               flame orb -> burned
   arena ability assumes the corresponding arena condition              Drizzle -> Rain
 

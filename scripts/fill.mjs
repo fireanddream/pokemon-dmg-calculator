@@ -60,6 +60,15 @@ const BUILTIN_ORB = {
   "Flame Orb": { status: "brn", blocked: ["Fire"] },
   "Toxic Orb": { status: "tox", blocked: ["Steel", "Poison"] },
 };
+// Typed-nature EV defaults (only the four offensive natures; an auto-picked
+// Jolly/Timid never triggers them). Each entry is an ORDERED list of
+// [stat, value] attempts — Jolly/Timid try Spe before the offense.
+const BUILTIN_NATURE_EVS = {
+  adamant: [["atk", 252]],
+  modest: [["spa", 252]],
+  jolly: [["spe", 252], ["atk", 252]],
+  timid: [["spe", 252], ["spa", 252]],
+};
 
 /** Pure fill defaults from the "## Defaults at a glance" table (Variable rows:
  *  Level / Nature / IVs / EVs). Falls back per-key to BUILTIN_FILL_DEFAULTS. */
@@ -126,6 +135,27 @@ function parseShorthand(doc) {
     out[token] = { evs, low: stripMdCell(cells[7]), high: stripMdCell(cells[8]) };
   }
   return out;
+}
+
+/** Typed-nature -> ordered [stat, ev] attempts from the "Nature EV defaults"
+ *  table. Order is significant (Jolly/Timid try Spe before the offense). A cell
+ *  must read `<stat> <number>` (e.g. `spe 252`); anything else (the `—`
+ *  placeholder, prose) is skipped. */
+function parseNatureEvs(doc) {
+  const section = mdSection(doc, "Nature EV defaults");
+  if (!section) return { ...BUILTIN_NATURE_EVS };
+  const out = {};
+  for (const cells of mdTableRows(section)) {
+    const nature = stripMdCell(cells[0]).replace(/`/g, "").toLowerCase();
+    if (!/^[a-z]+$/.test(nature)) continue;
+    const attempts = [];
+    for (let i = 1; i < cells.length; i++) {
+      const m = /^(hp|atk|def|spa|spd|spe)\s+(\d+)$/i.exec(stripMdCell(cells[i]).replace(/`/g, ""));
+      if (m) attempts.push([m[1].toLowerCase(), Number(m[2])]);
+    }
+    if (attempts.length) out[nature] = attempts;
+  }
+  return Object.keys(out).length ? out : { ...BUILTIN_NATURE_EVS };
 }
 
 /** Orb -> { status, blocked } from the "## Orb defaults" table. */
@@ -227,6 +257,7 @@ const WEATHER_SETTER = parseWeatherSetters(DEFAULT_DOC);
 const AURA_SETTER = parseAuraSetters(DEFAULT_DOC);
 const AURA_BREAK = "Aura Break";
 const SHORTHAND = parseShorthand(DEFAULT_DOC);
+const NATURE_EVS = parseNatureEvs(DEFAULT_DOC);
 const ORB = parseOrbs(DEFAULT_DOC);
 // Primal weathers (Desolate Land / Primordial Sea / Delta Stream) beat regular
 // sand/hail/sun/rain regardless of Speed; among themselves (or among two
@@ -464,6 +495,18 @@ function defaultAbilityName(spec, move, matchup, isAttacker) {
   return entry.abilities[0];
 }
 
+/** Natures a `max <stat>` shorthand accepts from an explicitly typed nature, or
+ *  null when it implies none (`max hp`, so any nature is allowed). `max spe`
+ *  takes either speed nature; the other shorthands take the nature(s) the
+ *  shorthand table names in its low/high columns. */
+function impliedNatures(stat) {
+  if (stat === "hp") return null;
+  if (stat === "spe") return ["Jolly", "Timid"];
+  const def = SHORTHAND["max " + stat];
+  if (!def) return null;
+  return [...new Set([def.low, def.high].filter(Boolean))];
+}
+
 /** Apply the max atk/spa/def/spd/spe/hp shorthands. RULES (user 2026-09-08,
  *  SESSION-NOTES-20260908-FREE-ORDER-RULINGS.md T3):
  *  - EVERY set max flag expands (fixes the old else-if that dropped one of
@@ -474,9 +517,11 @@ function defaultAbilityName(spec, move, matchup, isAttacker) {
  *    overrides it (explicit beats auto).
  *  - Total EVs after expansion + explicit EVs must be <= 510 (max def / max spd
  *    carry HP 252, so e.g. max atk + max def = 756 and errors).
- *  - Auto-nature (only when none typed): the FIRST-typed max's nature wins;
- *    explicit nature always beats any auto. max atk/spa/def/spd use the
- *    shorthand's low/high (dropSpa picks); max spe is Timid (special move) /
+ *  - Auto-nature (only when none typed): the FIRST-typed max's nature wins.
+ *    A TYPED nature is STRICT: it must be one every present shorthand accepts
+ *    (the shorthand's implied nature), or it is a hard conflict (max def +
+ *    Adamant, max atk + Jolly, max spe + Adamant, ...). max atk/spa/def/spd use
+ *    the shorthand's low/high (dropSpa picks); max spe is Timid (special move) /
  *    Jolly (physical move), base-Atk-vs-SpA fallback when no move (defender);
  *    max hp sets NO auto-nature.
  *  The EV spreads come from auto-fill-defaults.md's shorthand table. */
@@ -487,6 +532,18 @@ function applyMaxFlags(spec, move, side) {
   if (!flags.length) return;
   const entry = monByName.get(norm(spec.name ?? ""));
   const dropSpa = entry && entry.baseStats.atk > entry.baseStats.spa;
+
+  // strict typed nature: each present shorthand carries an implied nature; a
+  // typed nature it does not accept is a conflict, not a silent override.
+  if (spec.nature) {
+    const typed = spec.nature.toLowerCase();
+    for (const f of flags) {
+      const implied = impliedNatures(MAP[f]);
+      if (implied && !implied.some((n) => n.toLowerCase() === typed)) {
+        throw new Error(err.conflict("nature", [spec.nature, implied.join(" or ")]));
+      }
+    }
+  }
 
   // merge every shorthand's EVs; same stat twice with the same value collapses
   // (max def + max spd both carry hp 252), different values would be a conflict.
@@ -542,6 +599,26 @@ function applyMaxFlags(spec, move, side) {
   delete spec._maxOrder;
 }
 
+/** A TYPED offensive nature alone implies a standard spread — the inverse of the
+ *  max shorthands (auto-fill-defaults.md "Nature EV defaults"). Each attempt runs
+ *  in order: a stat that already has an EV (typed `N <stat>` or a max expansion)
+ *  is left as-is, and an attempt that would break the 510 total is dropped,
+ *  leaving room for later attempts (never an error). `typedNature` is the
+ *  nature the user typed (captured before applyMaxFlags can auto-pick one), so an
+ *  auto-picked Jolly/Timid never triggers a spread. */
+function applyNatureEvs(spec, typedNature) {
+  if (!spec || !typedNature) return;
+  const attempts = NATURE_EVS[typedNature.toLowerCase()];
+  if (!attempts) return;
+  spec.evs = { ...(spec.evs ?? {}) };
+  for (const [stat, value] of attempts) {
+    if (spec.evs[stat] != null) continue; // explicit / shorthand EV wins
+    const total = Object.values(spec.evs).reduce((a, b) => a + b, 0);
+    if (total + value > 510) continue; // no room: drop this attempt
+    spec.evs[stat] = value;
+  }
+}
+
 /**
  * Flame Orb / Toxic Orb default their holder to burned / badly poisoned
  * (gen-6 type restrictions respected: Fire can't be burned, Steel/Poison
@@ -571,7 +648,9 @@ function inferOrbStatus(spec) {
  *  the stat it follows, and pick a default ability when none was named. */
 function fillCombatant(spec, move, matchup, side) {
   if (!spec) return;
+  const typedNature = spec.nature; // captured before applyMaxFlags may auto-pick
   applyMaxFlags(spec, move, side);
+  applyNatureEvs(spec, typedNature);
   inferOrbStatus(spec);
   if (spec._plusBoost && move?.category) {
     // dynamic boost: on the attacker it hits the stat the move uses; on the

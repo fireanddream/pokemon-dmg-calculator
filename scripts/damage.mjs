@@ -108,8 +108,8 @@ const USAGE = `usage:
 /** Compact banner shown when the interactive prompt starts. */
 const BANNER = `Pokemon damage calculator by Winking Wizard
 
-Defaults   gen 6 mechanics · Level 50 · IVs 31 · 0 EVs ·
-           Serious nature · relevant ability
+Defaults   gen 6 mechanics · Level 50 · IVs 31 · Serious nature ·
+           0 EVs (a typed offensive nature fills a spread) · relevant ability
 
 Input      <attacker side>  <move>  vs  <defender side>
            item, nature, EVs, ability and the move may sit anywhere on a side;

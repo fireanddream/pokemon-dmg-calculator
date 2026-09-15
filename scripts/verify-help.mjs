@@ -51,6 +51,8 @@ check("help shows the assumed defaults", help.includes("Assumed when you leave i
 check("help shows the held-item default", help.includes("has item, no effect"));
 check("help shows the ability default example", help.includes("Scizor -> Technician"));
 check("help shows an engine expansion", help.includes("max atk -> 252 Atk EVs + Adamant"));
+check("help shows the nature EV default", help.includes("Adamant -> 252 Atk; Jolly -> 252 Spe + Atk"));
+check("help shows the nature conflict error", help.includes("max def Adamant -> conflict"));
 check("help shows the arena ability example", help.includes("Drizzle -> Rain"));
 
 for (const label of ["Grammar", "LEXEMES", "Species", "Move", "Item", "Nature", "Ability", "Status", "Weather", "Terrain", "Hazard"]) {
@@ -66,6 +68,8 @@ check("grammar notes hand-made examples", grammar.includes("hand-made"));
 check("grammar shows the plate phrase", grammar.includes('"fairy plate" = Pixie Plate'));
 check("grammar shows the short terrain word", grammar.includes("e terrain -> Electric Terrain"));
 check("grammar shows the stealth rock example", grammar.includes("rock -> Stealth Rock"));
+check("grammar notes the nature EV default", grammar.includes("Nature EV default"));
+check("grammar notes the max/nature conflict", grammar.includes("conflicting typed nature is an error"));
 check("grammar keeps the level forms", grammar.includes("lv100 / lv 100 / level 100"));
 check("grammar has no raw markdown", !/\*\*|`/.test(grammar));
 check("grammar does not mention @", !grammar.includes("@"));
