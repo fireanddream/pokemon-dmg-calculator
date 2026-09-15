@@ -46,7 +46,7 @@ A matchup JSON / query has: attacker, defender, move, plus optional arena state
 The card starts directly at the `Attacker` row — the caller's request is not
 repeated inside the card. The one-shot runner (`damage.mjs` / `route.mjs`) shows
 the request separately as the recognition echo (Block 1; see
-`DESIGN-RECORDS.md` §4 "Recognition echo"), and `output.mjs` renders only the
+`design.md` §4 "Recognition echo"), and `output.mjs` renders only the
 card block that follows:
 
 ```
@@ -112,7 +112,7 @@ Content is **projected from the docs that own it** (`scripts/help.mjs`), so it
 cannot drift: `-grammar`'s grammar is authored in `help.mjs` (human-readable)
 while its lexeme examples are read from `aliases.md` / `auto-fill-defaults.md`;
 `-help`'s defaults block is read from `auto-fill-defaults.md`; `-limits` reads
-the `Status` column of `DESIGN-RECORDS.md` §10 and drops every `done` row. Help
+the `Status` column of `design.md` §10 and drops every `done` row. Help
 wraps through the same `wrapBlock` rule and default 100 columns as the echo and
 card; `--width N` overrides it. The authored prose, grammar and worked examples
 are guarded by `npm run verify:help`.

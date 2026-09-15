@@ -1,7 +1,7 @@
 // fill.mjs — DEFAULTS + RESOLVE stage: spec JSON -> calc-input JSON.
 //
-// The single deterministic stage BOTH extractor routes feed. Consumes the spec
-// JSON (offline input-converter output OR agent-authored) that states the
+// The single deterministic stage both front routes feed. Consumes the spec
+// JSON (offline input-converter output OR agent route output) that states the
 // variables the user typed; fills every MISSING variable from
 // auto-fill-defaults.md (parsed at startup — level/nature/IV/EV fill defaults,
 // max-shorthand expansion, orb->status, weather setters, ability pick order),
@@ -516,7 +516,7 @@ function applyMaxFlags(spec, move, side) {
   }
 
   // auto-nature: first-typed max wins (spec._maxOrder from the converter);
-  // agent-authored specs without an order fall back to the old priority.
+  // specs without an order fall back to the fixed priority.
   if (!spec.nature) {
     const order = (spec._maxOrder ?? []).filter((f) => flags.includes(f));
     const fallback = ["_maxDef", "_maxSpd", "_maxSpa", "_maxAtk", "_maxSpe", "_maxHp"];
@@ -633,7 +633,7 @@ function resolve(spec) {
   const isMega = entry.name.endsWith("-Mega");
   // A Mega must hold its Mega Stone, so an explicitly typed item (or the
   // `plate` keyword) contradicts it — fail loud instead of silently dropping
-  // it (DESIGN-RECORDS §9).
+  // it (design.md §9).
   if (isMega && (spec.item || spec.plate)) {
     throw new Error(err.conflict("item", [spec.item ?? "plate", "Mega Stone"]));
   }

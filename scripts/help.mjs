@@ -8,7 +8,7 @@
 // decoupled from the doc stores, so a doc edit does not silently change what
 // these guides say:
 //   - -help and -grammar are static text (fixed spellings + hand-made examples);
-//   - -limits reads the Status column of DESIGN-RECORDS.md §10 and drops every
+//   - -limits reads the Status column of design.md §10 and drops every
 //     `done` row, so a new gap appears here the moment it is recorded there.
 // Layout wraps through echo.mjs's `wrapBlock`, exactly like the echo and card.
 import { readFile } from "node:fs/promises";
@@ -27,7 +27,7 @@ async function readDoc(name) {
   }
 }
 
-const RECORDS = await readDoc("DESIGN-RECORDS.md");
+const RECORDS = await readDoc("design.md");
 
 /** Drop markdown emphasis / code ticks and collapse whitespace for display. */
 function clean(s) {
@@ -173,7 +173,7 @@ function renderLimits() {
   lines.push(
     "",
     "Full detail — plus the intentional simplifications and the open forme-word",
-    "collisions — is in DESIGN-RECORDS.md section 10.",
+    "collisions — is in design.md section 10.",
   );
   return lines.join("\n");
 }
@@ -232,7 +232,7 @@ Look up function (CLI only):
     -search    look up typing / moves / base stats
     -help      this quickstart
     -grammar   the token grammar + one example per name type
-    -limits    what the calculator does not model, auto-derived from DESIGN-RECORDS.md
+    -limits    what the calculator does not model, auto-derived from design.md
 
 The token lists are human-editable:
     aliases.md             names / acronyms / shorthand

@@ -13,7 +13,7 @@
 // species, the 31 curated-out variant formes (Arceus / Genesect formes, the
 // dropped in-battle Zen forme, Pikachu cosplay, Basculin-Blue-Striped,
 // Keldeo-Resolute, Vivillon patterns) are already absent — see
-// DESIGN-RECORDS.md "Curated-out variant formes". Kept variants (megas,
+// design.md "Curated-out variant formes". Kept variants (megas,
 // Primal, Deoxys, Rotom, Giratina-Origin, the Therians, Kyurem-B/W, …) ship as
 // flat entries with their own types, so they are returned too. `move` reads
 // `data/moves-xy.json` and keeps only attacking moves (category Physical /
@@ -22,7 +22,8 @@
 // Output is names only, comma-separated, sorted by name; an empty result is
 // the literal "none found". Everything here is CLI-only: it never touches the
 // damage-query converter / route / card path.
-import { dexData, movesData, typesData, byName, monByName, norm } from "./data.mjs";
+import { calcStats } from "../dist/index.js";
+import { dexData, movesData, typesData, byName, monByName, norm, naturesData } from "./data.mjs";
 
 const POKEMON = dexData.pokemon;
 const MOVES = movesData.moves;
@@ -78,11 +79,20 @@ const STAT_LABELS = { hp: "HP", atk: "ATK", def: "DEF", spa: "SPA", spd: "SPD", 
 /** One `x` per 5 base-stat points, rounded up (max 255 -> 51 blocks). */
 const statBlocks = (value) => "x".repeat(Math.ceil(value / 5));
 
-/** Level-50 Speed (IV 31, gen-6 formula) — the three benchmark spreads the
- *  team speed sheet uses: 0 EVs, 252 EVs neutral, 252 EVs +Speed nature. */
+/** Neutral nature (all multipliers 1) and a +Speed nature, resolved once from
+ *  the shipped nature data for the Speed benchmark below. */
+const NEUTRAL_NATURE = naturesData.natures.find((n) => n.summary === "");
+const SPEED_NATURE = naturesData.natures.find((n) => n.multipliers.spe > 1);
+
+/** Level-50 Speed (IV 31) for the three benchmark spreads — 0 EVs, 252 EVs
+ *  neutral, 252 EVs +Speed nature. Delegates to the engine's `calcStats`, so the
+ *  lookup can never drift from the calc's own stat math. */
 export function benchmarkSpeed(base, ev, boosted = false) {
-  const neutral = Math.floor(((2 * base + 31 + Math.floor(ev / 4)) * 50) / 100) + 5;
-  return Math.floor(neutral * (boosted ? 1.1 : 1));
+  const stats = calcStats(
+    { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: base },
+    { level: 50, evs: { spe: ev }, nature: boosted ? SPEED_NATURE : NEUTRAL_NATURE },
+  );
+  return stats.spe;
 }
 
 /** Resolve ONE pokemon by name, folding case, hyphens and punctuation the same

@@ -1,6 +1,6 @@
 // Help-topic regression checks: the three CLI topics (-help / -grammar /
 // -limits) render, recognize their commands, project live from their source
-// docs (aliases.md, auto-fill-defaults.md, DESIGN-RECORDS.md §10), and wrap
+// docs (aliases.md, auto-fill-defaults.md, design.md §10), and wrap
 // through the shared `wrapBlock` rule at any width.
 //   npm run verify:help
 import { helpTopic, isHelpCommand } from "./help.mjs";
@@ -76,7 +76,7 @@ for (const label of ["Abilities", "Items", "Moves", "Curated-out variant formes"
 }
 check("limits lists a known gap", limits.includes("Metronome") && limits.includes("Analytic"));
 check("limits drops `done` rows", !limits.includes("Focus Sash") && !limits.includes("Skill Link"));
-check("limits points at the full inventory", limits.includes("DESIGN-RECORDS.md"));
+check("limits points at the full inventory", limits.includes("design.md"));
 
 // --- wrapping via the shared rule ---
 for (const width of [40, 100]) {

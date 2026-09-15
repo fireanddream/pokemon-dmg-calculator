@@ -1,12 +1,11 @@
-// echo.mjs — shared recognition-echo renderer (DESIGN-RECORDS.md "Recognition echo").
+// echo.mjs — shared recognition-echo renderer (design.md "Recognition echo").
 //
-// Renders the two-line echo block a producer prepends to a result card: the
-// user's query line (words verbatim, spacing re-laid out) with a class ruler
-// underneath — one short label per recognized token. Producer = the agent route
-// today; the offline converter (## 8) wires in later. AGENTS.md adoption is
-// pending user confirmation after implementation + verify.
+// Renders the two-line echo block prepended to a result card: the user's query
+// line (words verbatim, spacing re-laid out) with a class ruler underneath —
+// one short label per recognized token. The offline converter supplies the
+// spans, so its echo is the only echo.
 //
-// Layout contract (agreed in DESIGN-RECORDS.md "Recognition echo"):
+// Layout contract (design.md "Recognition echo"):
 //   - top line keeps the user's words in order, spelling and punctuation as
 //     typed; inter-token spacing is single by default and widened only when a
 //     label needs room (the line is NOT byte-verbatim),

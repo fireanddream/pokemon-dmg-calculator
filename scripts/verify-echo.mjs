@@ -1,6 +1,6 @@
 // Recognition-echo regression checks: assert the shared renderer
 // (scripts/echo.mjs) lays out the echo + class ruler exactly as agreed in
-// DESIGN-RECORDS.md "Recognition echo" — labels start at their word's column and keep >= 1 blank column
+// design.md "Recognition echo" — labels start at their word's column and keep >= 1 blank column
 // between label texts (top-line spacing widens, never drifts a label).
 //   npm run verify:echo
 import { renderEcho } from "./echo.mjs";

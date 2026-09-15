@@ -1,6 +1,6 @@
 // errors.mjs — one builder per error shape for the front stages
 // (input-converter.mjs / fill.mjs). Every hard failure routes through one of
-// these so a message lives in exactly one place and the DESIGN-RECORDS.md §8
+// these so a message lives in exactly one place and the design.md §8
 // shape taxonomy is enforced by construction: the only way to build a front
 // error is to call a builder. Pure string functions — the caller keeps the
 // literal `throw` at the same point, so throw timing (e.g. claimSlot throwing

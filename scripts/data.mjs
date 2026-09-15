@@ -1,8 +1,8 @@
 // data.mjs — the ONE DIST-FREE loader for the generated dex datasets and the
 // norm-folded name lookup maps shared by the front stages. Pure data: no alias
 // parsing, no warnings (those stay with their owning module), and no `dist/`
-// import (the built type chart lives in typechart.mjs) — so a stage (or a
-// lightweight CLI like lookup.mjs) can import the data without a build.
+// import (the built type chart lives in typechart.mjs) — so a stage can import
+// the data without a build.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { DATA_DIR } from "./paths.mjs";

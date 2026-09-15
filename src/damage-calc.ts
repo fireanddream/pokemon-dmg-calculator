@@ -540,7 +540,7 @@ interface TypePowerCtx {
 
 /** Context a conditional power clause can read. Predicates are code, so the
  *  table lives here in the engine rather than in the doc-as-code stores
- *  (DESIGN-RECORDS §10). */
+ *  (design.md §10). */
 interface PowerClauseCtx {
   attacker: Combatant;
   defender: Combatant;
@@ -612,7 +612,7 @@ function resolveTypeAndPower(params: DamageParams, weather: Weather | undefined)
   if (named(move, "Weather Ball")) type = resolveWeatherBall(weather).type;
 
   // Conditional move power — ONE clause table, applied as raw multipliers
-  // before the ability/item bpMods chain below (DESIGN-RECORDS §10).
+  // before the ability/item bpMods chain below (design.md §10).
   const clauseCtx: PowerClauseCtx = { attacker, defender, move, params, weather, type };
   for (const clause of CONDITIONAL_POWER[move.name] ?? []) {
     if (clause.when(clauseCtx)) power *= clause.mult;

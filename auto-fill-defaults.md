@@ -31,14 +31,13 @@ section break parsing); keep the column order; put exact canonical names
 (abilities, items, pokemon) in species/item/ability cells. Values use plain
 numbers/words — see each table's header.
 
-**Rules for the agent** (see AGENTS.md): the agent EXTRACTS — it binds the
-tokens it recognizes and never fills a value the user did not state. Name /
-acronym / shorthand lookup belongs in `aliases.md` (extraction); every
-EXPANSION and default below is applied by the front automatically, so the
-agent never pre-computes one. Consult this file only to predict or explain
-what the front assumed. Every resolved assumption prints on the result card
-(nature, EVs, item, ability, arena), so a wrong guess is visible — never
-pre-empt the engine by guessing.
+**How extraction works:** the front binds only the tokens it recognizes and
+never fills a value the user did not state. Name / acronym / shorthand lookup
+belongs in `aliases.md` (extraction); every EXPANSION and default below is
+applied by the front automatically, so nothing is ever pre-computed. Consult
+this file only to predict or explain what the front assumed. Every resolved
+assumption prints on the result card (nature, EVs, item, ability, arena), so a
+wrong guess is visible.
 
 ## Defaults at a glance
 
@@ -378,10 +377,10 @@ No weather by default. Weather appears only when:
 
 In a two-move combo, the default ability and weather anchor to **move 1**.
 
-## The only times the agent adds to the spec
+## The only times an extra token is required
 
-The front handles everything it can from the user's own words. The agent adds a
-token only when the user's intent contradicts a default and their wording
+The front handles everything it can from the user's own words. An extra token
+is needed only when the user's intent contradicts a default and their wording
 cannot carry it through — chiefly:
 
 - genuinely **itemless** → the spec needs `no item` (an unmentioned item would

@@ -18,7 +18,7 @@ const TIER_RU_OR_ABOVE = ["AG", "Uber", "OU", "UUBL", "UU", "RUBL", "RU"];
 // Curated simplifications on top of the generated dex: collapse cosmetic /
 // optional-forme variants to a single base entry so each species resolves one
 // way. Arceus type formes and Genesect drive formes are intentionally not
-// modeled (DESIGN-RECORDS.md §10 "Curated-out variant formes").
+// modeled (design.md §10 "Curated-out variant formes").
 export const DROP_VARIANTS = new Set([
   // Pikachu cosplay formes (the base name is promoted below).
   "Pikachu-Cosplay", "Pikachu-Libre", "Pikachu-PhD",
@@ -32,7 +32,7 @@ export const DROP_VARIANTS = new Set([
   // Cosmetic / optional variants with no calc difference.
   "Basculin-Blue-Striped", "Keldeo-Resolute",
   // Darmanitan-Zen dropped for the `zen` / Zen Headbutt forme-word collision
-  // (DESIGN-RECORDS.md §10 "Open forme-word collisions").
+  // (design.md §10 "Open forme-word collisions").
   "Darmanitan-Zen",
   // Genesect drive formes — not implemented.
   "Genesect-Burn", "Genesect-Chill", "Genesect-Douse", "Genesect-Shock",

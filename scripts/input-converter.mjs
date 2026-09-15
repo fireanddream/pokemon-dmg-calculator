@@ -1,7 +1,7 @@
 // input-converter.mjs — OFFLINE EXTRACTOR stage: words -> spec JSON.
 //
-// Pipeline: input-converter (offline word-scan) OR an agent (loose English,
-// typo-tolerant, reads aliases.md + data/*.json) both extract the SAME spec
+// Pipeline: input-converter (offline word-scan: loose English, typo-tolerant,
+// reads aliases.md + data/*.json) extracts the spec
 // JSON: the variables the user stated (species resolved to canonical dex
 // names, shorthand like `max atk` kept as intent flags). NO defaults filled,
 // NO records built — that is fill.mjs's job:
@@ -225,7 +225,7 @@ const USAGE = `usage:
   input-converter is the OFFLINE extractor. It converts one natural-language
   line into the spec JSON (the variables the user stated; defaults NOT filled).
   "vs" is the mandatory splitter; sides are free-order (the move is claimed by
-  exact name anywhere on the attacker side). There is NO "uses" syntax. An
+  exact name anywhere on the attacker side). There is NO "uses" syntax. The
   agent route produces the same spec JSON. Either feeds fill.mjs, which applies
   auto-fill-defaults.md and resolves to the calc-input JSON calc.mjs consumes:
     node scripts/input-converter.mjs "<query>" | node scripts/fill.mjs - | node
@@ -419,7 +419,7 @@ function parseCombatant(raw, side = "attacker", opts = {}) {
     return alias && monByName.has(norm(alias)) ? monByName.get(norm(alias)).name : null;
   };
 
-  // --- mega exact-shape upgrade (DESIGN-RECORDS §7, TODO step 4) ---
+  // --- mega exact-shape upgrade (design.md §7) ---
   // A standalone `mega` word binds to its side's species ONLY as an adjacent
   // prefix ("Mega Garchomp") or suffix ("Blissey Mega"). Suffix `-Mega` formes
   // are normally claimed by the glued-run species lookup above ("Garchomp

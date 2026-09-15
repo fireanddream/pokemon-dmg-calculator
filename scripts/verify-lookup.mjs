@@ -178,7 +178,7 @@ check(
   searchCommand(["stats", "rotom-wash"]).startsWith("Rotom-Wash Electric Water Levitate OU"),
 );
 
-// --- Lv50 Speed formula pinned to myteam/speed.tsv values ---
+// --- Lv50 Speed formula pinned to the documented benchmark values ---
 check("speed 102 no EV = 122", benchmarkSpeed(102, 0) === 122);
 check("speed 102 neutral = 154", benchmarkSpeed(102, 252) === 154);
 check("speed 102 boosted = 169", benchmarkSpeed(102, 252, true) === 169);

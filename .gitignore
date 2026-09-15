@@ -7,9 +7,18 @@ dist/
 # Local session archives (personal notes + scratch tools, not part of the project)
 session-tools-archive/
 
-# Python bytecode caches (teams_tools/)
+# Python bytecode caches
 __pycache__/
 *.pyc
+
+# Local-only, not for public release (kept on disk, never synced)
+myteam/
+/teams_tools/
+/AGENTS.md
+/.opencode/
+/TODO.md
+/OVERHAUL-PLAN.md
+/scripts/random-stats.mjs
 
 # OS junk
 Thumbs.db

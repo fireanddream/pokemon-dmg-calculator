@@ -10,10 +10,9 @@ in one place.
 > weather tables below mirror the built-in lookup tables in
 > `scripts/input-converter.mjs` (the offline extractor), which is what the
 > parser actually reads today. Wiring those tables into the parser (so an edit
-> here changes what the front accepts) is planned future work — see
-> `OVERHAUL-PLAN.md` WS1. The **Type plates** and **Boosting moves** tables are
-> the exceptions: both are parsed at startup, so an edit there changes plate /
-> boost-signal resolution immediately.
+> here changes what the front accepts) is planned future work. The **Type
+> plates** and **Boosting moves** tables are the exceptions: both are parsed at
+> startup, so an edit there changes plate / boost-signal resolution immediately.
 >
 > Full canonical names (species, moves, items, abilities, natures) come from
 > the dex data in `data/` and are accepted as-is without an alias. This file
@@ -200,8 +199,8 @@ What is deliberately NOT here (and why): moves whose stat raise is conditional
 or multi-turn (Charge, Stockpile, Geomancy, Power Trick), random (Acupressure),
 or not a stat stage (Focus Energy raises the crit ratio). The intended
 simplifications for the rows that ARE here — Belly Drum's HP cost, Growth's sun
-doubling, Autotomize's weight cut — are documented in `DESIGN-RECORDS.md`
-("Known coverage gaps" / "Intentional simplifications").
+doubling, Autotomize's weight cut — are documented in `design.md`
+("Limits" / "Intentional simplifications").
 
 ## Stat abbreviations
 
