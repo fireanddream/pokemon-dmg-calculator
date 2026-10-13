@@ -8,6 +8,11 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ ! -d node_modules ]; then
+  echo "Installing dependencies first..."
+  npm install
+fi
+
 if [ ! -f "dist/index.js" ]; then
   echo "Building the engine first..."
   npm run build

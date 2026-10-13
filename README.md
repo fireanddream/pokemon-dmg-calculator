@@ -5,11 +5,22 @@ So what does it do that the Smogon Calculator doesn't already do?
 
 ## 0) How to run it
 
+Requires **Node.js 18 or newer** on PATH — nothing else. Clone the repo, then:
+
 - **Windows:** double-click `calc.bat` for a prompt, or run `calc.bat "<line>"` for a one-shot.
 - **Linux/macOS:** same with `./calc.sh`, or `node scripts/damage.mjs "<line>"` directly.
-- **Agent:** a pre-baked skill can be found in `.opencode/skills/pokemon-damage-calc/SKILL.md`.
+- **Agent:** a pre-baked skill can be found in `skills/pokemon-damage-calc/SKILL.md`.
 
-First run builds the engine once; after that it is fully offline.
+Downloaded as a zip instead of cloned? It works the same on Windows, but zip
+extraction drops the executable bit that a git clone preserves, so on
+Linux/macOS either run `bash calc.sh "<line>"` or `chmod +x calc.sh` once.
+
+First run installs the dependencies and builds the engine once; after that it is
+fully offline. To set up by hand instead, run `npm install` then `npm run build`.
+Two caveats on that setup step: it needs network access to the npm registry
+(only that first run does — every calc afterwards is offline), and it must be
+the **full** install, because the compiler lives in `devDependencies` and
+`npm install --omit=dev` leaves you without `npm run build`.
 
 ## 1) Offline one-liner CLI input
 

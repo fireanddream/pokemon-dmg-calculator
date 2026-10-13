@@ -326,7 +326,7 @@ for (const [phrase, code] of TERRAIN_MAP) registerClaim(phrase, "terrain", code)
 for (const phrase of STEALTH_ROCK_PHRASES) registerClaim(phrase, "sr");
 for (const phrase of NO_ITEM_PHRASES) registerClaim(phrase, "noitem");
 
-// --- Seam-C guard (TODO step 6, option A): class lexicons stay disjoint.
+// --- Seam-C guard: class lexicons stay disjoint.
 // A claimable key must bind exactly ONE class — no key, ANY word count, may
 // appear in two class tables (natures / abilities / items / status / weather /
 // terrain / stealth rock / no-item). Move names are NOT class tables, so

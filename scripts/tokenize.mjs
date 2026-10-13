@@ -1,5 +1,5 @@
 // tokenize.mjs — ONE shared line tokenizer for the converter front and the
-// recognition echo (TODO step 7). Normalize ONCE, then hand both consumers the
+// recognition echo. Normalize ONCE, then hand both consumers the
 // same case-preserving display atoms so `_sideLog` indices and echo ruler
 // columns can never drift:
 //
@@ -13,7 +13,7 @@
 //     display plus a lowercased `match` form `t`, an absolute index `gi`, and
 //     `hardBefore` (a sentinel sits between it and the previous atom).
 //
-// Display is the normalize-once result (option B): the echo top line prints
+// Display is the normalize-once result: the echo top line prints
 // these atoms, so the user sees exactly the words the scanner saw. Data-starved
 // consumers (verify:echo, unit tests) may tokenize a line standalone; the
 // converter tokenizes the whole line once and slices it per side, so `gi` is
