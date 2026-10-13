@@ -1,7 +1,9 @@
-# Pokemon damage calculator by winking_wizard
+# Pokemon damage calculator (gen6 mechanics)
 
 I assume you are aware of the very powerful Pokemon damage calculator from Smogon at https://calc.pokemonshowdown.com/.
-So what does it do that the Smogon Calculator doesn't already do?
+But sometimes we just wanna quickly type in "jolly garchomp eq vs conkeldurr" instead of fiddling with the site. 
+This is a calculator that does that in an offline CLI environment. 
+Mechanics is gen 6 for now, probably won't change in the future. Please feel free to fork. 
 
 ## 0) How to run it
 
@@ -145,7 +147,7 @@ Pokemon and all respective names of characters, moves, abilities, items, and oth
 
 ### Data
 
-Files under `data/` are generated from Smogon's Pokemon Showdown dex and then curated by hand. They are third-party data and are **not** covered by the MIT license above.
+Files under `data/` are generated from Smogon's Pokemon Showdown dex and then curated by hand. They are third-party data and are **not** covered by the MIT license above: upstream is MIT-licensed by Pokemon Showdown's contributors, and that project's required notice is reproduced in [`data/LICENSE`](data/LICENSE) — keep it with the data if you redistribute these files.
 
 - `data/xy-pokemon.json` - source: https://www.smogon.com/dex/xy/pokemon/ (RPC `dump-basics`), generated **2026-09-02**.
 - `data/moves-xy.json`, `data/abilities-xy.json`, `data/natures-xy.json`, `data/types-xy.json` - source: https://www.smogon.com/dex/xy/ (RPC `dump-basics`), generated **2026-09-03**.
